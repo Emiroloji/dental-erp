@@ -12,7 +12,7 @@ new class extends Component
         session()->invalidate();
         session()->regenerateToken();
 
-        $this->redirect(route('login'), navigate: true);
+        $this->redirect(route('login'));
     }
 };
 ?>
