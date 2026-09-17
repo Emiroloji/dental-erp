@@ -3,9 +3,10 @@
 use App\Domain\Catalog\Models\Supplier;
 use App\Domain\Catalog\Services\SupplierService;
 use Illuminate\Support\Facades\Gate;
+use Livewire\Attributes\Layout;
 use Livewire\Component;
 
-new class extends Component
+new #[Layout('layouts::authenticated')] class extends Component
 {
     public string $name = '';
 
@@ -53,91 +54,95 @@ new class extends Component
 };
 ?>
 
-<div class="min-h-screen bg-gray-100">
-    <nav class="bg-white shadow px-6 py-4 flex items-center justify-between">
-        <a href="{{ route('dashboard') }}" class="font-semibold text-gray-800">Dental ERP</a>
-        <a href="{{ route('dashboard') }}" class="text-sm text-gray-600">Kontrol Paneline Dön</a>
-    </nav>
+<div>
+    <div class="mb-8">
+        <h1 class="text-[22px] font-medium tracking-tight text-ink">Tedarikçiler</h1>
+        <p class="text-[14px] text-ink-muted mt-1">Sipariş verdiğin firmaların iletişim ve vergi bilgileri.</p>
+    </div>
 
-    <main class="max-w-4xl mx-auto p-6 space-y-8">
-        <h1 class="text-2xl font-semibold text-gray-800">Tedarikçiler</h1>
+    @if (session('status'))
+        <div class="mb-6 rounded-md bg-brand-100 border border-brand-500/20 text-brand-600 text-[13px] px-4 py-3">
+            {{ session('status') }}
+        </div>
+    @endif
 
-        @if (session('status'))
-            <div class="bg-green-50 border border-green-200 text-green-700 text-sm rounded px-4 py-3">
-                {{ session('status') }}
-            </div>
-        @endif
-
-        <section class="bg-white rounded shadow">
-            <table class="w-full text-sm">
-                <thead class="text-left text-gray-500 border-b">
-                    <tr>
-                        <th class="px-4 py-3">Firma</th>
-                        <th class="px-4 py-3">Yetkili</th>
-                        <th class="px-4 py-3">İletişim</th>
-                        <th class="px-4 py-3">Durum</th>
-                        <th class="px-4 py-3"></th>
+    <section class="border border-line rounded-lg bg-surface overflow-hidden">
+        <table class="w-full text-[14px]">
+            <thead>
+                <tr class="text-left text-ink-muted text-[12px] border-b border-line">
+                    <th class="px-5 py-3 font-medium">Firma</th>
+                    <th class="px-5 py-3 font-medium">Yetkili</th>
+                    <th class="px-5 py-3 font-medium">İletişim</th>
+                    <th class="px-5 py-3 font-medium">Durum</th>
+                    <th class="px-5 py-3 font-medium"></th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-line">
+                @forelse ($suppliers as $supplier)
+                    <tr wire:key="supplier-{{ $supplier->id }}">
+                        <td class="px-5 py-3">{{ $supplier->name }}</td>
+                        <td class="px-5 py-3 text-ink-muted">{{ $supplier->contact_person }}</td>
+                        <td class="px-5 py-3 text-ink-muted">{{ $supplier->phone }} {{ $supplier->email }}</td>
+                        <td class="px-5 py-3">
+                            <span @class([
+                                'inline-flex items-center px-2 py-0.5 rounded text-[12px]',
+                                'bg-status-good-bg text-status-good' => $supplier->status === 'active',
+                                'bg-line text-ink-muted' => $supplier->status !== 'active',
+                            ])>
+                                {{ $supplier->status === 'active' ? 'Aktif' : 'Pasif' }}
+                            </span>
+                        </td>
+                        <td class="px-5 py-3 text-right">
+                            @can('supplier_management.delete')
+                                @if ($supplier->status === 'active')
+                                    <button wire:click="deactivate({{ $supplier->id }})" wire:confirm="Bu tedarikçiyi pasifleştirmek istediğine emin misin?" class="text-[13px] text-status-critical hover:underline">
+                                        Pasifleştir
+                                    </button>
+                                @endif
+                            @endcan
+                        </td>
                     </tr>
-                </thead>
-                <tbody class="divide-y">
-                    @forelse ($suppliers as $supplier)
-                        <tr wire:key="supplier-{{ $supplier->id }}">
-                            <td class="px-4 py-3">{{ $supplier->name }}</td>
-                            <td class="px-4 py-3">{{ $supplier->contact_person }}</td>
-                            <td class="px-4 py-3">{{ $supplier->phone }} {{ $supplier->email }}</td>
-                            <td class="px-4 py-3">{{ $supplier->status === 'active' ? 'Aktif' : 'Pasif' }}</td>
-                            <td class="px-4 py-3 text-right">
-                                @can('supplier_management.delete')
-                                    @if ($supplier->status === 'active')
-                                        <button wire:click="deactivate({{ $supplier->id }})" wire:confirm="Bu tedarikçiyi pasifleştirmek istediğine emin misin?" class="text-sm text-red-600">
-                                            Pasifleştir
-                                        </button>
-                                    @endif
-                                @endcan
-                            </td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="5" class="px-4 py-6 text-center text-gray-400">Henüz tedarikçi eklenmedi.</td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </section>
+                @empty
+                    <tr>
+                        <td colspan="5" class="px-5 py-8 text-center text-ink-muted text-[13px]">Henüz tedarikçi eklenmedi.</td>
+                    </tr>
+                @endforelse
+            </tbody>
+        </table>
+    </section>
 
-        @can('supplier_management.create')
-            <section class="bg-white rounded shadow p-6 space-y-4">
-                <h2 class="text-lg font-semibold text-gray-800">Yeni Tedarikçi</h2>
-                <form wire:submit="save" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Firma Adı</label>
-                        <input type="text" wire:model="name" class="mt-1 w-full border rounded px-3 py-2">
-                        @error('name') <span class="text-red-600 text-sm">{{ $message }}</span> @enderror
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Yetkili Kişi</label>
-                        <input type="text" wire:model="contact_person" class="mt-1 w-full border rounded px-3 py-2">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Telefon</label>
-                        <input type="text" wire:model="phone" class="mt-1 w-full border rounded px-3 py-2">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">E-posta</label>
-                        <input type="email" wire:model="email" class="mt-1 w-full border rounded px-3 py-2">
-                        @error('email') <span class="text-red-600 text-sm">{{ $message }}</span> @enderror
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Vergi No</label>
-                        <input type="text" wire:model="tax_number" class="mt-1 w-full border rounded px-3 py-2">
-                    </div>
-                    <div class="flex items-end">
-                        <button type="submit" class="bg-blue-600 text-white rounded px-4 py-2 hover:bg-blue-700">
-                            Ekle
-                        </button>
-                    </div>
-                </form>
-            </section>
-        @endcan
-    </main>
+    @can('supplier_management.create')
+        <section class="mt-8 border border-line rounded-lg bg-surface p-6 lg:p-7">
+            <h2 class="text-[15px] font-medium text-ink mb-5">Yeni Tedarikçi</h2>
+            <form wire:submit="save" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-[13px] text-ink-muted mb-1.5">Firma Adı</label>
+                    <input type="text" wire:model="name" class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+                    @error('name') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
+                </div>
+                <div>
+                    <label class="block text-[13px] text-ink-muted mb-1.5">Yetkili Kişi</label>
+                    <input type="text" wire:model="contact_person" class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+                </div>
+                <div>
+                    <label class="block text-[13px] text-ink-muted mb-1.5">Telefon</label>
+                    <input type="text" wire:model="phone" class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+                </div>
+                <div>
+                    <label class="block text-[13px] text-ink-muted mb-1.5">E-posta</label>
+                    <input type="email" wire:model="email" class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+                    @error('email') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
+                </div>
+                <div>
+                    <label class="block text-[13px] text-ink-muted mb-1.5">Vergi No</label>
+                    <input type="text" wire:model="tax_number" class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+                </div>
+                <div class="flex items-end">
+                    <button type="submit" class="bg-panel-900 text-white rounded-md px-4 py-2.5 text-[14px] font-medium hover:bg-panel-800 transition-colors">
+                        Ekle
+                    </button>
+                </div>
+            </form>
+        </section>
+    @endcan
 </div>

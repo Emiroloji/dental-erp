@@ -6,4 +6,40 @@
 @theme {
     --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-mono: 'SFMono-Regular', ui-monospace, Menlo, Consolas, monospace;
+
+    /* Panel: the instrument-panel side of the interface (sidebar, login hero) */
+    --color-panel-900: #0e1a1c;
+    --color-panel-800: #142829;
+    --color-panel-700: #1c3638;
+    --color-panel-line: #244143;
+
+    /* Brand accent: a single considered teal, reserved for identity + primary actions */
+    --color-brand-400: #4fb3a9;
+    --color-brand-500: #2f948a;
+    --color-brand-600: #227871;
+    --color-brand-100: #e4f2f0;
+
+    /* Canvas: the clean worktable side of the interface (content area) */
+    --color-canvas: #f6f7f6;
+    --color-surface: #ffffff;
+    --color-line: #e2e6e4;
+    --color-ink: #16211f;
+    --color-ink-muted: #5c6d69;
+
+    /* Status: reserved exclusively for stock-level semantics, never decorative */
+    --color-status-good: #2f7a52;
+    --color-status-good-bg: #e8f4ec;
+    --color-status-warn: #a06a12;
+    --color-status-warn-bg: #faf0dc;
+    --color-status-critical: #b8443a;
+    --color-status-critical-bg: #f9eae8;
+}
+
+@layer base {
+    body {
+        background-color: var(--color-canvas);
+        color: var(--color-ink);
+        font-feature-settings: 'tnum' 1;
+    }
 }

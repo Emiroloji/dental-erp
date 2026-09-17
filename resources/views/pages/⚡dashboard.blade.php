@@ -1,48 +1,58 @@
 <?php
 
-use Illuminate\Support\Facades\Auth;
+use App\Domain\Catalog\Models\Category;
+use App\Domain\Catalog\Models\Product;
+use App\Domain\Catalog\Models\Supplier;
+use App\Domain\Organization\Models\Branch;
+use App\Models\User;
+use Livewire\Attributes\Layout;
 use Livewire\Component;
 
-new class extends Component
+new #[Layout('layouts::authenticated')] class extends Component
 {
-    public function logout(): void
+    public function with(): array
     {
-        Auth::logout();
-
-        session()->invalidate();
-        session()->regenerateToken();
-
-        $this->redirect(route('login'));
+        return [
+            'productCount' => Product::where('status', 'active')->count(),
+            'categoryCount' => Category::where('status', 'active')->count(),
+            'supplierCount' => Supplier::where('status', 'active')->count(),
+            'staffCount' => User::where('organization_id', auth()->user()->organization_id)
+                ->where('role', User::ROLE_STAFF)
+                ->count(),
+            'branchCount' => Branch::where('status', 'active')->count(),
+        ];
     }
 };
 ?>
 
-<div class="min-h-screen bg-gray-100">
-    <nav class="bg-white shadow px-6 py-4 flex items-center justify-between">
-        <div class="flex items-center gap-6">
-            <span class="font-semibold text-gray-800">Dental ERP</span>
-            <div class="hidden sm:flex items-center gap-4">
-                @can('product_management.viewAny')
-                    <a href="{{ route('products.index') }}" class="text-sm text-gray-600 hover:text-gray-900">Ürünler</a>
-                @endcan
-                @can('category_management.viewAny')
-                    <a href="{{ route('categories.index') }}" class="text-sm text-gray-600 hover:text-gray-900">Kategoriler</a>
-                @endcan
-                @can('supplier_management.viewAny')
-                    <a href="{{ route('suppliers.index') }}" class="text-sm text-gray-600 hover:text-gray-900">Tedarikçiler</a>
-                @endcan
-                @can('staff_management.viewAny')
-                    <a href="{{ route('staff.index') }}" class="text-sm text-gray-600 hover:text-gray-900">Personel</a>
-                @endcan
-            </div>
-        </div>
-        <div class="flex items-center gap-4">
-            <span class="text-sm text-gray-600">{{ auth()->user()->name }} ({{ auth()->user()->role }})</span>
-            <button wire:click="logout" class="text-sm text-red-600 hover:text-red-800">Çıkış Yap</button>
-        </div>
-    </nav>
+<div>
+    <div class="mb-8">
+        <p class="text-[13px] text-ink-muted mb-1">{{ now()->translatedFormat('d F Y, l') }}</p>
+        <h1 class="text-[22px] font-medium tracking-tight text-ink">Kontrol Paneli</h1>
+    </div>
 
-    <main class="p-6">
-        <h1 class="text-2xl font-semibold text-gray-800">Kontrol Paneli</h1>
-    </main>
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-px bg-line rounded-lg overflow-hidden border border-line">
+        <div class="bg-surface px-5 py-5">
+            <p class="text-[13px] text-ink-muted">Aktif Ürün</p>
+            <p class="text-[26px] font-medium tabular-nums mt-1">{{ $productCount }}</p>
+        </div>
+        <div class="bg-surface px-5 py-5">
+            <p class="text-[13px] text-ink-muted">Kategori</p>
+            <p class="text-[26px] font-medium tabular-nums mt-1">{{ $categoryCount }}</p>
+        </div>
+        <div class="bg-surface px-5 py-5">
+            <p class="text-[13px] text-ink-muted">Tedarikçi</p>
+            <p class="text-[26px] font-medium tabular-nums mt-1">{{ $supplierCount }}</p>
+        </div>
+        <div class="bg-surface px-5 py-5">
+            <p class="text-[13px] text-ink-muted">Personel</p>
+            <p class="text-[26px] font-medium tabular-nums mt-1">{{ $staffCount }}</p>
+        </div>
+    </div>
+
+    <div class="mt-10 border border-line rounded-lg bg-surface px-6 py-10 text-center">
+        <p class="text-[14px] text-ink-muted max-w-sm mx-auto">
+            Stok hareketleri, kritik seviye uyarıları ve şube bazlı özet raporlar bir sonraki aşamada bu panele eklenecek.
+        </p>
+    </div>
 </div>
