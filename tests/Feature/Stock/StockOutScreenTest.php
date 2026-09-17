@@ -79,4 +79,31 @@ class StockOutScreenTest extends TestCase
 
         $this->actingAs($staff)->get('/stok-cikislari')->assertForbidden();
     }
+
+    public function test_stock_out_rejects_mismatched_product_and_lot(): void
+    {
+        $this->actingAs($this->admin);
+
+        // Create a second product with stock
+        $product2 = Product::create(['organization_id' => $this->organization->id, 'name' => 'Kompozit B', 'base_unit' => 'Adet', 'status' => 'active']);
+        app(StockMovementService::class)->in($product2, $this->warehouse, 30, ['lot_no' => 'LOT-2']);
+
+        // Get the lot from the first product
+        $lot1 = StockLot::where('product_id', $this->product->id)->firstOrFail();
+
+        // Try to submit with product_id of product2 but lot_id of product1's lot
+        // This simulates a stale/manipulated lot_id selection
+        Livewire::test('pages::stock.out')
+            ->set('product_id', (string) $product2->id)
+            ->set('warehouse_id', (string) $this->warehouse->id)
+            ->set('lot_id', (string) $lot1->id)
+            ->set('quantity', '10')
+            ->set('reasonCategory', 'clinical_use')
+            ->call('save')
+            ->assertHasErrors(['lot_id']);
+
+        // Both products should have original quantities
+        $this->assertEquals(50, StockLot::where('product_id', $this->product->id)->firstOrFail()->quantity);
+        $this->assertEquals(30, StockLot::where('product_id', $product2->id)->firstOrFail()->quantity);
+    }
 }

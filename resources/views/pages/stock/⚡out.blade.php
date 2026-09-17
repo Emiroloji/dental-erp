@@ -8,6 +8,7 @@ use App\Domain\Stock\Models\StockMovement;
 use App\Domain\Stock\Services\StockMovementService;
 use App\Domain\Stock\Support\StockMovementType;
 use App\Domain\Stock\Support\StockOutReason;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Layout;
@@ -46,6 +47,16 @@ new #[Layout('layouts::authenticated')] class extends Component
         $this->resetValidation();
     }
 
+    public function updatedProductId(): void
+    {
+        $this->lot_id = '';
+    }
+
+    public function updatedWarehouseId(): void
+    {
+        $this->lot_id = '';
+    }
+
     public function save(StockMovementService $service): void
     {
         Gate::authorize('stock_movement.create');
@@ -64,7 +75,16 @@ new #[Layout('layouts::authenticated')] class extends Component
 
         $lot = null;
         if (filled($validated['lot_id'])) {
-            $lot = StockLot::whereHas('product')->where('warehouse_id', $warehouse->id)->findOrFail($validated['lot_id']);
+            try {
+                $lot = StockLot::whereHas('product')
+                    ->where('product_id', $product->id)
+                    ->where('warehouse_id', $warehouse->id)
+                    ->findOrFail($validated['lot_id']);
+            } catch (ModelNotFoundException) {
+                $this->addError('lot_id', 'Seçilen lot ürünle eşleşmiyor.');
+
+                return;
+            }
         }
 
         $reasonLabel = StockOutReason::from($validated['reasonCategory'])->label();
