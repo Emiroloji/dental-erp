@@ -21,8 +21,11 @@ new class extends Component
     <nav class="bg-white shadow px-6 py-4 flex items-center justify-between">
         <span class="font-semibold text-gray-800">Dental ERP</span>
         <div class="flex items-center gap-4">
+            @can('staff_management.viewAny')
+                <a href="{{ route('staff.index') }}" class="text-sm text-gray-600 hover:text-gray-900">Personel Yönetimi</a>
+            @endcan
             <span class="text-sm text-gray-600">{{ auth()->user()->name }} ({{ auth()->user()->role }})</span>
-            <button wire:click="logout" class="text-sm text-red-600">Çıkış Yap</button>
+            <button wire:click="logout" class="text-sm text-red-600 hover:text-red-800">Çıkış Yap</button>
         </div>
     </nav>
 
