@@ -91,15 +91,27 @@ class StockMovementsScreenTest extends TestCase
             ->set('product_id', (string) $this->product->id)
             ->set('warehouse_id', (string) $this->warehouse->id)
             ->set('quantity', '40')
+            ->set('lot_no', 'LOT-1')
             ->call('save');
 
-        $inMovement = StockMovement::where('type', 'in')->firstOrFail();
+        // Add surplus to the SAME lot so it has enough stock to survive a second
+        // (wrongly-permitted) reversal — this is what makes the guard's effect
+        // observable: without this surplus, the service's own negative-stock check
+        // would mask a missing guard (as the original version of this test did).
+        Livewire::test('pages::stock.in')
+            ->set('product_id', (string) $this->product->id)
+            ->set('warehouse_id', (string) $this->warehouse->id)
+            ->set('quantity', '100')
+            ->set('lot_no', 'LOT-1')
+            ->call('save');
+
+        $inMovement = StockMovement::where('type', 'in')->orderBy('id')->first();
 
         $component = Livewire::test('pages::stock.movements');
         $component->call('cancel', $inMovement->id);
         $component->call('cancel', $inMovement->id);
 
-        $this->assertSame(2, StockMovement::count(), 'ikinci iptal denemesi yeni bir hareket oluşturmamalı');
+        $this->assertSame(3, StockMovement::count(), 'ikinci iptal denemesi yeni bir hareket oluşturmamalı (2 giriş + 1 iptal olmalı)');
     }
 
     public function test_movements_are_isolated_per_organization(): void
