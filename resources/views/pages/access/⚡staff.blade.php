@@ -12,6 +12,8 @@ use Livewire\Component;
 
 new #[Layout('layouts::authenticated')] class extends Component
 {
+    public bool $showForm = false;
+
     public string $name = '';
 
     public string $email = '';
@@ -27,6 +29,21 @@ new #[Layout('layouts::authenticated')] class extends Component
     public function mount(): void
     {
         $this->resetModules();
+    }
+
+    public function openForm(): void
+    {
+        Gate::authorize('staff_management.create');
+
+        $this->showForm = true;
+    }
+
+    public function closeForm(): void
+    {
+        $this->showForm = false;
+        $this->reset(['name', 'email', 'password', 'scope', 'selectedBranches']);
+        $this->resetModules();
+        $this->resetValidation();
     }
 
     public function save(StaffService $staffService): void
@@ -57,9 +74,7 @@ new #[Layout('layouts::authenticated')] class extends Component
             branchIds: $validated['selectedBranches'] ?? [],
         );
 
-        $this->reset(['name', 'email', 'password', 'scope', 'selectedBranches']);
-        $this->resetModules();
-
+        $this->closeForm();
         session()->flash('status', 'Personel oluşturuldu.');
     }
 
@@ -85,9 +100,17 @@ new #[Layout('layouts::authenticated')] class extends Component
 ?>
 
 <div>
-    <div class="mb-8">
-        <h1 class="text-[22px] font-medium tracking-tight text-ink">Personel Yönetimi</h1>
-        <p class="text-[14px] text-ink-muted mt-1">Modül bazında okuma, yazma ve silme yetkisi tanımlayarak yeni personel ekle.</p>
+    <div class="mb-8 sm:flex sm:items-end sm:justify-between">
+        <div>
+            <h1 class="text-[22px] font-medium tracking-tight text-ink">Personel Yönetimi</h1>
+            <p class="text-[14px] text-ink-muted mt-1">Modül bazında okuma, yazma ve silme yetkisi tanımlayarak yeni personel ekle.</p>
+        </div>
+        @can('staff_management.create')
+            <button wire:click="openForm" class="mt-4 sm:mt-0 inline-flex items-center gap-1.5 bg-panel-900 text-white rounded-md px-4 py-2 text-[14px] font-medium hover:bg-panel-800 transition-colors">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                Yeni Personel
+            </button>
+        @endcan
     </div>
 
     @if (session('status'))
@@ -129,87 +152,88 @@ new #[Layout('layouts::authenticated')] class extends Component
         </table>
     </section>
 
-    @can('staff_management.create')
-        <section class="mt-8 border border-line rounded-lg bg-surface p-6 lg:p-7">
-            <h2 class="text-[15px] font-medium text-ink mb-5">Yeni Personel</h2>
-
-            <form wire:submit="save" class="space-y-7">
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div>
-                        <label class="block text-[13px] text-ink-muted mb-1.5">Ad Soyad</label>
-                        <input type="text" wire:model="name" class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
-                        @error('name') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
-                    </div>
-                    <div>
-                        <label class="block text-[13px] text-ink-muted mb-1.5">E-posta</label>
-                        <input type="email" wire:model="email" class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
-                        @error('email') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
-                    </div>
-                    <div>
-                        <label class="block text-[13px] text-ink-muted mb-1.5">Şifre</label>
-                        <input type="password" wire:model="password" class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
-                        @error('password') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
-                    </div>
-                </div>
-
+    <x-modal :show="$showForm" title="Yeni Personel" on-close="closeForm">
+        <form wire:submit="save" class="space-y-7">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                    <h3 class="text-[13px] font-medium text-ink mb-3">Yetkiler</h3>
-                    <div class="border border-line rounded-md overflow-hidden">
-                        <table class="w-full text-[13px]">
-                            <thead>
-                                <tr class="text-left text-ink-muted border-b border-line bg-canvas">
-                                    <th class="px-4 py-2.5 font-medium">Modül</th>
-                                    <th class="px-4 py-2.5 font-medium text-center w-20">Okuma</th>
-                                    <th class="px-4 py-2.5 font-medium text-center w-20">Yazma</th>
-                                    <th class="px-4 py-2.5 font-medium text-center w-20">Silme</th>
+                    <label class="block text-[13px] text-ink-muted mb-1.5">Ad Soyad</label>
+                    <input type="text" wire:model="name" autofocus class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+                    @error('name') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
+                </div>
+                <div>
+                    <label class="block text-[13px] text-ink-muted mb-1.5">E-posta</label>
+                    <input type="email" wire:model="email" class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+                    @error('email') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
+                </div>
+                <div>
+                    <label class="block text-[13px] text-ink-muted mb-1.5">Şifre</label>
+                    <input type="password" wire:model="password" class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+                    @error('password') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
+                </div>
+            </div>
+
+            <div>
+                <h3 class="text-[13px] font-medium text-ink mb-3">Yetkiler</h3>
+                <div class="border border-line rounded-md overflow-hidden">
+                    <table class="w-full text-[13px]">
+                        <thead>
+                            <tr class="text-left text-ink-muted border-b border-line bg-canvas">
+                                <th class="px-4 py-2.5 font-medium">Modül</th>
+                                <th class="px-4 py-2.5 font-medium text-center w-20">Okuma</th>
+                                <th class="px-4 py-2.5 font-medium text-center w-20">Yazma</th>
+                                <th class="px-4 py-2.5 font-medium text-center w-20">Silme</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-line">
+                            @foreach ($moduleList as $module)
+                                <tr>
+                                    <td class="px-4 py-2.5">{{ $module->label() }}</td>
+                                    <td class="px-4 py-2.5 text-center">
+                                        <input type="checkbox" wire:model="modules.{{ $module->value }}.read" class="accent-brand-500 w-4 h-4">
+                                    </td>
+                                    <td class="px-4 py-2.5 text-center">
+                                        <input type="checkbox" wire:model="modules.{{ $module->value }}.write" class="accent-brand-500 w-4 h-4">
+                                    </td>
+                                    <td class="px-4 py-2.5 text-center">
+                                        <input type="checkbox" wire:model="modules.{{ $module->value }}.delete" class="accent-brand-500 w-4 h-4">
+                                    </td>
                                 </tr>
-                            </thead>
-                            <tbody class="divide-y divide-line">
-                                @foreach ($moduleList as $module)
-                                    <tr>
-                                        <td class="px-4 py-2.5">{{ $module->label() }}</td>
-                                        <td class="px-4 py-2.5 text-center">
-                                            <input type="checkbox" wire:model="modules.{{ $module->value }}.read" class="accent-brand-500 w-4 h-4">
-                                        </td>
-                                        <td class="px-4 py-2.5 text-center">
-                                            <input type="checkbox" wire:model="modules.{{ $module->value }}.write" class="accent-brand-500 w-4 h-4">
-                                        </td>
-                                        <td class="px-4 py-2.5 text-center">
-                                            <input type="checkbox" wire:model="modules.{{ $module->value }}.delete" class="accent-brand-500 w-4 h-4">
-                                        </td>
-                                    </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <div>
-                    <label class="block text-[13px] text-ink-muted mb-1.5">Kapsam</label>
-                    <select wire:model.live="scope" class="w-full sm:w-72 border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
-                        @foreach ($scopeList as $scopeOption)
-                            <option value="{{ $scopeOption->value }}">{{ $scopeOption->label() }}</option>
-                        @endforeach
-                    </select>
-                    @error('scope') <span class="text-status-critical text-[12px] block mt-1">{{ $message }}</span> @enderror
-
-                    @if ($scope === 'selected_branches')
-                        <div class="mt-3 border border-line rounded-md p-3 space-y-1.5 max-w-sm">
-                            @foreach ($branches as $branch)
-                                <label class="flex items-center gap-2 text-[13px]">
-                                    <input type="checkbox" wire:model="selectedBranches" value="{{ $branch->id }}" class="accent-brand-500 w-4 h-4">
-                                    {{ $branch->name }}
-                                </label>
                             @endforeach
-                        </div>
-                        @error('selectedBranches') <span class="text-status-critical text-[12px] block mt-1">{{ $message }}</span> @enderror
-                    @endif
+                        </tbody>
+                    </table>
                 </div>
+            </div>
 
+            <div>
+                <label class="block text-[13px] text-ink-muted mb-1.5">Kapsam</label>
+                <select wire:model.live="scope" class="w-full sm:w-72 border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+                    @foreach ($scopeList as $scopeOption)
+                        <option value="{{ $scopeOption->value }}">{{ $scopeOption->label() }}</option>
+                    @endforeach
+                </select>
+                @error('scope') <span class="text-status-critical text-[12px] block mt-1">{{ $message }}</span> @enderror
+
+                @if ($scope === 'selected_branches')
+                    <div class="mt-3 border border-line rounded-md p-3 space-y-1.5 max-w-sm">
+                        @foreach ($branches as $branch)
+                            <label class="flex items-center gap-2 text-[13px]">
+                                <input type="checkbox" wire:model="selectedBranches" value="{{ $branch->id }}" class="accent-brand-500 w-4 h-4">
+                                {{ $branch->name }}
+                            </label>
+                        @endforeach
+                    </div>
+                    @error('selectedBranches') <span class="text-status-critical text-[12px] block mt-1">{{ $message }}</span> @enderror
+                @endif
+            </div>
+
+            <div class="flex items-center gap-3">
                 <button type="submit" class="bg-panel-900 text-white rounded-md px-4 py-2.5 text-[14px] font-medium hover:bg-panel-800 transition-colors">
                     Personeli Kaydet
                 </button>
-            </form>
-        </section>
-    @endcan
+                <button type="button" wire:click="closeForm" class="text-[14px] text-ink-muted hover:text-ink">
+                    Vazgeç
+                </button>
+            </div>
+        </form>
+    </x-modal>
 </div>

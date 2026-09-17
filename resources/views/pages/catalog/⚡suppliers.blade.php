@@ -8,6 +8,8 @@ use Livewire\Component;
 
 new #[Layout('layouts::authenticated')] class extends Component
 {
+    public bool $showForm = false;
+
     public string $name = '';
 
     public string $contact_person = '';
@@ -17,6 +19,20 @@ new #[Layout('layouts::authenticated')] class extends Component
     public string $email = '';
 
     public string $tax_number = '';
+
+    public function openForm(): void
+    {
+        Gate::authorize('supplier_management.create');
+
+        $this->showForm = true;
+    }
+
+    public function closeForm(): void
+    {
+        $this->showForm = false;
+        $this->reset(['name', 'contact_person', 'phone', 'email', 'tax_number']);
+        $this->resetValidation();
+    }
 
     public function save(SupplierService $supplierService): void
     {
@@ -32,7 +48,7 @@ new #[Layout('layouts::authenticated')] class extends Component
 
         $supplierService->create($validated);
 
-        $this->reset(['name', 'contact_person', 'phone', 'email', 'tax_number']);
+        $this->closeForm();
         session()->flash('status', 'Tedarikçi oluşturuldu.');
     }
 
@@ -55,9 +71,17 @@ new #[Layout('layouts::authenticated')] class extends Component
 ?>
 
 <div>
-    <div class="mb-8">
-        <h1 class="text-[22px] font-medium tracking-tight text-ink">Tedarikçiler</h1>
-        <p class="text-[14px] text-ink-muted mt-1">Sipariş verdiğin firmaların iletişim ve vergi bilgileri.</p>
+    <div class="mb-8 sm:flex sm:items-end sm:justify-between">
+        <div>
+            <h1 class="text-[22px] font-medium tracking-tight text-ink">Tedarikçiler</h1>
+            <p class="text-[14px] text-ink-muted mt-1">Sipariş verdiğin firmaların iletişim ve vergi bilgileri.</p>
+        </div>
+        @can('supplier_management.create')
+            <button wire:click="openForm" class="mt-4 sm:mt-0 inline-flex items-center gap-1.5 bg-panel-900 text-white rounded-md px-4 py-2 text-[14px] font-medium hover:bg-panel-800 transition-colors">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                Yeni Tedarikçi
+            </button>
+        @endcan
     </div>
 
     @if (session('status'))
@@ -111,38 +135,38 @@ new #[Layout('layouts::authenticated')] class extends Component
         </table>
     </section>
 
-    @can('supplier_management.create')
-        <section class="mt-8 border border-line rounded-lg bg-surface p-6 lg:p-7">
-            <h2 class="text-[15px] font-medium text-ink mb-5">Yeni Tedarikçi</h2>
-            <form wire:submit="save" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-[13px] text-ink-muted mb-1.5">Firma Adı</label>
-                    <input type="text" wire:model="name" class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
-                    @error('name') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
-                </div>
-                <div>
-                    <label class="block text-[13px] text-ink-muted mb-1.5">Yetkili Kişi</label>
-                    <input type="text" wire:model="contact_person" class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
-                </div>
-                <div>
-                    <label class="block text-[13px] text-ink-muted mb-1.5">Telefon</label>
-                    <input type="text" wire:model="phone" class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
-                </div>
-                <div>
-                    <label class="block text-[13px] text-ink-muted mb-1.5">E-posta</label>
-                    <input type="email" wire:model="email" class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
-                    @error('email') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
-                </div>
-                <div>
-                    <label class="block text-[13px] text-ink-muted mb-1.5">Vergi No</label>
-                    <input type="text" wire:model="tax_number" class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
-                </div>
-                <div class="flex items-end">
-                    <button type="submit" class="bg-panel-900 text-white rounded-md px-4 py-2.5 text-[14px] font-medium hover:bg-panel-800 transition-colors">
-                        Ekle
-                    </button>
-                </div>
-            </form>
-        </section>
-    @endcan
+    <x-modal :show="$showForm" title="Yeni Tedarikçi" on-close="closeForm">
+        <form wire:submit="save" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+                <label class="block text-[13px] text-ink-muted mb-1.5">Firma Adı</label>
+                <input type="text" wire:model="name" autofocus class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+                @error('name') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
+            </div>
+            <div>
+                <label class="block text-[13px] text-ink-muted mb-1.5">Yetkili Kişi</label>
+                <input type="text" wire:model="contact_person" class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+            </div>
+            <div>
+                <label class="block text-[13px] text-ink-muted mb-1.5">Telefon</label>
+                <input type="text" wire:model="phone" class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+            </div>
+            <div>
+                <label class="block text-[13px] text-ink-muted mb-1.5">E-posta</label>
+                <input type="email" wire:model="email" class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+                @error('email') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
+            </div>
+            <div>
+                <label class="block text-[13px] text-ink-muted mb-1.5">Vergi No</label>
+                <input type="text" wire:model="tax_number" class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+            </div>
+            <div class="sm:col-span-2 flex items-center gap-3 pt-2">
+                <button type="submit" class="bg-panel-900 text-white rounded-md px-4 py-2.5 text-[14px] font-medium hover:bg-panel-800 transition-colors">
+                    Kaydet
+                </button>
+                <button type="button" wire:click="closeForm" class="text-[14px] text-ink-muted hover:text-ink">
+                    Vazgeç
+                </button>
+            </div>
+        </form>
+    </x-modal>
 </div>

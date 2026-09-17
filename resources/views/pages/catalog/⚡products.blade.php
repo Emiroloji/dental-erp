@@ -15,6 +15,8 @@ new #[Layout('layouts::authenticated')] class extends Component
 {
     use WithPagination;
 
+    public bool $showForm = false;
+
     public string $search = '';
 
     public string $categoryFilter = '';
@@ -40,6 +42,24 @@ new #[Layout('layouts::authenticated')] class extends Component
     public string $product_type = 'consumable';
 
     public array $conversionRules = [];
+
+    public function openForm(): void
+    {
+        Gate::authorize('product_management.create');
+
+        $this->showForm = true;
+    }
+
+    public function closeForm(): void
+    {
+        $this->showForm = false;
+        $this->reset(['name', 'code', 'barcode', 'category_id', 'supplier_id', 'purchase_price', 'min_stock', 'max_stock', 'conversionRules']);
+        $this->base_unit = 'Adet';
+        $this->purchase_price = '0';
+        $this->min_stock = '0';
+        $this->product_type = 'consumable';
+        $this->resetValidation();
+    }
 
     public function addConversionRule(): void
     {
@@ -101,12 +121,7 @@ new #[Layout('layouts::authenticated')] class extends Component
             'product_type' => $validated['product_type'],
         ]);
 
-        $this->reset(['name', 'code', 'barcode', 'category_id', 'supplier_id', 'purchase_price', 'min_stock', 'max_stock', 'conversionRules']);
-        $this->base_unit = 'Adet';
-        $this->purchase_price = '0';
-        $this->min_stock = '0';
-        $this->product_type = 'consumable';
-
+        $this->closeForm();
         session()->flash('status', 'Ürün oluşturuldu.');
     }
 
@@ -148,6 +163,12 @@ new #[Layout('layouts::authenticated')] class extends Component
             <h1 class="text-[22px] font-medium tracking-tight text-ink">Ürünler</h1>
             <p class="text-[14px] text-ink-muted mt-1">Stok kartlarını, birim dönüşümlerini ve tedarikçi eşleşmelerini yönet.</p>
         </div>
+        @can('product_management.create')
+            <button wire:click="openForm" class="mt-4 sm:mt-0 inline-flex items-center gap-1.5 bg-panel-900 text-white rounded-md px-4 py-2 text-[14px] font-medium hover:bg-panel-800 transition-colors">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                Yeni Ürün
+            </button>
+        @endcan
     </div>
 
     @if (session('status'))
@@ -224,92 +245,93 @@ new #[Layout('layouts::authenticated')] class extends Component
         @endif
     </section>
 
-    @can('product_management.create')
-        <section class="mt-8 border border-line rounded-lg bg-surface p-6 lg:p-7">
-            <h2 class="text-[15px] font-medium text-ink mb-5">Yeni Ürün</h2>
-
-            <form wire:submit="save" class="space-y-7">
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div>
-                        <label class="block text-[13px] text-ink-muted mb-1.5">Ad</label>
-                        <input type="text" wire:model="name" class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
-                        @error('name') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
-                    </div>
-                    <div>
-                        <label class="block text-[13px] text-ink-muted mb-1.5">Ürün Kodu</label>
-                        <input type="text" wire:model="code" class="w-full border border-line rounded-md px-3 py-2 text-[14px] font-mono focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
-                    </div>
-                    <div>
-                        <label class="block text-[13px] text-ink-muted mb-1.5">Barkod</label>
-                        <input type="text" wire:model="barcode" class="w-full border border-line rounded-md px-3 py-2 text-[14px] font-mono focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
-                    </div>
-                    <div>
-                        <label class="block text-[13px] text-ink-muted mb-1.5">Kategori</label>
-                        <select wire:model="category_id" class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
-                            <option value="">Seçiniz</option>
-                            @foreach ($categories as $category)
-                                <option value="{{ $category->id }}">{{ $category->name }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-[13px] text-ink-muted mb-1.5">Tedarikçi</label>
-                        <select wire:model="supplier_id" class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
-                            <option value="">Seçiniz</option>
-                            @foreach ($suppliers as $supplier)
-                                <option value="{{ $supplier->id }}">{{ $supplier->name }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-[13px] text-ink-muted mb-1.5">Ürün Tipi</label>
-                        <select wire:model="product_type" class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
-                            @foreach ($productTypes as $type)
-                                <option value="{{ $type->value }}">{{ $type->label() }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-[13px] text-ink-muted mb-1.5">Ana Birim</label>
-                        <input type="text" wire:model="base_unit" class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
-                        @error('base_unit') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
-                    </div>
-                    <div>
-                        <label class="block text-[13px] text-ink-muted mb-1.5">Alış Fiyatı</label>
-                        <input type="number" step="0.01" wire:model="purchase_price" class="w-full border border-line rounded-md px-3 py-2 text-[14px] tabular-nums focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
-                    </div>
-                    <div>
-                        <label class="block text-[13px] text-ink-muted mb-1.5">Min. Stok</label>
-                        <input type="number" wire:model="min_stock" class="w-full border border-line rounded-md px-3 py-2 text-[14px] tabular-nums focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
-                    </div>
-                    <div>
-                        <label class="block text-[13px] text-ink-muted mb-1.5">Maks. Stok</label>
-                        <input type="number" wire:model="max_stock" class="w-full border border-line rounded-md px-3 py-2 text-[14px] tabular-nums focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
-                    </div>
-                </div>
-
+    <x-modal :show="$showForm" title="Yeni Ürün" on-close="closeForm">
+        <form wire:submit="save" class="space-y-7">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                    <div class="flex items-center justify-between mb-2">
-                        <h3 class="text-[13px] font-medium text-ink">Birim Dönüşümleri</h3>
-                        <button type="button" wire:click="addConversionRule" class="text-[13px] text-brand-600 hover:text-brand-500">+ Alternatif birim ekle</button>
-                    </div>
-                    <p class="text-[12px] text-ink-muted mb-2">Örn: 1 Kutu = 50 {{ $base_unit ?: 'Adet' }}</p>
-
-                    @foreach ($conversionRules as $index => $rule)
-                        <div class="flex items-center gap-2 mb-2">
-                            <input type="text" wire:model="conversionRules.{{ $index }}.unit" placeholder="Birim (ör. Kutu)" class="border border-line rounded-md px-3 py-2 text-[13px] flex-1 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
-                            <span class="text-[13px] text-ink-muted">=</span>
-                            <input type="number" step="0.01" wire:model="conversionRules.{{ $index }}.factor" placeholder="Miktar" class="border border-line rounded-md px-3 py-2 text-[13px] w-28 tabular-nums focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
-                            <span class="text-[13px] text-ink-muted">{{ $base_unit ?: 'Adet' }}</span>
-                            <button type="button" wire:click="removeConversionRule({{ $index }})" class="text-[13px] text-status-critical hover:underline">Kaldır</button>
-                        </div>
-                    @endforeach
+                    <label class="block text-[13px] text-ink-muted mb-1.5">Ad</label>
+                    <input type="text" wire:model="name" autofocus class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+                    @error('name') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
                 </div>
+                <div>
+                    <label class="block text-[13px] text-ink-muted mb-1.5">Ürün Kodu</label>
+                    <input type="text" wire:model="code" class="w-full border border-line rounded-md px-3 py-2 text-[14px] font-mono focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+                </div>
+                <div>
+                    <label class="block text-[13px] text-ink-muted mb-1.5">Barkod</label>
+                    <input type="text" wire:model="barcode" class="w-full border border-line rounded-md px-3 py-2 text-[14px] font-mono focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+                </div>
+                <div>
+                    <label class="block text-[13px] text-ink-muted mb-1.5">Kategori</label>
+                    <select wire:model="category_id" class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+                        <option value="">Seçiniz</option>
+                        @foreach ($categories as $category)
+                            <option value="{{ $category->id }}">{{ $category->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[13px] text-ink-muted mb-1.5">Tedarikçi</label>
+                    <select wire:model="supplier_id" class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+                        <option value="">Seçiniz</option>
+                        @foreach ($suppliers as $supplier)
+                            <option value="{{ $supplier->id }}">{{ $supplier->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[13px] text-ink-muted mb-1.5">Ürün Tipi</label>
+                    <select wire:model="product_type" class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+                        @foreach ($productTypes as $type)
+                            <option value="{{ $type->value }}">{{ $type->label() }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[13px] text-ink-muted mb-1.5">Ana Birim</label>
+                    <input type="text" wire:model="base_unit" class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+                    @error('base_unit') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
+                </div>
+                <div>
+                    <label class="block text-[13px] text-ink-muted mb-1.5">Alış Fiyatı</label>
+                    <input type="number" step="0.01" wire:model="purchase_price" class="w-full border border-line rounded-md px-3 py-2 text-[14px] tabular-nums focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+                </div>
+                <div>
+                    <label class="block text-[13px] text-ink-muted mb-1.5">Min. Stok</label>
+                    <input type="number" wire:model="min_stock" class="w-full border border-line rounded-md px-3 py-2 text-[14px] tabular-nums focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+                </div>
+                <div>
+                    <label class="block text-[13px] text-ink-muted mb-1.5">Maks. Stok</label>
+                    <input type="number" wire:model="max_stock" class="w-full border border-line rounded-md px-3 py-2 text-[14px] tabular-nums focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+                </div>
+            </div>
 
+            <div>
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="text-[13px] font-medium text-ink">Birim Dönüşümleri</h3>
+                    <button type="button" wire:click="addConversionRule" class="text-[13px] text-brand-600 hover:text-brand-500">+ Alternatif birim ekle</button>
+                </div>
+                <p class="text-[12px] text-ink-muted mb-2">Örn: 1 Kutu = 50 {{ $base_unit ?: 'Adet' }}</p>
+
+                @foreach ($conversionRules as $index => $rule)
+                    <div class="flex items-center gap-2 mb-2">
+                        <input type="text" wire:model="conversionRules.{{ $index }}.unit" placeholder="Birim (ör. Kutu)" class="border border-line rounded-md px-3 py-2 text-[13px] flex-1 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+                        <span class="text-[13px] text-ink-muted">=</span>
+                        <input type="number" step="0.01" wire:model="conversionRules.{{ $index }}.factor" placeholder="Miktar" class="border border-line rounded-md px-3 py-2 text-[13px] w-28 tabular-nums focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+                        <span class="text-[13px] text-ink-muted">{{ $base_unit ?: 'Adet' }}</span>
+                        <button type="button" wire:click="removeConversionRule({{ $index }})" class="text-[13px] text-status-critical hover:underline">Kaldır</button>
+                    </div>
+                @endforeach
+            </div>
+
+            <div class="flex items-center gap-3">
                 <button type="submit" class="bg-panel-900 text-white rounded-md px-4 py-2.5 text-[14px] font-medium hover:bg-panel-800 transition-colors">
                     Ürünü Kaydet
                 </button>
-            </form>
-        </section>
-    @endcan
+                <button type="button" wire:click="closeForm" class="text-[14px] text-ink-muted hover:text-ink">
+                    Vazgeç
+                </button>
+            </div>
+        </form>
+    </x-modal>
 </div>
