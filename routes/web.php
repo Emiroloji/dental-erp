@@ -39,3 +39,7 @@ Route::livewire('/tedarikciler', 'pages::catalog.suppliers')
 Route::livewire('/urunler', 'pages::catalog.products')
     ->middleware(['auth', 'can:product_management.viewAny'])
     ->name('products.index');
+
+Route::livewire('/stok-durumu', 'pages::stock.status')
+    ->middleware(['auth', 'can:stock_movement.viewAny'])
+    ->name('stock.status');

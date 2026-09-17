@@ -45,6 +45,13 @@
                             Personel
                         </x-nav-link>
                     @endcan
+                    @can('stock_movement.viewAny')
+                        <div class="px-3 pt-4 pb-1 text-[11px] font-medium uppercase tracking-wide text-white/40">Stok</div>
+                        <x-nav-link :href="route('stock.status')" :active="request()->routeIs('stock.status')">
+                            <x-slot:icon><path d="M3 7l9-4 9 4-9 4-9-4Zm0 0v10l9 4m0-14v14m9-14v10l-9 4" stroke-linejoin="round"/></x-slot:icon>
+                            Stok Durumu
+                        </x-nav-link>
+                    @endcan
                 </nav>
 
                 <div class="px-3 pb-4 pt-2 border-t border-panel-line/60 mx-3">
