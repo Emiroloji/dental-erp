@@ -17,3 +17,15 @@ Route::livewire('/dashboard', 'pages::dashboard')
 Route::livewire('/personel', 'pages::access.staff')
     ->middleware(['auth', 'can:staff_management.viewAny'])
     ->name('staff.index');
+
+Route::livewire('/kategoriler', 'pages::catalog.categories')
+    ->middleware(['auth', 'can:category_management.viewAny'])
+    ->name('categories.index');
+
+Route::livewire('/tedarikciler', 'pages::catalog.suppliers')
+    ->middleware(['auth', 'can:supplier_management.viewAny'])
+    ->name('suppliers.index');
+
+Route::livewire('/urunler', 'pages::catalog.products')
+    ->middleware(['auth', 'can:product_management.viewAny'])
+    ->name('products.index');

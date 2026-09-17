@@ -19,11 +19,24 @@ new class extends Component
 
 <div class="min-h-screen bg-gray-100">
     <nav class="bg-white shadow px-6 py-4 flex items-center justify-between">
-        <span class="font-semibold text-gray-800">Dental ERP</span>
+        <div class="flex items-center gap-6">
+            <span class="font-semibold text-gray-800">Dental ERP</span>
+            <div class="hidden sm:flex items-center gap-4">
+                @can('product_management.viewAny')
+                    <a href="{{ route('products.index') }}" class="text-sm text-gray-600 hover:text-gray-900">Ürünler</a>
+                @endcan
+                @can('category_management.viewAny')
+                    <a href="{{ route('categories.index') }}" class="text-sm text-gray-600 hover:text-gray-900">Kategoriler</a>
+                @endcan
+                @can('supplier_management.viewAny')
+                    <a href="{{ route('suppliers.index') }}" class="text-sm text-gray-600 hover:text-gray-900">Tedarikçiler</a>
+                @endcan
+                @can('staff_management.viewAny')
+                    <a href="{{ route('staff.index') }}" class="text-sm text-gray-600 hover:text-gray-900">Personel</a>
+                @endcan
+            </div>
+        </div>
         <div class="flex items-center gap-4">
-            @can('staff_management.viewAny')
-                <a href="{{ route('staff.index') }}" class="text-sm text-gray-600 hover:text-gray-900">Personel Yönetimi</a>
-            @endcan
             <span class="text-sm text-gray-600">{{ auth()->user()->name }} ({{ auth()->user()->role }})</span>
             <button wire:click="logout" class="text-sm text-red-600 hover:text-red-800">Çıkış Yap</button>
         </div>
