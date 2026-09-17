@@ -2,6 +2,9 @@
 
 namespace Database\Seeders;
 
+use App\Domain\Organization\Models\Branch;
+use App\Domain\Organization\Models\Organization;
+use App\Domain\Organization\Models\Warehouse;
 use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
@@ -15,11 +18,32 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // User::factory(10)->create();
+        $organization = Organization::create([
+            'name' => 'Gülümseme Diş Hastanesi',
+            'status' => 'active',
+            'plan' => 'starter',
+        ]);
+
+        $branch = Branch::create([
+            'organization_id' => $organization->id,
+            'name' => 'Merkez Şube',
+            'status' => 'active',
+        ]);
+
+        Warehouse::create([
+            'branch_id' => $branch->id,
+            'name' => 'Varsayılan Depo',
+            'is_default' => true,
+            'status' => 'active',
+        ]);
 
         User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
+            'organization_id' => $organization->id,
+            'name' => 'Admin',
+            'email' => 'admin@dental-erp.test',
+            'password' => bcrypt('password'),
+            'role' => User::ROLE_ADMIN,
+            'status' => 'active',
         ]);
     }
 }
