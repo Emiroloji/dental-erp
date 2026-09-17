@@ -43,3 +43,7 @@ Route::livewire('/urunler', 'pages::catalog.products')
 Route::livewire('/stok-durumu', 'pages::stock.status')
     ->middleware(['auth', 'can:stock_movement.viewAny'])
     ->name('stock.status');
+
+Route::livewire('/stok-girisleri', 'pages::stock.in')
+    ->middleware(['auth', 'can:stock_movement.viewAny'])
+    ->name('stock.in');

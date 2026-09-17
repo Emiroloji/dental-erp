@@ -51,6 +51,10 @@
                             <x-slot:icon><path d="M3 7l9-4 9 4-9 4-9-4Zm0 0v10l9 4m0-14v14m9-14v10l-9 4" stroke-linejoin="round"/></x-slot:icon>
                             Stok Durumu
                         </x-nav-link>
+                        <x-nav-link :href="route('stock.in')" :active="request()->routeIs('stock.in')">
+                            <x-slot:icon><path d="M12 5v14M5 12h14" stroke-linecap="round"/></x-slot:icon>
+                            Stok Girişi
+                        </x-nav-link>
                     @endcan
                 </nav>
 
