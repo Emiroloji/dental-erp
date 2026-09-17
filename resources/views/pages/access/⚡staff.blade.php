@@ -72,7 +72,9 @@ new class extends Component
     public function with(): array
     {
         return [
-            'staffMembers' => User::where('role', User::ROLE_STAFF)->get(),
+            'staffMembers' => User::where('organization_id', auth()->user()->organization_id)
+                ->where('role', User::ROLE_STAFF)
+                ->get(),
             'branches' => Branch::all(),
             'moduleList' => Module::cases(),
             'scopeList' => PermissionScope::cases(),

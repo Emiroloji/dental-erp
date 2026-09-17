@@ -23,6 +23,7 @@ class StaffService
     ): User {
         return DB::transaction(function () use ($attributes, $modulePermissions, $scope, $branchIds) {
             $user = User::create([
+                'organization_id' => auth()->user()->organization_id,
                 'name' => $attributes['name'],
                 'email' => $attributes['email'],
                 'password' => Hash::make($attributes['password']),

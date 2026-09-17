@@ -5,6 +5,7 @@ namespace Tests\Feature\Access;
 use App\Domain\Organization\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Auth;
 use Livewire\Livewire;
 use Tests\TestCase;
 
@@ -78,5 +79,32 @@ class LoginTest extends TestCase
     public function test_dashboard_requires_authentication(): void
     {
         $this->get('/dashboard')->assertRedirect('/login');
+    }
+
+    public function test_resolving_the_authenticated_user_from_a_fresh_session_does_not_recurse(): void
+    {
+        $organization = Organization::create(['name' => 'Test Klinik', 'status' => 'active', 'plan' => 'starter']);
+        $admin = User::factory()->create([
+            'organization_id' => $organization->id,
+            'email' => 'admin@test.com',
+            'password' => bcrypt('password'),
+            'role' => User::ROLE_ADMIN,
+            'status' => 'active',
+        ]);
+
+        Livewire::test('pages::access.login')
+            ->set('email', 'admin@test.com')
+            ->set('password', 'password')
+            ->call('login');
+
+        // Bir sonraki gerçek HTTP isteğinde (php artisan serve altında her istek
+        // taze bir process ile başlar) guard'ın kullanıcıyı session'dan yeniden
+        // çözmesini (retrieveById) simüle ediyoruz. User modeli üzerinde
+        // auth()->user() çağıran bir global scope varsa bu satır sonsuz
+        // özyinelemeye / stack overflow'a yol açar (bkz. Aşama 4 sonrası bulunan
+        // gerçek bug).
+        Auth::forgetGuards();
+
+        $this->get('/dashboard')->assertOk();
     }
 }
