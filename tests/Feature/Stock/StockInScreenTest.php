@@ -2,6 +2,9 @@
 
 namespace Tests\Feature\Stock;
 
+use App\Domain\Access\Models\Permission;
+use App\Domain\Access\Support\Module;
+use App\Domain\Access\Support\PermissionScope;
 use App\Domain\Catalog\Models\Product;
 use App\Domain\Organization\Models\Branch;
 use App\Domain\Organization\Models\Organization;
@@ -96,5 +99,29 @@ class StockInScreenTest extends TestCase
         $staff = User::factory()->create(['organization_id' => $this->organization->id, 'role' => User::ROLE_STAFF, 'status' => 'active']);
 
         $this->actingAs($staff)->get('/stok-girisleri')->assertForbidden();
+    }
+
+    public function test_staff_with_read_only_permission_cannot_save_stock_in(): void
+    {
+        $staff = User::factory()->create(['organization_id' => $this->organization->id, 'role' => User::ROLE_STAFF, 'status' => 'active']);
+        Permission::create([
+            'user_id' => $staff->id,
+            'module' => Module::StockMovement->value,
+            'can_read' => true,
+            'can_write' => false,
+            'can_delete' => false,
+            'scope' => PermissionScope::OwnBranch->value,
+        ]);
+
+        $this->actingAs($staff);
+
+        Livewire::test('pages::stock.in')
+            ->set('product_id', (string) $this->product->id)
+            ->set('warehouse_id', (string) $this->warehouse->id)
+            ->set('quantity', '10')
+            ->call('save')
+            ->assertForbidden();
+
+        $this->assertSame(0, StockLot::count());
     }
 }

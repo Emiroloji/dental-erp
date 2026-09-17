@@ -2,6 +2,9 @@
 
 namespace Tests\Feature\Stock;
 
+use App\Domain\Access\Models\Permission;
+use App\Domain\Access\Support\Module;
+use App\Domain\Access\Support\PermissionScope;
 use App\Domain\Catalog\Models\Product;
 use App\Domain\Organization\Models\Branch;
 use App\Domain\Organization\Models\Organization;
@@ -105,5 +108,48 @@ class StockOutScreenTest extends TestCase
         // Both products should have original quantities
         $this->assertEquals(50, StockLot::where('product_id', $this->product->id)->firstOrFail()->quantity);
         $this->assertEquals(30, StockLot::where('product_id', $product2->id)->firstOrFail()->quantity);
+    }
+
+    public function test_stock_out_returns_not_found_for_another_organizations_resources(): void
+    {
+        $otherOrganization = Organization::create(['name' => 'Diğer', 'status' => 'active', 'plan' => 'starter']);
+        $otherBranch = Branch::create(['organization_id' => $otherOrganization->id, 'name' => 'Merkez', 'status' => 'active']);
+        $otherWarehouse = Warehouse::create(['branch_id' => $otherBranch->id, 'name' => 'Depo', 'is_default' => true, 'status' => 'active']);
+        $otherProduct = Product::create(['organization_id' => $otherOrganization->id, 'name' => 'Başka Ürün', 'base_unit' => 'Adet', 'status' => 'active']);
+
+        $this->actingAs($this->admin);
+
+        Livewire::test('pages::stock.out')
+            ->set('product_id', (string) $otherProduct->id)
+            ->set('warehouse_id', (string) $otherWarehouse->id)
+            ->set('quantity', '5')
+            ->set('reasonCategory', 'clinical_use')
+            ->call('save')
+            ->assertNotFound();
+    }
+
+    public function test_staff_with_read_only_permission_cannot_save_stock_out(): void
+    {
+        $staff = User::factory()->create(['organization_id' => $this->organization->id, 'role' => User::ROLE_STAFF, 'status' => 'active']);
+        Permission::create([
+            'user_id' => $staff->id,
+            'module' => Module::StockMovement->value,
+            'can_read' => true,
+            'can_write' => false,
+            'can_delete' => false,
+            'scope' => PermissionScope::OwnBranch->value,
+        ]);
+
+        $this->actingAs($staff);
+
+        Livewire::test('pages::stock.out')
+            ->set('product_id', (string) $this->product->id)
+            ->set('warehouse_id', (string) $this->warehouse->id)
+            ->set('quantity', '10')
+            ->set('reasonCategory', 'clinical_use')
+            ->call('save')
+            ->assertForbidden();
+
+        $this->assertEquals(50, StockLot::firstOrFail()->quantity);
     }
 }

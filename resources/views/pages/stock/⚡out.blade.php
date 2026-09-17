@@ -70,8 +70,18 @@ new #[Layout('layouts::authenticated')] class extends Component
             'reasonNote' => ['nullable', 'string', 'max:255'],
         ]);
 
-        $product = Product::findOrFail($validated['product_id']);
-        $warehouse = Warehouse::whereHas('branch')->findOrFail($validated['warehouse_id']);
+        try {
+            $product = Product::findOrFail($validated['product_id']);
+
+            // Warehouse has no BelongsToOrganization scope of its own; re-fetching it
+            // through its scoped Branch relation is what actually enforces tenant isolation.
+            $warehouse = Warehouse::whereHas('branch')->findOrFail($validated['warehouse_id']);
+        } catch (ModelNotFoundException) {
+            // Livewire's test harness doesn't convert ModelNotFoundException into a 404
+            // response the way a real HTTP request does, so we convert it explicitly —
+            // this also keeps error handling consistent across all three write screens.
+            abort(404);
+        }
 
         $lot = null;
         if (filled($validated['lot_id'])) {
@@ -109,6 +119,7 @@ new #[Layout('layouts::authenticated')] class extends Component
             ->where('type', StockMovementType::Out->value)
             ->with(['lot.product', 'warehouse', 'actor'])
             ->latest('created_at')
+            ->orderByDesc('id')
             ->paginate(10);
 
         $availableLots = collect();
@@ -222,6 +233,7 @@ new #[Layout('layouts::authenticated')] class extends Component
                             <option value="{{ $lot->id }}">{{ $lot->lot_no ?? "Lot #{$lot->id}" }} — {{ number_format((float) $lot->quantity, 2) }} mevcut</option>
                         @endforeach
                     </select>
+                    @error('lot_id') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
                 </div>
                 <div>
                     <label class="block text-[13px] text-ink-muted mb-1.5">Miktar</label>

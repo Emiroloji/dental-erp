@@ -5,6 +5,7 @@ use App\Domain\Stock\Exceptions\InsufficientStockException;
 use App\Domain\Stock\Models\StockMovement;
 use App\Domain\Stock\Services\StockMovementService;
 use App\Domain\Stock\Support\StockMovementType;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -32,7 +33,14 @@ new #[Layout('layouts::authenticated')] class extends Component
     {
         Gate::authorize('stock_movement.update');
 
-        $movement = StockMovement::whereHas('lot.product')->findOrFail($movementId);
+        try {
+            $movement = StockMovement::whereHas('lot.product')->findOrFail($movementId);
+        } catch (ModelNotFoundException) {
+            // Livewire's test harness doesn't convert ModelNotFoundException into a 404
+            // response the way a real HTTP request does, so we convert it explicitly —
+            // this also keeps error handling consistent across all three write screens.
+            abort(404);
+        }
 
         if ($movement->type === StockMovementType::Cancel) {
             session()->flash('error', 'İptal hareketleri tekrar iptal edilemez.');
@@ -71,6 +79,7 @@ new #[Layout('layouts::authenticated')] class extends Component
             ->when($this->typeFilter, fn ($query) => $query->where('type', $this->typeFilter))
             ->when($this->warehouseFilter, fn ($query) => $query->where('warehouse_id', $this->warehouseFilter))
             ->latest('created_at')
+            ->orderByDesc('id')
             ->paginate(15);
 
         $cancelledMovementIds = StockMovement::whereHas('lot.product')

@@ -5,6 +5,7 @@ use App\Domain\Organization\Models\Warehouse;
 use App\Domain\Stock\Models\StockMovement;
 use App\Domain\Stock\Services\StockMovementService;
 use App\Domain\Stock\Support\StockMovementType;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -65,7 +66,10 @@ new #[Layout('layouts::authenticated')] class extends Component
             // Warehouse has no BelongsToOrganization scope of its own; re-fetching it
             // through its scoped Branch relation is what actually enforces tenant isolation.
             $warehouse = Warehouse::whereHas('branch')->findOrFail($validated['warehouse_id']);
-        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException) {
+        } catch (ModelNotFoundException) {
+            // Livewire's test harness doesn't convert ModelNotFoundException into a 404
+            // response the way a real HTTP request does, so we convert it explicitly —
+            // this also keeps error handling consistent across all three write screens.
             abort(404);
         }
 
@@ -93,11 +97,12 @@ new #[Layout('layouts::authenticated')] class extends Component
             ->where('type', StockMovementType::In->value)
             ->with(['lot.product', 'warehouse', 'actor'])
             ->latest('created_at')
+            ->orderByDesc('id')
             ->paginate(10);
 
         return [
             'movements' => $movements,
-            'products' => Product::where('status', 'active')->orderBy('name')->get(),
+            'products' => Product::with('supplier')->where('status', 'active')->orderBy('name')->get(),
             'warehouses' => Warehouse::whereHas('branch')->with('branch')->where('status', 'active')->orderBy('name')->get(),
         ];
     }
@@ -168,7 +173,7 @@ new #[Layout('layouts::authenticated')] class extends Component
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                     <label class="block text-[13px] text-ink-muted mb-1.5">Ürün</label>
-                    <select wire:model="product_id" autofocus class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+                    <select wire:model.live="product_id" autofocus class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
                         <option value="">Seçiniz</option>
                         @foreach ($products as $product)
                             <option value="{{ $product->id }}">{{ $product->name }}</option>
@@ -204,6 +209,11 @@ new #[Layout('layouts::authenticated')] class extends Component
                     <input type="date" wire:model="expiry_date" class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
                 </div>
             </div>
+
+            @if ($product_id && ($selectedSupplier = $products->firstWhere('id', (int) $product_id)?->supplier))
+                <p class="text-[13px] text-ink-muted">Tedarikçi: <span class="text-ink">{{ $selectedSupplier->name }}</span></p>
+            @endif
+
             <div>
                 <label class="block text-[13px] text-ink-muted mb-1.5">Açıklama / Fatura-İrsaliye No</label>
                 <input type="text" wire:model="reason" class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">

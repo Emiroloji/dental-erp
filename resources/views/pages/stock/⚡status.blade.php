@@ -36,6 +36,7 @@ new #[Layout('layouts::authenticated')] class extends Component
             }))
             ->orderBy('warehouse_id')
             ->orderByRaw('expiry_date IS NULL, expiry_date ASC')
+            ->orderBy('id')
             ->paginate(15);
 
         return [
