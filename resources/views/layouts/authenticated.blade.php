@@ -21,6 +21,10 @@
                 </div>
 
                 <nav class="flex-1 px-3 py-2 space-y-0.5">
+                    <x-nav-link :href="route('notifications.index')" :active="request()->routeIs('notifications.index')">
+                        <x-slot:icon><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.73 21a2 2 0 0 1-3.46 0" stroke-linecap="round" stroke-linejoin="round"/></x-slot:icon>
+                        Bildirimler
+                    </x-nav-link>
                     @can('product_management.viewAny')
                         <x-nav-link :href="route('products.index')" :active="request()->routeIs('products.index')">
                             <x-slot:icon><path d="M4 7l8-4 8 4-8 4-8-4Zm0 0v10l8 4m0-14v14m8-14v10l-8 4" stroke-linejoin="round"/></x-slot:icon>
@@ -76,13 +80,16 @@
                                 default => 'Personel',
                             } }}</p>
                         </div>
-                        <button
-                            onclick="event.preventDefault(); document.getElementById('sidebar-logout-form').requestSubmit()"
-                            class="text-white/40 hover:text-white/90 transition-colors shrink-0"
-                            title="Çıkış Yap"
-                        >
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 17l5-5-5-5M20 12H9M12 19H7a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h5"/></svg>
-                        </button>
+                        <div class="flex items-center gap-3 shrink-0">
+                            <livewire:notification-bell />
+                            <button
+                                onclick="event.preventDefault(); document.getElementById('sidebar-logout-form').requestSubmit()"
+                                class="text-white/40 hover:text-white/90 transition-colors shrink-0"
+                                title="Çıkış Yap"
+                            >
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 17l5-5-5-5M20 12H9M12 19H7a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h5"/></svg>
+                            </button>
+                        </div>
                     </div>
                     <form id="sidebar-logout-form" method="POST" action="{{ route('logout') }}" class="hidden">
                         @csrf
@@ -93,6 +100,7 @@
             <div class="flex-1 min-w-0">
                 <header class="lg:hidden flex items-center justify-between px-5 py-4 bg-panel-900 text-white">
                     <span class="font-medium tracking-tight">Dental ERP</span>
+                    <livewire:notification-bell />
                 </header>
 
                 <main class="px-5 py-8 lg:px-10 lg:py-10 max-w-5xl">

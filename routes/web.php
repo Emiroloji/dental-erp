@@ -55,3 +55,7 @@ Route::livewire('/stok-cikislari', 'pages::stock.out')
 Route::livewire('/stok-hareketleri', 'pages::stock.movements')
     ->middleware(['auth', 'can:stock_movement.viewAny'])
     ->name('stock.movements');
+
+Route::livewire('/bildirimler', 'pages::notifications.index')
+    ->middleware('auth')
+    ->name('notifications.index');
