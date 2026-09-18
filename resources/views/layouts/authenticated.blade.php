@@ -68,6 +68,12 @@
                             Stok Hareketleri
                         </x-nav-link>
                     @endcan
+                    @can('transfer.viewAny')
+                        <x-nav-link :href="route('transfers.index')" :active="request()->routeIs('transfers.index')">
+                            <x-slot:icon><path d="M4 8h13l-3-3M20 16H7l3 3" stroke-linecap="round" stroke-linejoin="round"/></x-slot:icon>
+                            Transferler
+                        </x-nav-link>
+                    @endcan
                     @can('reports.viewAny')
                         <x-nav-link :href="route('reports.stock')" :active="request()->routeIs('reports.stock')">
                             <x-slot:icon><path d="M4 19V9m6 10V5m6 14v-7" stroke-linecap="round" stroke-linejoin="round"/></x-slot:icon>
