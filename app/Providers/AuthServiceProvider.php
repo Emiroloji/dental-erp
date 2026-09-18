@@ -42,5 +42,9 @@ class AuthServiceProvider extends ServiceProvider
         // Denetim kayıtları bir yetki kutucuğu değildir: yalnızca Admin görür
         // (Gate::before üzerinden), personele hiçbir modül yetkisiyle açılmaz.
         Gate::define('audit_logs.viewAny', fn (User $user) => false);
+
+        // Şube ve depo tanımları da yetki matrisinde bir modül değildir;
+        // proje.md Bölüm 1/4: şube açma/kapama Ana Klinik Sahibi'nin (Admin) işidir.
+        Gate::define('branches.manage', fn (User $user) => false);
     }
 }

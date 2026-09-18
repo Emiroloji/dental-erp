@@ -74,6 +74,13 @@
                             Raporlar
                         </x-nav-link>
                     @endcan
+                    @can('branches.manage')
+                        <div class="px-3 pt-4 pb-1 text-[11px] font-medium uppercase tracking-wide text-white/40">Kuruluş</div>
+                        <x-nav-link :href="route('branches.index')" :active="request()->routeIs('branches.index')">
+                            <x-slot:icon><path d="M4 21V8l8-5 8 5v13M9 21v-6h6v6" stroke-linecap="round" stroke-linejoin="round"/></x-slot:icon>
+                            Şubeler
+                        </x-nav-link>
+                    @endcan
                     @can('audit_logs.viewAny')
                         <x-nav-link :href="route('audit.index')" :active="request()->routeIs('audit.index')">
                             <x-slot:icon><path d="M12 3 4 6v6c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V6l-8-3Z" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"/></x-slot:icon>
