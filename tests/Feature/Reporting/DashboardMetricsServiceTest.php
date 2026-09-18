@@ -9,6 +9,7 @@ use App\Domain\Organization\Models\Warehouse;
 use App\Domain\Reporting\Services\DashboardMetricsService;
 use App\Domain\Stock\Models\StockLot;
 use App\Domain\Stock\Services\StockMovementService;
+use App\Domain\Stock\Support\StockOutReason;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -65,8 +66,8 @@ class DashboardMetricsServiceTest extends TestCase
         $service = app(StockMovementService::class);
         $service->in($this->product, $this->warehouse, 100, ['unit_cost' => 5], $this->admin);
         $mistakenIn = $service->in($this->product, $this->warehouse, 10, ['unit_cost' => 5], $this->admin);
-        $service->out($this->product, $this->warehouse, 20, null, $this->admin, 'Klinik içi kullanım');
-        $mistakenOut = $service->out($this->product, $this->warehouse, 5, null, $this->admin, 'Klinik içi kullanım')->sole();
+        $service->out($this->product, $this->warehouse, 20, null, $this->admin, 'Klinik içi kullanım', StockOutReason::ClinicalUse);
+        $mistakenOut = $service->out($this->product, $this->warehouse, 5, null, $this->admin, 'Klinik içi kullanım', StockOutReason::ClinicalUse)->sole();
 
         $service->cancel($mistakenIn, $this->admin);
         $service->cancel($mistakenOut, $this->admin);
@@ -78,6 +79,40 @@ class DashboardMetricsServiceTest extends TestCase
         $this->assertSame(20.0, $summary['todayOut']);
         $this->assertSame(20.0, $summary['monthlyUsage']);
         $this->assertSame([['name' => 'Kompozit A', 'used' => 20.0]], $summary['topUsedProducts']);
+    }
+
+    public function test_only_clinical_use_and_consumption_count_as_usage(): void
+    {
+        $this->actingAs($this->admin);
+
+        $service = app(StockMovementService::class);
+        $service->in($this->product, $this->warehouse, 100, ['unit_cost' => 5], $this->admin);
+
+        $service->out($this->product, $this->warehouse, 10, null, $this->admin, 'Klinik içi kullanım', StockOutReason::ClinicalUse);
+        $service->out($this->product, $this->warehouse, 5, null, $this->admin, 'Sarf', StockOutReason::Consumption);
+        $service->out($this->product, $this->warehouse, 3, null, $this->admin, 'Hasarlı ürün', StockOutReason::Damaged);
+        $service->out($this->product, $this->warehouse, 2, null, $this->admin, 'SKT geçmiş', StockOutReason::Expired);
+        $service->out($this->product, $this->warehouse, 4, null, $this->admin, 'İade', StockOutReason::ReturnToSupplier);
+        $service->out($this->product, $this->warehouse, 6, null, $this->admin, 'Transfer', StockOutReason::Transfer);
+        $service->out($this->product, $this->warehouse, 1, null, $this->admin, 'Diğer', StockOutReason::Other);
+        // Nedeni kodlanmamış bir çıkış (ör. eski kayıt) kullanım sayılmaz, diğer çıkışlara düşer.
+        $service->out($this->product, $this->warehouse, 7, null, $this->admin, 'Nedeni bilinmiyor');
+
+        $summary = app(DashboardMetricsService::class)->summaryFor($this->organization->id);
+
+        $this->assertSame(62.0, $summary['totalStockQuantity']);
+        $this->assertSame(38.0, $summary['todayOut']);
+        $this->assertSame(15.0, $summary['monthlyUsage']);
+        $this->assertSame([['name' => 'Kompozit A', 'used' => 15.0]], $summary['topUsedProducts']);
+        $this->assertSame(23.0, $summary['monthlyOtherOut']);
+        $this->assertSame([
+            'Nedeni belirtilmemiş' => 7.0,
+            'Şubeler/depolar arası transfer' => 6.0,
+            'İade' => 4.0,
+            'Hasarlı ürün' => 3.0,
+            'SKT geçmiş' => 2.0,
+            'Diğer' => 1.0,
+        ], $summary['monthlyOtherOutByReason']);
     }
 
     public function test_the_summary_is_cached_and_survives_new_data_until_invalidated(): void

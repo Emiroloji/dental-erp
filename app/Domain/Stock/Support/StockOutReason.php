@@ -12,6 +12,18 @@ enum StockOutReason: string
     case Transfer = 'transfer';
     case Other = 'other';
 
+    /**
+     * "Kullanım", gerçek klinik tüketimidir (proje.md Bölüm 11). Hasar, SKT
+     * imhası, iade ve transfer stoğu azaltır ama kullanım değildir; bunlar
+     * "Diğer Çıkışlar" olarak ayrı raporlanır.
+     *
+     * @return array<int, self>
+     */
+    public static function usageReasons(): array
+    {
+        return [self::ClinicalUse, self::Consumption];
+    }
+
     public function label(): string
     {
         return match ($this) {

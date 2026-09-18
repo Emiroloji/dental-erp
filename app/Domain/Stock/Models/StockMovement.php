@@ -4,6 +4,7 @@ namespace App\Domain\Stock\Models;
 
 use App\Domain\Organization\Models\Warehouse;
 use App\Domain\Stock\Support\StockMovementType;
+use App\Domain\Stock\Support\StockOutReason;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -21,12 +22,14 @@ class StockMovement extends Model
         'quantity',
         'actor_id',
         'reason',
+        'reason_code',
         'related_entity_type',
         'related_entity_id',
     ];
 
     protected $casts = [
         'type' => StockMovementType::class,
+        'reason_code' => StockOutReason::class,
         'quantity' => 'decimal:2',
         'created_at' => 'datetime',
     ];

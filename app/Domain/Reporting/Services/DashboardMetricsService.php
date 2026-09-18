@@ -9,6 +9,7 @@ use App\Domain\Organization\Models\Branch;
 use App\Domain\Stock\Models\StockLot;
 use App\Domain\Stock\Models\StockMovement;
 use App\Domain\Stock\Services\StockLevelService;
+use App\Domain\Stock\Support\StockOutReason;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
@@ -47,7 +48,9 @@ class DashboardMetricsService
 
     private function cacheKey(int $organizationId): string
     {
-        return "dashboard:summary:organization:{$organizationId}";
+        // Özetin yapısı değiştiğinde sürüm artırılır; eski yapıdaki cache girdisi
+        // okunmaz (yeni alanlar eksik olduğu için dashboard hata verirdi).
+        return "dashboard:summary:v2:organization:{$organizationId}";
     }
 
     /**
@@ -87,15 +90,35 @@ class DashboardMetricsService
 
         $todayIn = (float) (clone $movements)->where('type', 'in')->whereDate('created_at', Carbon::today())->sum('quantity');
         $todayOut = abs((float) (clone $movements)->where('type', 'out')->whereDate('created_at', Carbon::today())->sum('quantity'));
-        $monthlyUsage = abs((float) (clone $movements)->where('type', 'out')
-            ->whereBetween('created_at', [Carbon::now()->startOfMonth(), Carbon::now()->endOfMonth()])
-            ->sum('quantity'));
+
+        // Kullanım = yalnızca gerçek klinik tüketimi (StockOutReason::usageReasons()).
+        // Diğer çıkışlar (hasar, SKT imhası, iade, transfer, nedeni kodlanmamış)
+        // stoğu azaltır ama kullanıma karışmaz; ayrı olarak raporlanır.
+        $usageCodes = array_map(fn (StockOutReason $reason) => $reason->value, StockOutReason::usageReasons());
+
+        $monthlyOut = (clone $movements)->where('type', 'out')
+            ->whereBetween('created_at', [Carbon::now()->startOfMonth(), Carbon::now()->endOfMonth()]);
+
+        $monthlyUsage = abs((float) (clone $monthlyOut)->whereIn('reason_code', $usageCodes)->sum('quantity'));
+
+        $monthlyOtherOutByReason = (clone $monthlyOut)
+            ->where(fn ($query) => $query->whereNull('reason_code')->orWhereNotIn('reason_code', $usageCodes))
+            ->toBase()
+            ->groupBy('reason_code')
+            ->orderByDesc('total_quantity')
+            ->selectRaw('reason_code, SUM(ABS(quantity)) as total_quantity')
+            ->get()
+            ->mapWithKeys(fn ($row) => [
+                (StockOutReason::tryFrom((string) $row->reason_code)?->label() ?? 'Nedeni belirtilmemiş') => (float) $row->total_quantity,
+            ])
+            ->all();
 
         $topUsedProducts = StockMovement::query()
             ->join('stock_lots', 'stock_movements.lot_id', '=', 'stock_lots.id')
             ->join('products', 'stock_lots.product_id', '=', 'products.id')
             ->where('products.organization_id', $organizationId)
             ->where('stock_movements.type', 'out')
+            ->whereIn('stock_movements.reason_code', $usageCodes)
             ->withoutCancelled()
             ->groupBy('products.id', 'products.name')
             ->orderByDesc('used_quantity')
@@ -128,6 +151,8 @@ class DashboardMetricsService
             'todayIn' => $todayIn,
             'todayOut' => $todayOut,
             'monthlyUsage' => $monthlyUsage,
+            'monthlyOtherOut' => (float) array_sum($monthlyOtherOutByReason),
+            'monthlyOtherOutByReason' => $monthlyOtherOutByReason,
             'topUsedProducts' => $topUsedProducts->map(fn ($row) => ['name' => $row->name, 'used' => (float) $row->used_quantity])->all(),
             'branchDistribution' => $branchDistribution->map(fn ($row) => ['name' => $row->name, 'quantity' => (float) $row->total_quantity])->all(),
             'computedAt' => now()->toDateTimeString(),

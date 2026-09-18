@@ -97,11 +97,11 @@ new #[Layout('layouts::authenticated')] class extends Component
             }
         }
 
-        $reasonLabel = StockOutReason::from($validated['reasonCategory'])->label();
-        $reason = filled($validated['reasonNote']) ? "{$reasonLabel}: {$validated['reasonNote']}" : $reasonLabel;
+        $reasonCode = StockOutReason::from($validated['reasonCategory']);
+        $reason = filled($validated['reasonNote']) ? "{$reasonCode->label()}: {$validated['reasonNote']}" : $reasonCode->label();
 
         try {
-            $service->out($product, $warehouse, (float) $validated['quantity'], $lot, auth()->user(), $reason);
+            $service->out($product, $warehouse, (float) $validated['quantity'], $lot, auth()->user(), $reason, $reasonCode);
         } catch (InsufficientStockException $e) {
             $this->addError('quantity', $e->getMessage());
 
@@ -185,7 +185,7 @@ new #[Layout('layouts::authenticated')] class extends Component
                         <td class="px-5 py-3 font-mono text-[13px] text-ink-muted">{{ $movement->lot->lot_no ?? '—' }}</td>
                         <td class="px-5 py-3 text-ink-muted">{{ $movement->actor?->name ?? '—' }}</td>
                         <td class="px-5 py-3 text-ink-muted">{{ $movement->reason ?? '—' }}</td>
-                        <td class="px-5 py-3 text-right text-status-critical tabular-nums">{{ number_format((float) $movement->quantity, 2) }}</td>
+                        <td class="px-5 py-3 text-right text-status-critical tabular-nums">{{ Number::format((float) $movement->quantity, precision: 2) }}</td>
                     </tr>
                 @empty
                     <tr>
@@ -230,7 +230,7 @@ new #[Layout('layouts::authenticated')] class extends Component
                     <select wire:model="lot_id" class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
                         <option value="">Otomatik (FEFO)</option>
                         @foreach ($availableLots as $lot)
-                            <option value="{{ $lot->id }}">{{ $lot->lot_no ?? "Lot #{$lot->id}" }} — {{ number_format((float) $lot->quantity, 2) }} mevcut</option>
+                            <option value="{{ $lot->id }}">{{ $lot->lot_no ?? "Lot #{$lot->id}" }} — {{ Number::format((float) $lot->quantity, precision: 2) }} mevcut</option>
                         @endforeach
                     </select>
                     @error('lot_id') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror

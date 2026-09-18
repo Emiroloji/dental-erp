@@ -9,6 +9,7 @@ use App\Domain\Stock\Exceptions\InsufficientStockException;
 use App\Domain\Stock\Models\StockLot;
 use App\Domain\Stock\Models\StockMovement;
 use App\Domain\Stock\Support\StockMovementType;
+use App\Domain\Stock\Support\StockOutReason;
 use App\Models\User;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -53,17 +54,18 @@ class StockMovementService
         ?StockLot $lot = null,
         ?User $actor = null,
         ?string $reason = null,
+        ?StockOutReason $reasonCode = null,
     ): Collection {
         if ($quantity <= 0) {
             throw new InvalidArgumentException('Çıkış miktarı sıfırdan büyük olmalıdır.');
         }
 
-        return DB::transaction(function () use ($product, $warehouse, $quantity, $lot, $actor, $reason) {
+        return DB::transaction(function () use ($product, $warehouse, $quantity, $lot, $actor, $reason, $reasonCode) {
             if ($lot) {
-                return collect([$this->withdrawFromLot($lot, $quantity, $actor, $reason)]);
+                return collect([$this->withdrawFromLot($lot, $quantity, $actor, $reason, $reasonCode)]);
             }
 
-            return $this->withdrawFefo($product, $warehouse, $quantity, $actor, $reason);
+            return $this->withdrawFefo($product, $warehouse, $quantity, $actor, $reason, $reasonCode);
         });
     }
 
@@ -114,7 +116,7 @@ class StockMovementService
         });
     }
 
-    private function withdrawFromLot(StockLot $lot, float $quantity, ?User $actor, ?string $reason): StockMovement
+    private function withdrawFromLot(StockLot $lot, float $quantity, ?User $actor, ?string $reason, ?StockOutReason $reasonCode): StockMovement
     {
         $locked = StockLot::whereKey($lot->id)->lockForUpdate()->firstOrFail();
 
@@ -124,13 +126,13 @@ class StockMovementService
 
         $locked->update(['quantity' => $locked->quantity - $quantity]);
 
-        return $this->recordMovement(StockMovementType::Out, $locked, -1 * $quantity, $actor, $reason);
+        return $this->recordMovement(StockMovementType::Out, $locked, -1 * $quantity, $actor, $reason, reasonCode: $reasonCode);
     }
 
     /**
      * @return Collection<int, StockMovement>
      */
-    private function withdrawFefo(Product $product, Warehouse $warehouse, float $quantity, ?User $actor, ?string $reason): Collection
+    private function withdrawFefo(Product $product, Warehouse $warehouse, float $quantity, ?User $actor, ?string $reason, ?StockOutReason $reasonCode): Collection
     {
         $lots = StockLot::where('product_id', $product->id)
             ->where('warehouse_id', $warehouse->id)
@@ -156,7 +158,7 @@ class StockMovementService
 
             $take = min((float) $lot->quantity, $remaining);
             $lot->update(['quantity' => $lot->quantity - $take]);
-            $movements->push($this->recordMovement(StockMovementType::Out, $lot, -1 * $take, $actor, $reason));
+            $movements->push($this->recordMovement(StockMovementType::Out, $lot, -1 * $take, $actor, $reason, reasonCode: $reasonCode));
 
             $remaining -= $take;
         }
@@ -198,6 +200,7 @@ class StockMovementService
         ?string $reason,
         ?string $relatedEntityType = null,
         ?int $relatedEntityId = null,
+        ?StockOutReason $reasonCode = null,
     ): StockMovement {
         $movement = StockMovement::create([
             'type' => $type->value,
@@ -206,6 +209,7 @@ class StockMovementService
             'quantity' => $quantity,
             'actor_id' => $actor?->id,
             'reason' => $reason,
+            'reason_code' => $reasonCode,
             'related_entity_type' => $relatedEntityType,
             'related_entity_id' => $relatedEntityId,
         ]);
