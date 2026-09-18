@@ -36,9 +36,9 @@
                     <td>{{ $row['product']->code ?? '—' }}</td>
                     <td>{{ $row['product']->category?->name ?? '—' }}</td>
                     <td>{{ $row['product']->supplier?->name ?? '—' }}</td>
-                    <td class="number">{{ number_format($row['quantity'], 2) }}</td>
-                    <td class="number">{{ number_format($row['product']->purchase_price, 2) }}</td>
-                    <td class="number">{{ number_format($row['value'], 2) }}</td>
+                    <td class="number">{{ Number::format($row['quantity'], precision: 2) }}</td>
+                    <td class="number">{{ Number::format($row['product']->purchase_price, precision: 2) }}</td>
+                    <td class="number">{{ Number::format($row['value'], precision: 2) }}</td>
                     <td>{{ $row['level']->label() }}</td>
                 </tr>
             @empty

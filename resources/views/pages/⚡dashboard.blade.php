@@ -29,11 +29,11 @@ new #[Layout('layouts::authenticated')] class extends Component
         </div>
         <div class="bg-surface px-5 py-5">
             <p class="text-[13px] text-ink-muted">Toplam Stok Miktarı</p>
-            <p class="text-[26px] font-medium tabular-nums mt-1">{{ number_format($summary['totalStockQuantity'], 0) }}</p>
+            <p class="text-[26px] font-medium tabular-nums mt-1">{{ Number::format($summary['totalStockQuantity'], precision: 0) }}</p>
         </div>
         <div class="bg-surface px-5 py-5">
             <p class="text-[13px] text-ink-muted">Toplam Stok Değeri</p>
-            <p class="text-[26px] font-medium tabular-nums mt-1">{{ number_format($summary['totalStockValue'], 2) }} ₺</p>
+            <p class="text-[26px] font-medium tabular-nums mt-1">{{ Number::format($summary['totalStockValue'], precision: 2) }} ₺</p>
         </div>
         <div class="bg-surface px-5 py-5">
             <p class="text-[13px] text-ink-muted">Personel</p>
@@ -80,15 +80,31 @@ new #[Layout('layouts::authenticated')] class extends Component
             <dl class="space-y-3 text-[14px]">
                 <div class="flex items-center justify-between">
                     <dt class="text-ink-muted">Bugünkü Giriş</dt>
-                    <dd class="tabular-nums text-status-good">+{{ number_format($summary['todayIn'], 2) }}</dd>
+                    <dd class="tabular-nums text-status-good">+{{ Number::format($summary['todayIn'], precision: 2) }}</dd>
                 </div>
                 <div class="flex items-center justify-between">
                     <dt class="text-ink-muted">Bugünkü Çıkış</dt>
-                    <dd class="tabular-nums text-status-critical">-{{ number_format($summary['todayOut'], 2) }}</dd>
+                    <dd class="tabular-nums text-status-critical">-{{ Number::format($summary['todayOut'], precision: 2) }}</dd>
                 </div>
                 <div class="flex items-center justify-between">
-                    <dt class="text-ink-muted">Bu Ayki Kullanım (Çıkış)</dt>
-                    <dd class="tabular-nums">{{ number_format($summary['monthlyUsage'], 2) }}</dd>
+                    <dt class="text-ink-muted" title="Yalnızca klinik içi kullanım ve sarf çıkışları">Bu Ayki Kullanım</dt>
+                    <dd class="tabular-nums">{{ Number::format($summary['monthlyUsage'], precision: 2) }}</dd>
+                </div>
+                <div>
+                    <div class="flex items-center justify-between">
+                        <dt class="text-ink-muted">Bu Ayki Diğer Çıkışlar <span class="text-[12px]">(Kayıp/Fire/İade/Transfer)</span></dt>
+                        <dd class="tabular-nums">{{ Number::format($summary['monthlyOtherOut'], precision: 2) }}</dd>
+                    </div>
+                    @if ($summary['monthlyOtherOutByReason'])
+                        <dl class="mt-1.5 ml-3 space-y-1 text-[13px]">
+                            @foreach ($summary['monthlyOtherOutByReason'] as $reasonLabel => $reasonQuantity)
+                                <div class="flex items-center justify-between">
+                                    <dt class="text-ink-muted">{{ $reasonLabel }}</dt>
+                                    <dd class="tabular-nums text-ink-muted">{{ Number::format($reasonQuantity, precision: 2) }}</dd>
+                                </div>
+                            @endforeach
+                        </dl>
+                    @endif
                 </div>
                 <div class="flex items-center justify-between">
                     <dt class="text-ink-muted">SKT'ye {{ config('stock.levels.expiry_warning_days') }} Gün veya Az Kalan Lot</dt>
@@ -110,7 +126,7 @@ new #[Layout('layouts::authenticated')] class extends Component
                         <div>
                             <div class="flex items-center justify-between text-[13px] mb-1">
                                 <span class="text-ink">{{ $branch['name'] }}</span>
-                                <span class="text-ink-muted tabular-nums">{{ number_format($branch['quantity'], 0) }}</span>
+                                <span class="text-ink-muted tabular-nums">{{ Number::format($branch['quantity'], precision: 0) }}</span>
                             </div>
                             <div class="h-1.5 rounded-full bg-line overflow-hidden">
                                 <div class="h-full bg-brand-500 rounded-full" style="width: {{ max(4, round($branch['quantity'] / $maxBranchQty * 100)) }}%"></div>
@@ -130,7 +146,7 @@ new #[Layout('layouts::authenticated')] class extends Component
                     @foreach ($summary['topUsedProducts'] as $index => $product)
                         <li class="flex items-center justify-between py-2.5 text-[14px]">
                             <span class="text-ink"><span class="text-ink-muted mr-2 tabular-nums">{{ $index + 1 }}.</span>{{ $product['name'] }}</span>
-                            <span class="text-ink-muted tabular-nums">{{ number_format($product['used'], 2) }}</span>
+                            <span class="text-ink-muted tabular-nums">{{ Number::format($product['used'], precision: 2) }}</span>
                         </li>
                     @endforeach
                 </ol>

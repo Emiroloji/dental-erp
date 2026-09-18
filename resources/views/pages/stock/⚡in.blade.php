@@ -151,7 +151,7 @@ new #[Layout('layouts::authenticated')] class extends Component
                         <td class="px-5 py-3 font-mono text-[13px] text-ink-muted">{{ $movement->lot->lot_no ?? '—' }}</td>
                         <td class="px-5 py-3 text-ink-muted">{{ $movement->actor?->name ?? '—' }}</td>
                         <td class="px-5 py-3 text-ink-muted">{{ $movement->reason ?? '—' }}</td>
-                        <td class="px-5 py-3 text-right text-status-good tabular-nums">+{{ number_format((float) $movement->quantity, 2) }}</td>
+                        <td class="px-5 py-3 text-right text-status-good tabular-nums">+{{ Number::format((float) $movement->quantity, precision: 2) }}</td>
                     </tr>
                 @empty
                     <tr>

@@ -91,12 +91,12 @@ new #[Layout('layouts::authenticated')] class extends Component
                                 <span class="text-ink-muted">—</span>
                             @endif
                         </td>
-                        <td class="px-5 py-3 text-ink-muted tabular-nums">{{ number_format((float) $lot->unit_cost, 2) }}</td>
+                        <td class="px-5 py-3 text-ink-muted tabular-nums">{{ Number::format((float) $lot->unit_cost, precision: 2) }}</td>
                         <td class="px-5 py-3 text-right tabular-nums">
                             @if ((float) $lot->quantity <= 0)
                                 <span class="text-ink-muted">Tükendi</span>
                             @else
-                                {{ number_format((float) $lot->quantity, 2) }} {{ $lot->product->base_unit }}
+                                {{ Number::format((float) $lot->quantity, precision: 2) }} {{ $lot->product->base_unit }}
                             @endif
                         </td>
                     </tr>

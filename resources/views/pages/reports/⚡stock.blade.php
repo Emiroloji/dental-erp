@@ -137,8 +137,8 @@ new #[Layout('layouts::authenticated')] class extends Component
                         </td>
                         <td class="px-5 py-3 text-ink-muted">{{ $row['product']->category?->name ?? '—' }}</td>
                         <td class="px-5 py-3 text-ink-muted">{{ $row['product']->supplier?->name ?? '—' }}</td>
-                        <td class="px-5 py-3 text-right tabular-nums">{{ number_format($row['quantity'], 2) }}</td>
-                        <td class="px-5 py-3 text-right tabular-nums">{{ number_format($row['value'], 2) }}</td>
+                        <td class="px-5 py-3 text-right tabular-nums">{{ Number::format($row['quantity'], precision: 2) }}</td>
+                        <td class="px-5 py-3 text-right tabular-nums">{{ Number::format($row['value'], precision: 2) }}</td>
                         <td class="px-5 py-3">
                             <span class="inline-flex items-center px-2 py-0.5 rounded text-[12px] {{ $row['level']->badgeClasses() }}">{{ $row['level']->label() }}</span>
                         </td>

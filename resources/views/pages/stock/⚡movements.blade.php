@@ -159,7 +159,7 @@ new #[Layout('layouts::authenticated')] class extends Component
                         <td class="px-5 py-3 text-ink-muted">{{ $movement->actor?->name ?? '—' }}</td>
                         <td class="px-5 py-3 text-ink-muted">{{ $movement->reason ?? '—' }}</td>
                         <td class="px-5 py-3 text-right tabular-nums @if((float) $movement->quantity < 0) text-status-critical @else text-status-good @endif">
-                            {{ (float) $movement->quantity > 0 ? '+' : '' }}{{ number_format((float) $movement->quantity, 2) }}
+                            {{ (float) $movement->quantity > 0 ? '+' : '' }}{{ Number::format((float) $movement->quantity, precision: 2) }}
                         </td>
                         <td class="px-5 py-3 text-right">
                             @can('stock_movement.update')
