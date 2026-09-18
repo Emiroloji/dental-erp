@@ -84,6 +84,12 @@
                             Satın Alma
                         </x-nav-link>
                     @endcan
+                    @can('stock_movement.viewAny')
+                        <x-nav-link :href="route('returns.index')" :active="request()->routeIs('returns.*')">
+                            <x-slot:icon><path d="M9 14 4 9l5-5" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" stroke-linecap="round" stroke-linejoin="round"/></x-slot:icon>
+                            İadeler
+                        </x-nav-link>
+                    @endcan
                     @can('reports.viewAny')
                         <x-nav-link :href="route('reports.stock')" :active="request()->routeIs('reports.stock')">
                             <x-slot:icon><path d="M4 19V9m6 10V5m6 14v-7" stroke-linecap="round" stroke-linejoin="round"/></x-slot:icon>

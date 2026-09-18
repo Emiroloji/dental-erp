@@ -77,6 +77,14 @@ Route::get('/satin-alma/teslim/{receipt}/belge', PurchaseReceiptDocumentControll
     ->middleware(['auth', 'can:purchasing.viewAny'])
     ->name('purchasing.receipts.document');
 
+Route::livewire('/iadeler', 'pages::returns.index')
+    ->middleware(['auth', 'can:stock_movement.viewAny'])
+    ->name('returns.index');
+
+Route::livewire('/iadeler/{return}', 'pages::returns.show')
+    ->middleware(['auth', 'can:stock_movement.viewAny'])
+    ->name('returns.show');
+
 Route::livewire('/bildirimler', 'pages::notifications.index')
     ->middleware('auth')
     ->name('notifications.index');
