@@ -7,6 +7,7 @@ use App\Domain\Audit\Support\AuditAction;
 use App\Domain\Catalog\Models\Category;
 use App\Domain\Catalog\Models\Product;
 use App\Domain\Catalog\Models\Supplier;
+use App\Domain\Inventory\Models\StockCount;
 use App\Domain\Organization\Concerns\BelongsToOrganization;
 use App\Domain\Organization\Models\Branch;
 use App\Domain\Organization\Models\Warehouse;
@@ -33,6 +34,7 @@ class AuditLog extends Model
         Warehouse::class => 'Depo',
         TransferRequest::class => 'Transfer',
         PurchaseOrder::class => 'Satın Alma',
+        StockCount::class => 'Stok Sayımı',
     ];
 
     protected $fillable = [
@@ -92,12 +94,28 @@ class AuditLog extends Model
             ->all();
     }
 
+    /**
+     * Ekranda okunur gösterim. Diziler ham JSON yerine "anahtar: değer"
+     * biçiminde yazılır (ör. sayım farkı "Kompozit A / LOT001: 100",
+     * dönüşüm kuralı "unit: Kutu, factor: 50").
+     */
     public static function formatValue(mixed $value): string
     {
+        if (is_array($value)) {
+            if ($value === []) {
+                return '—';
+            }
+
+            $separator = array_is_list($value) && collect($value)->contains(fn ($item) => is_array($item)) ? '; ' : ', ';
+
+            return collect($value)
+                ->map(fn ($item, $key) => array_is_list($value) ? self::formatValue($item) : "{$key}: ".self::formatValue($item))
+                ->join($separator);
+        }
+
         return match (true) {
             $value === null || $value === '' => '—',
             is_bool($value) => $value ? 'Evet' : 'Hayır',
-            is_array($value) => json_encode($value, JSON_UNESCAPED_UNICODE),
             default => (string) $value,
         };
     }

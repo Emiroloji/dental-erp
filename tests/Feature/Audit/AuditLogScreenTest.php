@@ -4,6 +4,7 @@ namespace Tests\Feature\Audit;
 
 use App\Domain\Access\Models\Permission;
 use App\Domain\Access\Support\Module;
+use App\Domain\Audit\Models\AuditLog;
 use App\Domain\Catalog\Models\Category;
 use App\Domain\Catalog\Models\Product;
 use App\Domain\Organization\Models\Organization;
@@ -41,6 +42,14 @@ class AuditLogScreenTest extends TestCase
             ->assertSee('Kompozit A')
             ->assertSee('Kompozit B')
             ->assertSee('Güncellendi');
+    }
+
+    public function test_array_values_are_shown_readably_instead_of_raw_json(): void
+    {
+        $this->assertSame('Kompozit A / LOT001: 100', AuditLog::formatValue(['Kompozit A / LOT001' => 100]));
+        $this->assertSame('unit: Kutu, factor: 50; unit: Paket, factor: 10', AuditLog::formatValue([['unit' => 'Kutu', 'factor' => 50], ['unit' => 'Paket', 'factor' => 10]]));
+        $this->assertSame('Ayşe, Mehmet', AuditLog::formatValue(['Ayşe', 'Mehmet']));
+        $this->assertSame('—', AuditLog::formatValue([]));
     }
 
     public function test_staff_cannot_view_audit_logs_even_with_all_module_permissions(): void
