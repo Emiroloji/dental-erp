@@ -128,7 +128,10 @@ class StockMovementService
         });
     }
 
-    public function adjust(StockLot $lot, float $countedQuantity, string $reason, ?User $actor = null): StockMovement
+    /**
+     * @param  Model|null  $related  Düzeltmeyi doğuran kayıt (ör. onaylanan stok sayımı)
+     */
+    public function adjust(StockLot $lot, float $countedQuantity, string $reason, ?User $actor = null, ?Model $related = null): StockMovement
     {
         if (trim($reason) === '') {
             throw new InvalidArgumentException('Stok düzeltmesi bir neden olmadan yapılamaz.');
@@ -140,14 +143,17 @@ class StockMovementService
 
         $this->ensureOperational($lot->warehouse);
 
-        return DB::transaction(function () use ($lot, $countedQuantity, $reason, $actor) {
+        return DB::transaction(function () use ($lot, $countedQuantity, $reason, $actor, $related) {
             $locked = StockLot::whereKey($lot->id)->lockForUpdate()->firstOrFail();
 
             $delta = $countedQuantity - (float) $locked->quantity;
 
             $locked->update(['quantity' => $countedQuantity]);
 
-            return $this->recordMovement(StockMovementType::CountAdjust, $locked, $delta, $actor, $reason);
+            return $this->recordMovement(
+                StockMovementType::CountAdjust, $locked, $delta, $actor, $reason,
+                relatedEntityType: $related?->getMorphClass(), relatedEntityId: $related?->getKey(),
+            );
         });
     }
 
