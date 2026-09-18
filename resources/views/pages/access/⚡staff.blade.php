@@ -66,9 +66,10 @@ new #[Layout('layouts::authenticated')] class extends Component
             'email' => ['required', 'email', 'unique:users,email'],
             'password' => ['required', 'string', 'min:8'],
             'branch_id' => ['required', $branchRule],
-            'scope' => ['required', Rule::in(array_column(PermissionScope::cases(), 'value'))],
+            'scope' => ['required', Rule::in(array_column(PermissionScope::cases(), 'value')), $this->grantableScopeRule()],
             'selectedBranches' => ['required_if:scope,selected_branches', 'array'],
             'selectedBranches.*' => [$branchRule],
+            'modules' => ['array', $this->grantableModulesRule()],
         ]);
 
         $staffService->createStaff(
@@ -92,6 +93,37 @@ new #[Layout('layouts::authenticated')] class extends Component
         foreach (Module::cases() as $module) {
             $this->modules[$module->value] = ['read' => false, 'write' => false, 'delete' => false];
         }
+    }
+
+    /**
+     * Yetki yükseltme engeli: yönetici, kendisinde olmayan bir modül yetkisini
+     * (okuma/yazma/silme) başkasına veremez. Admin her yetkiye sahip olduğu için
+     * etkilenmez.
+     */
+    private function grantableModulesRule(): Closure
+    {
+        return function (string $attribute, mixed $modules, Closure $fail) {
+            foreach ((array) $modules as $moduleValue => $abilities) {
+                $module = Module::tryFrom((string) $moduleValue);
+
+                foreach ((array) $abilities as $ability => $granted) {
+                    if ($granted && ($module === null || ! auth()->user()->canModule($module, (string) $ability))) {
+                        $fail('Kendinizde olmayan bir yetkiyi veremezsiniz: '.($module?->label() ?? $moduleValue).'.');
+
+                        return;
+                    }
+                }
+            }
+        };
+    }
+
+    private function grantableScopeRule(): Closure
+    {
+        return function (string $attribute, mixed $scope, Closure $fail) {
+            if ($scope === PermissionScope::All->value && $this->branchIds() !== null) {
+                $fail('Kendi kapsamınız sınırlıyken "Tüm şubeler" kapsamı veremezsiniz.');
+            }
+        };
     }
 
     /**
@@ -211,6 +243,7 @@ new #[Layout('layouts::authenticated')] class extends Component
 
             <div>
                 <h3 class="text-[13px] font-medium text-ink mb-3">Yetkiler</h3>
+                @error('modules') <span class="text-status-critical text-[12px] block -mt-1 mb-2">{{ $message }}</span> @enderror
                 <div class="border border-line rounded-md overflow-hidden">
                     <table class="w-full text-[13px]">
                         <thead>

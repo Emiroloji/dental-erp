@@ -254,6 +254,37 @@ class BranchScopeTest extends TestCase
         $this->get('/personel')->assertSee('Beşiktaş Şubesi');
     }
 
+    public function test_staff_manager_cannot_grant_more_than_they_have(): void
+    {
+        $manager = $this->staff(PermissionScope::OwnBranch, $this->branchA, modules: [Module::StaffManagement]);
+        Permission::create([
+            'user_id' => $manager->id, 'module' => Module::StockMovement->value,
+            'can_read' => true, 'can_write' => false, 'can_delete' => false, 'scope' => PermissionScope::OwnBranch->value,
+        ]);
+        $this->actingAs($manager->fresh());
+
+        $form = fn () => Livewire::test('pages::access.staff')
+            ->call('openForm')
+            ->set('name', 'Yeni')
+            ->set('email', 'yeni@example.com')
+            ->set('password', 'password123')
+            ->set('branch_id', (string) $this->branchA->id);
+
+        // Kendisinde olmayan "yazma" yetkisini veremez.
+        $form()->set('modules.stock_movement.read', true)->set('modules.stock_movement.write', true)
+            ->call('save')->assertHasErrors('modules');
+
+        // Hiç yetkisi olmayan bir modülü veremez.
+        $form()->set('modules.product_management.read', true)->call('save')->assertHasErrors('modules');
+
+        // Kendi kapsamı sınırlıyken "Tüm şubeler" kapsamı veremez.
+        $form()->set('modules.stock_movement.read', true)->set('scope', 'all')->call('save')->assertHasErrors('scope');
+
+        // Sahip olduğu yetkiyi kendi şubesinde verebilir.
+        $form()->set('modules.stock_movement.read', true)->call('save')->assertHasNoErrors();
+        $this->assertTrue(User::where('email', 'yeni@example.com')->sole()->canModule(Module::StockMovement, 'read'));
+    }
+
     public function test_staff_manager_sees_and_assigns_only_staff_in_their_branches(): void
     {
         $this->staff(PermissionScope::OwnBranch, $this->branchB)->update(['name' => 'Beşiktaş Çalışanı']);
