@@ -34,6 +34,7 @@ Route::middleware(['auth', 'platform'])->prefix('platform')->name('platform.')->
     Route::livewire('/', 'pages::platform.dashboard')->name('dashboard');
     Route::livewire('/organizasyonlar', 'pages::platform.organizations')->name('organizations.index');
     Route::livewire('/organizasyonlar/{organization}', 'pages::platform.organization')->name('organizations.show');
+    Route::livewire('/paket-talepleri', 'pages::platform.plan-requests')->name('plan-requests.index');
 });
 
 /*

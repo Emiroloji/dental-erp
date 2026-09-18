@@ -3,6 +3,7 @@
 use App\Domain\Audit\Models\AuditLog;
 use App\Domain\Organization\Models\Organization;
 use App\Domain\Organization\Support\OrganizationStatus;
+use App\Domain\Platform\Models\PlanChangeRequest;
 use App\Domain\Platform\Services\OrganizationAdminService;
 use App\Domain\Platform\Services\PlanLimitService;
 use App\Domain\Platform\Support\Plan;
@@ -114,6 +115,7 @@ new #[Layout('layouts::platform')] class extends Component
             'overages' => $selectedPlan === $organization->plan ? [] : $limits->overagesFor($organization, $selectedPlan),
             'plans' => Plan::cases(),
             'statuses' => OrganizationStatus::cases(),
+            'pendingRequest' => PlanChangeRequest::withoutGlobalScopes()->where('organization_id', $organization->id)->where('status', 'pending')->first(),
             'admins' => User::where('organization_id', $organization->id)->where('role', User::ROLE_ADMIN)->orderBy('name')->get(),
             'history' => AuditLog::withoutGlobalScopes()
                 ->where('entity_type', Organization::class)
@@ -139,6 +141,13 @@ new #[Layout('layouts::platform')] class extends Component
 
     @if (session('status'))
         <div class="mb-6 rounded-md bg-brand-100 border border-brand-500/20 text-brand-600 text-[13px] px-4 py-3">{{ session('status') }}</div>
+    @endif
+
+    @if ($pendingRequest)
+        <div class="mb-6 rounded-md bg-status-warn-bg border border-status-warn/30 text-status-warn text-[13px] px-4 py-3">
+            Bekleyen paket talebi: {{ $pendingRequest->current_plan->label() }} → {{ $pendingRequest->requested_plan->label() }} ({{ $pendingRequest->created_at->format('d.m.Y') }}).
+            <a href="{{ route('platform.plan-requests.index') }}" class="underline">Paket Talepleri'nde sonuçlandırın</a>.
+        </div>
     @endif
 
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-px bg-line rounded-lg overflow-hidden border border-line mb-8">

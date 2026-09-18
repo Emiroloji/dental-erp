@@ -12,6 +12,7 @@ use App\Domain\Organization\Concerns\BelongsToOrganization;
 use App\Domain\Organization\Models\Branch;
 use App\Domain\Organization\Models\Organization;
 use App\Domain\Organization\Models\Warehouse;
+use App\Domain\Platform\Models\PlanChangeRequest;
 use App\Domain\Purchasing\Models\PurchaseOrder;
 use App\Domain\Returns\Models\SupplierReturn;
 use App\Domain\Transfer\Models\TransferRequest;
@@ -39,6 +40,7 @@ class AuditLog extends Model
         StockCount::class => 'Stok Sayımı',
         SupplierReturn::class => 'İade',
         Organization::class => 'Organizasyon',
+        PlanChangeRequest::class => 'Paket Talebi',
     ];
 
     protected $fillable = [

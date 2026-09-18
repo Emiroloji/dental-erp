@@ -4,7 +4,9 @@ namespace App\Domain\Platform\Services;
 
 use App\Domain\Organization\Models\Organization;
 use App\Domain\Organization\Support\OrganizationStatus;
+use App\Domain\Platform\Models\PlanChangeRequest;
 use App\Domain\Platform\Support\Plan;
+use App\Domain\Platform\Support\PlanChangeStatus;
 use App\Models\User;
 use Illuminate\Support\Collection;
 
@@ -18,7 +20,7 @@ class PlatformStatsService
     public function __construct(private readonly PlanLimitService $limits) {}
 
     /**
-     * @return array{organizations: int, byStatus: array<string, int>, byPlan: array<string, int>, users: int, newThisMonth: int}
+     * @return array{organizations: int, byStatus: array<string, int>, byPlan: array<string, int>, users: int, newThisMonth: int, pendingPlanRequests: int}
      */
     public function summary(): array
     {
@@ -31,6 +33,7 @@ class PlatformStatsService
             'byPlan' => collect(Plan::cases())->mapWithKeys(fn (Plan $plan) => [$plan->value => (int) ($planCounts[$plan->value] ?? 0)])->all(),
             'users' => User::whereNotNull('organization_id')->where('status', 'active')->count(),
             'newThisMonth' => Organization::where('created_at', '>=', now()->startOfMonth())->count(),
+            'pendingPlanRequests' => PlanChangeRequest::withoutGlobalScopes()->where('status', PlanChangeStatus::Pending)->count(),
         ];
     }
 

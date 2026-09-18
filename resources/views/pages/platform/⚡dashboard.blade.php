@@ -28,8 +28,8 @@ new #[Layout('layouts::platform')] class extends Component
 
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-px bg-line rounded-lg overflow-hidden border border-line mb-6">
         <div class="bg-surface px-5 py-4"><p class="text-[12px] text-ink-muted">Organizasyon</p><p class="text-[22px] font-medium tabular-nums">{{ $summary['organizations'] }}</p></div>
+        <a href="{{ route('platform.plan-requests.index') }}" class="bg-surface px-5 py-4 hover:bg-canvas"><p class="text-[12px] text-ink-muted">Bekleyen paket talebi</p><p class="text-[22px] font-medium tabular-nums {{ $summary['pendingPlanRequests'] ? 'text-status-warn' : '' }}">{{ $summary['pendingPlanRequests'] }}</p></a>
         <div class="bg-surface px-5 py-4"><p class="text-[12px] text-ink-muted">Bu ay açılan</p><p class="text-[22px] font-medium tabular-nums">{{ $summary['newThisMonth'] }}</p></div>
-        <div class="bg-surface px-5 py-4"><p class="text-[12px] text-ink-muted">Aktif kullanıcı</p><p class="text-[22px] font-medium tabular-nums">{{ $summary['users'] }}</p></div>
         <div class="bg-surface px-5 py-4"><p class="text-[12px] text-ink-muted">Limite yakın</p><p class="text-[22px] font-medium tabular-nums {{ $nearLimits->isNotEmpty() ? 'text-status-warn' : '' }}">{{ $nearLimits->count() }}</p></div>
     </div>
 

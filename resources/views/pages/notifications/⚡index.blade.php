@@ -21,6 +21,7 @@ new #[Layout('layouts::authenticated')] class extends Component
         'purchase' => 'Satın Alma',
         'stock_count' => 'Stok Sayımı',
         'return' => 'İade',
+        'plan' => 'Paket',
     ];
 
     public function updatingStatusFilter(): void

@@ -30,6 +30,14 @@
                         <x-slot:icon><path d="M4 21V8l8-5 8 5v13M9 21v-6h6v6" stroke-linecap="round" stroke-linejoin="round"/></x-slot:icon>
                         Organizasyonlar
                     </x-nav-link>
+                    @php($pendingPlanRequests = \App\Domain\Platform\Models\PlanChangeRequest::withoutGlobalScopes()->where('status', 'pending')->count())
+                    <x-nav-link :href="route('platform.plan-requests.index')" :active="request()->routeIs('platform.plan-requests.*')">
+                        <x-slot:icon><path d="M4 7h16v12H4V7Zm0 0 2-3h12l2 3M9 11h6" stroke-linecap="round" stroke-linejoin="round"/></x-slot:icon>
+                        Paket Talepleri
+                        @if ($pendingPlanRequests > 0)
+                            <span class="ml-1 min-w-[18px] h-[18px] px-1 rounded-full bg-status-warn text-white text-[11px] leading-[18px] text-center">{{ $pendingPlanRequests }}</span>
+                        @endif
+                    </x-nav-link>
                 </nav>
 
                 <div class="px-3 pb-4 pt-2 border-t border-panel-line/60 mx-3">
