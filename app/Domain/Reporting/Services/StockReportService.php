@@ -40,7 +40,7 @@ class StockReportService
             ->when($filters['supplier_id'] ?? null, fn ($query, $value) => $query->where('supplier_id', $value))
             ->when($filters['search'] ?? null, function ($query, $value) {
                 $query->where(function ($query) use ($value) {
-                    $query->where('name', 'like', "%{$value}%")->orWhere('code', 'like', "%{$value}%");
+                    $query->whereLike('name', "%{$value}%")->orWhereLike('code', "%{$value}%");
                 });
             })
             ->orderBy('name');

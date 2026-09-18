@@ -139,9 +139,9 @@ new #[Layout('layouts::authenticated')] class extends Component
         $products = Product::query()
             ->with(['category', 'supplier'])
             ->when($this->search, fn ($query) => $query->where(function ($query) {
-                $query->where('name', 'like', "%{$this->search}%")
-                    ->orWhere('code', 'like', "%{$this->search}%")
-                    ->orWhere('barcode', 'like', "%{$this->search}%");
+                $query->whereLike('name', "%{$this->search}%")
+                    ->orWhereLike('code', "%{$this->search}%")
+                    ->orWhereLike('barcode', "%{$this->search}%");
             }))
             ->when($this->categoryFilter, fn ($query) => $query->where('category_id', $this->categoryFilter))
             ->orderBy('name')

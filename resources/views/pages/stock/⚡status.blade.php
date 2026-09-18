@@ -41,8 +41,8 @@ new #[Layout('layouts::authenticated')] class extends Component
             ->with(['product', 'warehouse.branch'])
             ->when($this->warehouseFilter, fn ($query) => $query->where('warehouse_id', $this->warehouseFilter))
             ->when($this->search, fn ($query) => $query->whereHas('product', function ($query) {
-                $query->where('name', 'like', "%{$this->search}%")
-                    ->orWhere('code', 'like', "%{$this->search}%");
+                $query->whereLike('name', "%{$this->search}%")
+                    ->orWhereLike('code', "%{$this->search}%");
             }))
             ->orderBy('warehouse_id')
             ->orderByRaw('expiry_date IS NULL, expiry_date ASC')
