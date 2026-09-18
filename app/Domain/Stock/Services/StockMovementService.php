@@ -129,6 +129,26 @@ class StockMovementService
     }
 
     /**
+     * Tedarikçiye iade (proje.md Bölüm 10: "ayrı bir hareket türü"). İade
+     * belirli bir lottan yapılır — FEFO uygulanmaz; SKT'si geçmiş lot da iade
+     * edilebilir. Hareket iade kaydına bağlıdır; tedarikçi reddederse cancel()
+     * ile ters kayıt yazılır.
+     */
+    public function returnOut(StockLot $lot, float $quantity, Model $return, ?User $actor = null, ?string $reason = null): StockMovement
+    {
+        if ($quantity <= 0) {
+            throw new InvalidArgumentException('İade miktarı sıfırdan büyük olmalıdır.');
+        }
+
+        $this->ensureOperational($lot->warehouse);
+
+        return DB::transaction(fn () => $this->withdrawFromLot(
+            $lot, $quantity, $actor, $reason, StockOutReason::ReturnToSupplier,
+            StockMovementType::ReturnMovement, $return,
+        ));
+    }
+
+    /**
      * @param  Model|null  $related  Düzeltmeyi doğuran kayıt (ör. onaylanan stok sayımı)
      */
     public function adjust(StockLot $lot, float $countedQuantity, string $reason, ?User $actor = null, ?Model $related = null): StockMovement
@@ -196,8 +216,15 @@ class StockMovementService
         }
     }
 
-    private function withdrawFromLot(StockLot $lot, float $quantity, ?User $actor, ?string $reason, ?StockOutReason $reasonCode): StockMovement
-    {
+    private function withdrawFromLot(
+        StockLot $lot,
+        float $quantity,
+        ?User $actor,
+        ?string $reason,
+        ?StockOutReason $reasonCode,
+        StockMovementType $type = StockMovementType::Out,
+        ?Model $related = null,
+    ): StockMovement {
         $locked = StockLot::whereKey($lot->id)->lockForUpdate()->firstOrFail();
 
         if ((float) $locked->quantity < $quantity) {
@@ -206,7 +233,10 @@ class StockMovementService
 
         $locked->update(['quantity' => $locked->quantity - $quantity]);
 
-        return $this->recordMovement(StockMovementType::Out, $locked, -1 * $quantity, $actor, $reason, reasonCode: $reasonCode);
+        return $this->recordMovement(
+            $type, $locked, -1 * $quantity, $actor, $reason,
+            relatedEntityType: $related?->getMorphClass(), relatedEntityId: $related?->getKey(), reasonCode: $reasonCode,
+        );
     }
 
     /**

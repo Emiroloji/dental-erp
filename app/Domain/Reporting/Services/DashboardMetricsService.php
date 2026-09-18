@@ -9,6 +9,7 @@ use App\Domain\Organization\Models\Branch;
 use App\Domain\Stock\Models\StockLot;
 use App\Domain\Stock\Models\StockMovement;
 use App\Domain\Stock\Services\StockLevelService;
+use App\Domain\Stock\Support\StockMovementType;
 use App\Domain\Stock\Support\StockOutReason;
 use App\Models\User;
 use Illuminate\Support\Carbon;
@@ -118,15 +119,20 @@ class DashboardMetricsService
             ->inBranches($branchIds)
             ->withoutCancelled();
 
+        // Tedarikçiye iade (type return) de stoğu organizasyondan çıkaran bir
+        // çıkıştır; reason_code'u ReturnToSupplier olduğu için kullanıma
+        // karışmaz, "Diğer Çıkışlar"da "İade" olarak görünür.
+        $outTypes = [StockMovementType::Out->value, StockMovementType::ReturnMovement->value];
+
         $todayIn = (float) (clone $movements)->where('type', 'in')->whereDate('created_at', Carbon::today())->sum('quantity');
-        $todayOut = abs((float) (clone $movements)->where('type', 'out')->whereDate('created_at', Carbon::today())->sum('quantity'));
+        $todayOut = abs((float) (clone $movements)->whereIn('type', $outTypes)->whereDate('created_at', Carbon::today())->sum('quantity'));
 
         // Kullanım = yalnızca gerçek klinik tüketimi (StockOutReason::usageReasons()).
         // Diğer çıkışlar (hasar, SKT imhası, iade, transfer, nedeni kodlanmamış)
         // stoğu azaltır ama kullanıma karışmaz; ayrı olarak raporlanır.
         $usageCodes = array_map(fn (StockOutReason $reason) => $reason->value, StockOutReason::usageReasons());
 
-        $monthlyOut = (clone $movements)->where('type', 'out')
+        $monthlyOut = (clone $movements)->whereIn('type', $outTypes)
             ->whereBetween('created_at', [Carbon::now()->startOfMonth(), Carbon::now()->endOfMonth()]);
 
         $monthlyUsage = abs((float) (clone $monthlyOut)->whereIn('reason_code', $usageCodes)->sum('quantity'));

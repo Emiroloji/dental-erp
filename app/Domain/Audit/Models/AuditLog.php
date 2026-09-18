@@ -12,6 +12,7 @@ use App\Domain\Organization\Concerns\BelongsToOrganization;
 use App\Domain\Organization\Models\Branch;
 use App\Domain\Organization\Models\Warehouse;
 use App\Domain\Purchasing\Models\PurchaseOrder;
+use App\Domain\Returns\Models\SupplierReturn;
 use App\Domain\Transfer\Models\TransferRequest;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
@@ -35,6 +36,7 @@ class AuditLog extends Model
         TransferRequest::class => 'Transfer',
         PurchaseOrder::class => 'Satın Alma',
         StockCount::class => 'Stok Sayımı',
+        SupplierReturn::class => 'İade',
     ];
 
     protected $fillable = [
