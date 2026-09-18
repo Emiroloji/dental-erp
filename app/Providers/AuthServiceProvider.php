@@ -46,5 +46,6 @@ class AuthServiceProvider extends ServiceProvider
         // Şube ve depo tanımları da yetki matrisinde bir modül değildir;
         // proje.md Bölüm 1/4: şube açma/kapama Ana Klinik Sahibi'nin (Admin) işidir.
         Gate::define('branches.manage', fn (User $user) => false);
+        Gate::define('warehouses.manage', fn (User $user) => false);
     }
 }

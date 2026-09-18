@@ -74,6 +74,18 @@ trait Auditable
     }
 
     /**
+     * Model olaylarının yakalayamadığı değişiklikleri (ör. çoka-çok ilişki
+     * senkronizasyonu) elle denetim kaydına yazar.
+     *
+     * @param  array<string, mixed>  $before
+     * @param  array<string, mixed>  $after
+     */
+    public function recordAuditChange(array $before, array $after): void
+    {
+        $this->writeAuditLog(AuditAction::Updated, $before, $after);
+    }
+
+    /**
      * @param  array<string, mixed>|null  $before
      * @param  array<string, mixed>|null  $after
      */

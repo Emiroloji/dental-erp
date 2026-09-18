@@ -81,6 +81,12 @@
                             Şubeler
                         </x-nav-link>
                     @endcan
+                    @can('warehouses.manage')
+                        <x-nav-link :href="route('warehouses.index')" :active="request()->routeIs('warehouses.index')">
+                            <x-slot:icon><path d="M3 21V9l9-6 9 6v12M7 21v-8h10v8M7 17h10" stroke-linecap="round" stroke-linejoin="round"/></x-slot:icon>
+                            Depolar
+                        </x-nav-link>
+                    @endcan
                     @can('audit_logs.viewAny')
                         <x-nav-link :href="route('audit.index')" :active="request()->routeIs('audit.index')">
                             <x-slot:icon><path d="M12 3 4 6v6c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V6l-8-3Z" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"/></x-slot:icon>

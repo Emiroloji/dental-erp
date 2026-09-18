@@ -3,10 +3,14 @@
 namespace App\Domain\Organization\Models;
 
 use App\Domain\Audit\Concerns\Auditable;
+use App\Domain\Stock\Models\StockLot;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Warehouse extends Model
 {
@@ -15,6 +19,7 @@ class Warehouse extends Model
     protected $fillable = [
         'branch_id',
         'name',
+        'description',
         'is_default',
         'status',
     ];
@@ -26,6 +31,19 @@ class Warehouse extends Model
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
+    }
+
+    /**
+     * Depo sorumluları (proje.md Bölüm 6).
+     */
+    public function managers(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'warehouse_user')->withTimestamps();
+    }
+
+    public function lots(): HasMany
+    {
+        return $this->hasMany(StockLot::class);
     }
 
     /**

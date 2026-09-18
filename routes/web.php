@@ -68,6 +68,10 @@ Route::livewire('/subeler', 'pages::organization.branches')
     ->middleware(['auth', 'can:branches.manage'])
     ->name('branches.index');
 
+Route::livewire('/depolar', 'pages::organization.warehouses')
+    ->middleware(['auth', 'can:warehouses.manage'])
+    ->name('warehouses.index');
+
 Route::livewire('/denetim-kayitlari', 'pages::audit.index')
     ->middleware(['auth', 'can:audit_logs.viewAny'])
     ->name('audit.index');

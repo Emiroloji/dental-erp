@@ -9,11 +9,13 @@ use App\Domain\Access\Support\PermissionScope;
 use App\Domain\Audit\Concerns\Auditable;
 use App\Domain\Organization\Models\Branch;
 use App\Domain\Organization\Models\Organization;
+use App\Domain\Organization\Models\Warehouse;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -67,6 +69,11 @@ class User extends Authenticatable
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
+    }
+
+    public function managedWarehouses(): BelongsToMany
+    {
+        return $this->belongsToMany(Warehouse::class, 'warehouse_user')->withTimestamps();
     }
 
     public function permissions(): HasMany
