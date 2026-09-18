@@ -5,6 +5,7 @@ namespace App\Domain\Inventory\Services;
 use App\Domain\Inventory\Exceptions\StockCountException;
 use App\Domain\Inventory\Models\StockCount;
 use App\Domain\Inventory\Models\StockCountLine;
+use App\Domain\Inventory\Notifications\StockCountNotifier;
 use App\Domain\Inventory\Support\CountDifferenceReason;
 use App\Domain\Inventory\Support\StockCountPermissions;
 use App\Domain\Inventory\Support\StockCountStatus;
@@ -29,6 +30,7 @@ class StockCountService
     public function __construct(
         private readonly StockMovementService $stock,
         private readonly StockCountPermissions $permissions,
+        private readonly StockCountNotifier $notifier,
     ) {}
 
     /**
@@ -255,7 +257,9 @@ class StockCountService
             $locked->events()->create(['status' => $next, 'actor_id' => $actor->id, 'note' => $note]);
         });
 
-        return $count->refresh();
+        $this->notifier->statusChanged($count->refresh(), $next, $actor, $note);
+
+        return $count;
     }
 
     private function ensureCanCount(User $actor, StockCount $count): void

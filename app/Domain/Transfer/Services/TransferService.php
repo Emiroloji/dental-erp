@@ -9,6 +9,7 @@ use App\Domain\Stock\Services\StockMovementService;
 use App\Domain\Stock\Support\StockMovementType;
 use App\Domain\Transfer\Exceptions\TransferException;
 use App\Domain\Transfer\Models\TransferRequest;
+use App\Domain\Transfer\Notifications\TransferNotifier;
 use App\Domain\Transfer\Support\TransferPermissions;
 use App\Domain\Transfer\Support\TransferStatus;
 use App\Models\User;
@@ -28,6 +29,7 @@ class TransferService
     public function __construct(
         private readonly StockMovementService $stock,
         private readonly TransferPermissions $permissions,
+        private readonly TransferNotifier $notifier,
     ) {}
 
     public function request(Product $product, Warehouse $from, Warehouse $to, float $quantity, ?string $reason, User $actor): TransferRequest
@@ -48,7 +50,7 @@ class TransferService
             throw new TransferException('Pasif bir depo veya şube için transfer talebi açılamaz.');
         }
 
-        return DB::transaction(function () use ($product, $from, $to, $quantity, $reason, $actor) {
+        $transfer = DB::transaction(function () use ($product, $from, $to, $quantity, $reason, $actor) {
             $transfer = TransferRequest::create([
                 'organization_id' => $actor->organization_id,
                 'product_id' => $product->id,
@@ -64,6 +66,10 @@ class TransferService
 
             return $transfer;
         });
+
+        $this->notifier->statusChanged($transfer, TransferStatus::Pending, $actor, $reason);
+
+        return $transfer;
     }
 
     public function approve(TransferRequest $transfer, User $actor): TransferRequest
@@ -142,7 +148,9 @@ class TransferService
             $locked->events()->create(['status' => $next, 'actor_id' => $actor->id, 'note' => $note]);
         });
 
-        return $transfer->refresh();
+        $this->notifier->statusChanged($transfer->refresh(), $next, $actor, $note);
+
+        return $transfer;
     }
 
     /**

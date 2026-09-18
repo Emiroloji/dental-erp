@@ -6,6 +6,7 @@ use App\Domain\Catalog\Models\Supplier;
 use App\Domain\Purchasing\Models\PurchaseOrder;
 use App\Domain\Returns\Exceptions\ReturnException;
 use App\Domain\Returns\Models\SupplierReturn;
+use App\Domain\Returns\Notifications\ReturnNotifier;
 use App\Domain\Returns\Support\ReturnPermissions;
 use App\Domain\Returns\Support\ReturnReason;
 use App\Domain\Returns\Support\ReturnStatus;
@@ -32,6 +33,7 @@ class ReturnService
     public function __construct(
         private readonly StockMovementService $stock,
         private readonly ReturnPermissions $permissions,
+        private readonly ReturnNotifier $notifier,
     ) {}
 
     /**
@@ -82,7 +84,7 @@ class ReturnService
             }
         }
 
-        return DB::transaction(function () use ($lot, $quantity, $reason, $reasonNote, $supplier, $order, $details, $actor) {
+        $return = DB::transaction(function () use ($lot, $quantity, $reason, $reasonNote, $supplier, $order, $details, $actor) {
             $return = SupplierReturn::create([
                 'organization_id' => $actor->organization_id,
                 'stock_lot_id' => $lot->id,
@@ -102,6 +104,10 @@ class ReturnService
 
             return $return;
         });
+
+        $this->notifier->statusChanged($return, ReturnStatus::Requested, $actor, $return->reasonText());
+
+        return $return;
     }
 
     public function approve(SupplierReturn $return, User $actor): SupplierReturn
@@ -218,7 +224,9 @@ class ReturnService
             $locked->events()->create(['status' => $next, 'actor_id' => $actor->id, 'note' => trim((string) $note) ?: null]);
         });
 
-        return $return->refresh();
+        $this->notifier->statusChanged($return->refresh(), $next, $actor, trim((string) $note) ?: null);
+
+        return $return;
     }
 
     private function format(float $quantity): string

@@ -11,11 +11,18 @@ new class extends Component
         $this->open = ! $this->open;
     }
 
+    /**
+     * Okundu işaretler; bildirim bir sayfaya bağlıysa oraya yönlendirir.
+     */
     public function markAsRead(string $notificationId): void
     {
         $notification = auth()->user()->notifications()->whereKey($notificationId)->first();
 
         $notification?->markAsRead();
+
+        if (filled($notification?->data['url'] ?? null)) {
+            $this->redirect($notification->data['url']);
+        }
     }
 
     public function markAllAsRead(): void
@@ -61,10 +68,15 @@ new class extends Component
                         class="w-full text-left px-4 py-3 text-[13px] hover:bg-canvas transition-colors {{ $notification->read_at ? 'opacity-60' : '' }}"
                     >
                         <div class="flex items-center gap-2 mb-0.5">
-                            <span class="inline-block w-1.5 h-1.5 rounded-full {{ ($notification->data['level'] ?? null) === 'critical' ? 'bg-status-critical' : 'bg-status-warn' }}"></span>
+                            <span class="inline-block w-1.5 h-1.5 rounded-full {{ match ($notification->data['level'] ?? null) {
+                                'critical' => 'bg-status-critical',
+                                'good' => 'bg-status-good',
+                                'info' => 'bg-brand-500',
+                                default => 'bg-status-warn',
+                            } }}"></span>
                             <span class="font-medium">{{ $notification->data['title'] ?? 'Bildirim' }}</span>
                         </div>
-                        <p class="text-ink-muted">{{ $notification->data['product_name'] ?? '' }}</p>
+                        <p class="text-ink-muted">{{ $notification->data['message'] ?? $notification->data['product_name'] ?? '' }}</p>
                         <p class="text-ink-muted text-[11px] mt-1">{{ $notification->created_at->diffForHumans() }}</p>
                     </button>
                 @empty

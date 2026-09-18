@@ -9,6 +9,7 @@ use App\Domain\Purchasing\Exceptions\PurchasingException;
 use App\Domain\Purchasing\Models\PurchaseOrder;
 use App\Domain\Purchasing\Models\PurchaseOrderLine;
 use App\Domain\Purchasing\Models\PurchaseReceipt;
+use App\Domain\Purchasing\Notifications\PurchaseNotifier;
 use App\Domain\Purchasing\Support\PurchaseOrderStatus;
 use App\Domain\Purchasing\Support\PurchasingPermissions;
 use App\Domain\Stock\Services\StockMovementService;
@@ -31,6 +32,7 @@ class PurchaseOrderService
     public function __construct(
         private readonly StockMovementService $stock,
         private readonly PurchasingPermissions $permissions,
+        private readonly PurchaseNotifier $notifier,
     ) {}
 
     /**
@@ -248,7 +250,9 @@ class PurchaseOrderService
             $locked->events()->create(['status' => $next, 'actor_id' => $actor->id, 'note' => $note]);
         });
 
-        return $order->refresh();
+        $this->notifier->statusChanged($order->refresh(), $next, $actor, $note);
+
+        return $order;
     }
 
     private function ensureCanManage(User $actor, Warehouse $warehouse): void
