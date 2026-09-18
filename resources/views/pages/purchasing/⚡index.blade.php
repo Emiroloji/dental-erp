@@ -1,5 +1,8 @@
 <?php
 
+use App\Domain\Organization\Models\Organization;
+use App\Domain\Platform\Exceptions\PlanLimitException;
+use App\Domain\Platform\Services\PlanLimitService;
 use App\Domain\Access\Support\Module;
 use App\Domain\Catalog\Models\Product;
 use App\Domain\Catalog\Models\Supplier;
@@ -285,6 +288,16 @@ new #[Layout('layouts::authenticated')] class extends Component
         ];
 
         if ($this->document) {
+            // Paket depolama limiti (Faz 3): belge diske yazılmadan önce kontrol edilir.
+            try {
+                app(PlanLimitService::class)->ensureCanStore(Organization::findOrFail(auth()->user()->organization_id), $this->document->getSize());
+            } catch (PlanLimitException $e) {
+                $this->addError('document', $e->getMessage());
+
+                return;
+            }
+
+            $document['document_size'] = $this->document->getSize();
             $document['document_name'] = $this->document->getClientOriginalName();
             $document['document_path'] = $this->document->store('purchase-documents/'.auth()->user()->organization_id, 'local');
         }

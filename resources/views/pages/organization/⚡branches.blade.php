@@ -1,6 +1,7 @@
 <?php
 
 use App\Domain\Organization\Exceptions\LocationRuleException;
+use App\Domain\Platform\Exceptions\PlanLimitException;
 use App\Domain\Organization\Models\Branch;
 use App\Domain\Organization\Services\BranchService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -68,7 +69,14 @@ new #[Layout('layouts::authenticated')] class extends Component
             $branches->update($this->findBranch($this->editingId), $attributes);
             session()->flash('status', 'Şube güncellendi.');
         } else {
-            $branches->create($attributes);
+            try {
+                $branches->create($attributes);
+            } catch (PlanLimitException $e) {
+                $this->addError('name', $e->getMessage());
+
+                return;
+            }
+
             session()->flash('status', 'Şube oluşturuldu; "Varsayılan Depo" otomatik açıldı.');
         }
 
@@ -94,7 +102,13 @@ new #[Layout('layouts::authenticated')] class extends Component
     {
         Gate::authorize('branches.manage');
 
-        $branches->activate($this->findBranch($branchId));
+        try {
+            $branches->activate($this->findBranch($branchId));
+        } catch (PlanLimitException $e) {
+            session()->flash('error', $e->getMessage());
+
+            return;
+        }
 
         session()->flash('status', 'Şube aktifleştirildi.');
     }

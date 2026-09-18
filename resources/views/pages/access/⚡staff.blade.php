@@ -1,5 +1,6 @@
 <?php
 
+use App\Domain\Platform\Exceptions\PlanLimitException;
 use App\Domain\Access\Services\StaffService;
 use App\Domain\Access\Support\Module;
 use App\Domain\Access\Support\PermissionScope;
@@ -72,7 +73,8 @@ new #[Layout('layouts::authenticated')] class extends Component
             'modules' => ['array', $this->grantableModulesRule()],
         ]);
 
-        $staffService->createStaff(
+        try {
+            $staffService->createStaff(
             attributes: [
                 'name' => $validated['name'],
                 'email' => $validated['email'],
@@ -82,7 +84,12 @@ new #[Layout('layouts::authenticated')] class extends Component
             modulePermissions: $this->modules,
             scope: PermissionScope::from($validated['scope']),
             branchIds: $validated['selectedBranches'] ?? [],
-        );
+            );
+        } catch (PlanLimitException $e) {
+            $this->addError('name', $e->getMessage());
+
+            return;
+        }
 
         $this->closeForm();
         session()->flash('status', 'Personel oluşturuldu.');

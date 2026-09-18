@@ -29,7 +29,7 @@ class BranchManagementTest extends TestCase
     {
         parent::setUp();
 
-        $this->organization = Organization::create(['name' => 'Klinik', 'status' => 'active', 'plan' => 'starter']);
+        $this->organization = Organization::create(['name' => 'Klinik', 'status' => 'active', 'plan' => 'professional']);
         $this->mainBranch = Branch::create(['organization_id' => $this->organization->id, 'name' => 'Merkez Şube', 'status' => 'active']);
         Warehouse::create(['branch_id' => $this->mainBranch->id, 'name' => 'Varsayılan Depo', 'is_default' => true, 'status' => 'active']);
         $this->admin = User::factory()->create(['organization_id' => $this->organization->id, 'role' => User::ROLE_ADMIN, 'status' => 'active']);

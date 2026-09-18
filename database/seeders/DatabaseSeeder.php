@@ -21,7 +21,8 @@ class DatabaseSeeder extends Seeder
         $organization = Organization::create([
             'name' => 'Gülümseme Diş Hastanesi',
             'status' => 'active',
-            'plan' => 'starter',
+            // Çok şubeli demo hastane: Profesyonel paket (5 şube / 25 kullanıcı / 10 GB).
+            'plan' => 'professional',
         ]);
 
         $branch = Branch::create([

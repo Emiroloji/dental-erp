@@ -23,6 +23,7 @@ class PurchaseReceipt extends Model
         'delivery_note_number',
         'document_path',
         'document_name',
+        'document_size',
         'received_by',
     ];
 

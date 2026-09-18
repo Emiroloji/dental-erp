@@ -115,6 +115,12 @@
                             Depolar
                         </x-nav-link>
                     @endcan
+                    @can('subscription.view')
+                        <x-nav-link :href="route('subscription.show')" :active="request()->routeIs('subscription.show')">
+                            <x-slot:icon><path d="M4 7h16v12H4V7Zm0 0 2-3h12l2 3M9 11h6" stroke-linecap="round" stroke-linejoin="round"/></x-slot:icon>
+                            Paket ve Kullanım
+                        </x-nav-link>
+                    @endcan
                     @can('audit_logs.viewAny')
                         <x-nav-link :href="route('audit.index')" :active="request()->routeIs('audit.index')">
                             <x-slot:icon><path d="M12 3 4 6v6c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V6l-8-3Z" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"/></x-slot:icon>

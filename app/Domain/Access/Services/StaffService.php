@@ -4,12 +4,16 @@ namespace App\Domain\Access\Services;
 
 use App\Domain\Access\Models\Permission;
 use App\Domain\Access\Support\PermissionScope;
+use App\Domain\Organization\Models\Organization;
+use App\Domain\Platform\Services\PlanLimitService;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
 class StaffService
 {
+    public function __construct(private readonly PlanLimitService $limits) {}
+
     /**
      * @param  array{name: string, email: string, password: string, branch_id: int}  $attributes
      * @param  array<string, array{read: bool, write: bool, delete: bool}>  $modulePermissions
@@ -22,6 +26,9 @@ class StaffService
         array $branchIds = [],
     ): User {
         return DB::transaction(function () use ($attributes, $modulePermissions, $scope, $branchIds) {
+            // Paket limiti (Faz 3): aktif kullanıcı sayısı; organizasyon satırı kilitlenir.
+            $this->limits->ensureCanAddUser(Organization::whereKey(auth()->user()->organization_id)->lockForUpdate()->firstOrFail());
+
             $user = User::create([
                 'organization_id' => auth()->user()->organization_id,
                 'branch_id' => $attributes['branch_id'],

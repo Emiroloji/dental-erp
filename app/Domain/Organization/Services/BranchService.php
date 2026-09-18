@@ -4,12 +4,16 @@ namespace App\Domain\Organization\Services;
 
 use App\Domain\Organization\Exceptions\LocationRuleException;
 use App\Domain\Organization\Models\Branch;
+use App\Domain\Organization\Models\Organization;
 use App\Domain\Organization\Models\Warehouse;
+use App\Domain\Platform\Services\PlanLimitService;
 use App\Domain\Stock\Models\StockLot;
 use Illuminate\Support\Facades\DB;
 
 class BranchService
 {
+    public function __construct(private readonly PlanLimitService $limits) {}
+
     /**
      * proje.md Bölüm 6: her yeni şubeye otomatik bir "Varsayılan Depo" açılır;
      * basit kurulumlar bunu fark etmeden tek depo gibi kullanır.
@@ -19,6 +23,10 @@ class BranchService
     public function create(array $attributes): Branch
     {
         return DB::transaction(function () use ($attributes) {
+            // Paket limiti (Faz 3): organizasyon satırı kilitlenir, eşzamanlı iki
+            // şube açılışı limiti birlikte aşamaz.
+            $this->limits->ensureCanAddBranch($this->lockedOrganization());
+
             $branch = Branch::create([
                 'name' => $attributes['name'],
                 'address' => $attributes['address'] ?? null,
@@ -76,8 +84,21 @@ class BranchService
 
     public function activate(Branch $branch): Branch
     {
-        $branch->update(['status' => 'active']);
+        if ($branch->status === 'active') {
+            return $branch;
+        }
 
-        return $branch;
+        return DB::transaction(function () use ($branch) {
+            $this->limits->ensureCanAddBranch($this->lockedOrganization());
+
+            $branch->update(['status' => 'active']);
+
+            return $branch;
+        });
+    }
+
+    private function lockedOrganization(): Organization
+    {
+        return Organization::whereKey(auth()->user()->organization_id)->lockForUpdate()->firstOrFail();
     }
 }

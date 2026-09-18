@@ -133,7 +133,7 @@ class PurchaseOrderService
 
     /**
      * @param  array<int, array{quantity: float|int|string|null, lot_no?: ?string, expiry_date?: ?string, unit_cost?: float|int|string|null}>  $lines  sipariş satırı id => teslim bilgisi
-     * @param  array{invoice_number?: ?string, delivery_note_number?: ?string, document_path?: ?string, document_name?: ?string}  $document
+     * @param  array{invoice_number?: ?string, delivery_note_number?: ?string, document_path?: ?string, document_name?: ?string, document_size?: ?int}  $document
      */
     public function receive(PurchaseOrder $order, array $lines, array $document, User $actor): PurchaseReceipt
     {
@@ -159,6 +159,7 @@ class PurchaseOrderService
                 'delivery_note_number' => $document['delivery_note_number'] ?? null,
                 'document_path' => $document['document_path'] ?? null,
                 'document_name' => $document['document_name'] ?? null,
+                'document_size' => $document['document_size'] ?? null,
                 'received_by' => $actor->id,
             ]);
 

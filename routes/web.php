@@ -117,6 +117,10 @@ Route::livewire('/depolar', 'pages::organization.warehouses')
     ->middleware(['auth', 'can:warehouses.manage'])
     ->name('warehouses.index');
 
+Route::livewire('/paket', 'pages::platform.subscription')
+    ->middleware(['auth', 'can:subscription.view'])
+    ->name('subscription.show');
+
 Route::livewire('/denetim-kayitlari', 'pages::audit.index')
     ->middleware(['auth', 'can:audit_logs.viewAny'])
     ->name('audit.index');
