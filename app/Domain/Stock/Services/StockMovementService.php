@@ -12,6 +12,7 @@ use App\Domain\Stock\Models\StockMovement;
 use App\Domain\Stock\Support\StockMovementType;
 use App\Domain\Stock\Support\StockOutReason;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
@@ -71,6 +72,54 @@ class StockMovementService
             }
 
             return $this->withdrawFefo($product, $warehouse, $quantity, $actor, $reason, $reasonCode);
+        });
+    }
+
+    /**
+     * Transfer gönderimi (kurallar.md Bölüm 1: "Gönderildi" anında kaynaktan
+     * düşülür). Lotlar FEFO ile seçilir; her hareket transfer kaydına bağlanır.
+     *
+     * @return Collection<int, StockMovement>
+     */
+    public function transferOut(Product $product, Warehouse $warehouse, float $quantity, Model $transfer, ?User $actor = null): Collection
+    {
+        if ($quantity <= 0) {
+            throw new InvalidArgumentException('Transfer miktarı sıfırdan büyük olmalıdır.');
+        }
+
+        $this->ensureOperational($warehouse);
+
+        return DB::transaction(fn () => $this->withdrawFefo(
+            $product, $warehouse, $quantity, $actor, "Transfer #{$transfer->getKey()} gönderimi", null,
+            StockMovementType::TransferOut, $transfer,
+        ));
+    }
+
+    /**
+     * Transfer teslim alımı: gönderilen lotun numarası, SKT'si ve alış fiyatı
+     * hedef depoda aynen korunur — lot takibi transferde kopmaz.
+     */
+    public function transferIn(StockMovement $shipped, Warehouse $warehouse, Model $transfer, ?User $actor = null): StockMovement
+    {
+        $this->ensureOperational($warehouse);
+
+        return DB::transaction(function () use ($shipped, $warehouse, $transfer, $actor) {
+            $sourceLot = $shipped->lot;
+            $quantity = abs((float) $shipped->quantity);
+
+            $lot = $this->resolveOrCreateLot($sourceLot->product, $warehouse, [
+                'lot_no' => $sourceLot->lot_no,
+                'expiry_date' => $sourceLot->expiry_date?->toDateString(),
+                'unit_cost' => (float) $sourceLot->unit_cost,
+            ]);
+            $lot = StockLot::whereKey($lot->id)->lockForUpdate()->firstOrFail();
+
+            $lot->update(['quantity' => $lot->quantity + $quantity]);
+
+            return $this->recordMovement(
+                StockMovementType::TransferIn, $lot, $quantity, $actor, "Transfer #{$transfer->getKey()} teslim alımı",
+                relatedEntityType: $transfer->getMorphClass(), relatedEntityId: $transfer->getKey(),
+            );
         });
     }
 
@@ -152,8 +201,16 @@ class StockMovementService
     /**
      * @return Collection<int, StockMovement>
      */
-    private function withdrawFefo(Product $product, Warehouse $warehouse, float $quantity, ?User $actor, ?string $reason, ?StockOutReason $reasonCode): Collection
-    {
+    private function withdrawFefo(
+        Product $product,
+        Warehouse $warehouse,
+        float $quantity,
+        ?User $actor,
+        ?string $reason,
+        ?StockOutReason $reasonCode,
+        StockMovementType $type = StockMovementType::Out,
+        ?Model $related = null,
+    ): Collection {
         $lots = StockLot::where('product_id', $product->id)
             ->where('warehouse_id', $warehouse->id)
             ->where('quantity', '>', 0)
@@ -178,7 +235,10 @@ class StockMovementService
 
             $take = min((float) $lot->quantity, $remaining);
             $lot->update(['quantity' => $lot->quantity - $take]);
-            $movements->push($this->recordMovement(StockMovementType::Out, $lot, -1 * $take, $actor, $reason, reasonCode: $reasonCode));
+            $movements->push($this->recordMovement(
+                $type, $lot, -1 * $take, $actor, $reason,
+                relatedEntityType: $related?->getMorphClass(), relatedEntityId: $related?->getKey(), reasonCode: $reasonCode,
+            ));
 
             $remaining -= $take;
         }

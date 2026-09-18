@@ -68,7 +68,7 @@ new #[Layout('layouts::authenticated')] class extends Component
             'warehouse_id' => ['required', 'exists:warehouses,id'],
             'lot_id' => ['nullable', 'exists:stock_lots,id'],
             'quantity' => ['required', 'numeric', 'min:0.01'],
-            'reasonCategory' => ['required', Rule::in(array_column(StockOutReason::cases(), 'value'))],
+            'reasonCategory' => ['required', Rule::in(array_column(StockOutReason::selectable(), 'value'))],
             'reasonNote' => ['nullable', 'string', 'max:255'],
         ]);
 
@@ -153,7 +153,7 @@ new #[Layout('layouts::authenticated')] class extends Component
             'products' => Product::where('status', 'active')->orderBy('name')->get(),
             'warehouses' => Warehouse::operational()->inBranches($this->branchIds())->with('branch')->orderBy('name')->get(),
             'availableLots' => $availableLots,
-            'reasons' => StockOutReason::cases(),
+            'reasons' => StockOutReason::selectable(),
         ];
     }
 };

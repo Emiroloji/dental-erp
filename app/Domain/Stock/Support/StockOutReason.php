@@ -24,6 +24,18 @@ enum StockOutReason: string
         return [self::ClinicalUse, self::Consumption];
     }
 
+    /**
+     * Stok Çıkışı formunda seçilebilen nedenler. Transfer elle çıkış olarak
+     * girilemez — stok düşer ama hiçbir depoya varmazdı; transfer, Transferler
+     * akışıyla yapılır. (Transfer değeri eski kayıtlar için enum'da kalır.)
+     *
+     * @return array<int, self>
+     */
+    public static function selectable(): array
+    {
+        return array_values(array_filter(self::cases(), fn (self $reason) => $reason !== self::Transfer));
+    }
+
     public function label(): string
     {
         return match ($this) {
