@@ -35,7 +35,9 @@ new class extends Component
             ]);
         }
 
-        if ($user->organization && $user->organization->status !== 'active') {
+        // Pasif organizasyon: erişim tamamen engellenir. Salt-okunur organizasyon
+        // giriş yapar, yalnızca yazma işlemleri kapalıdır (Aşama 18).
+        if ($user->organization && ! $user->organization->status->allowsLogin()) {
             Auth::logout();
 
             throw ValidationException::withMessages([
@@ -45,7 +47,11 @@ new class extends Component
 
         session()->regenerate();
 
-        $this->redirect(route('dashboard'));
+        $this->redirect(match (true) {
+            $user->must_change_password => route('password.change'),
+            $user->isPlatformOwner() => route('platform.dashboard'),
+            default => route('dashboard'),
+        });
     }
 };
 ?>

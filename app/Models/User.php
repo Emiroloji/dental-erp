@@ -20,7 +20,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
-#[Fillable(['name', 'email', 'password', 'organization_id', 'branch_id', 'role', 'status'])]
+#[Fillable(['name', 'email', 'password', 'must_change_password', 'organization_id', 'branch_id', 'role', 'status'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -43,6 +43,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'must_change_password' => 'boolean',
         ];
     }
 
@@ -59,6 +60,15 @@ class User extends Authenticatable
     public function isActive(): bool
     {
         return $this->status === 'active';
+    }
+
+    /**
+     * Organizasyonu Platform Sahibi tarafından salt-okunur (veya pasif) yapılmış
+     * bir kullanıcı hiçbir kayıt ekleyemez/değiştiremez — Admin dahil.
+     */
+    public function inReadOnlyOrganization(): bool
+    {
+        return $this->organization_id !== null && (bool) $this->organization?->isReadOnly();
     }
 
     public function organization(): BelongsTo
@@ -119,6 +129,10 @@ class User extends Authenticatable
 
     public function canModule(Module $module, string $ability): bool
     {
+        if ($ability !== 'read' && $this->inReadOnlyOrganization()) {
+            return false;
+        }
+
         if ($this->isAdmin()) {
             return true;
         }

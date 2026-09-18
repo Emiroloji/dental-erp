@@ -32,7 +32,15 @@ class AuthServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        Gate::before(fn (User $user) => $user->isAdmin() ? true : null);
+        // Salt-okunur organizasyonda (Admin dahil) hiçbir ekleme/düzenleme/silme
+        // yetkisi yoktur; bu kural Admin bypass'ından önce gelir.
+        Gate::before(function (User $user, string $ability) {
+            if ($user->inReadOnlyOrganization() && preg_match('/\.(create|update|delete)$/', $ability)) {
+                return false;
+            }
+
+            return $user->isAdmin() ? true : null;
+        });
 
         foreach (self::MODULE_POLICIES as $module => $policy) {
             Gate::define("{$module}.viewAny", [$policy, 'viewAny']);

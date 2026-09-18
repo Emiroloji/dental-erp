@@ -2,6 +2,8 @@
 
 namespace App\Domain\Organization\Models;
 
+use App\Domain\Audit\Concerns\Auditable;
+use App\Domain\Organization\Support\OrganizationStatus;
 use App\Domain\Platform\Support\Plan;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -10,10 +12,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Organization extends Model
 {
-    use HasFactory;
+    use Auditable, HasFactory;
 
     protected $fillable = [
         'name',
+        'contact_email',
+        'contact_phone',
+        'address',
         'status',
         'plan',
         'max_branches',
@@ -22,6 +27,7 @@ class Organization extends Model
     ];
 
     protected $casts = [
+        'status' => OrganizationStatus::class,
         'plan' => Plan::class,
         'max_branches' => 'integer',
         'max_users' => 'integer',
@@ -38,6 +44,11 @@ class Organization extends Model
         return $this->hasMany(User::class);
     }
 
+    public function isReadOnly(): bool
+    {
+        return ! $this->status->allowsWrites();
+    }
+
     /**
      * Geçerli limitler: organizasyona özel değer (Platform Sahibi girer) yoksa
      * paketin varsayılanı. null = sınırsız.
@@ -51,5 +62,14 @@ class Organization extends Model
             'users' => $this->max_users ?? $this->plan->maxUsers(),
             'storage_mb' => $this->max_storage_mb ?? $this->plan->maxStorageMb(),
         ];
+    }
+
+    /**
+     * Organizasyon kaydındaki değişiklikler (paket, durum, limit) o
+     * organizasyonun denetim kaydına yazılır — Ana Klinik Sahibi de görür.
+     */
+    protected function auditOrganizationId(): ?int
+    {
+        return $this->id;
     }
 }

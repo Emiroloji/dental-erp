@@ -11,9 +11,25 @@ trait BelongsToOrganization
     protected static function bootBelongsToOrganization(): void
     {
         static::addGlobalScope('organization', function (Builder $builder) {
-            if ($organizationId = auth()->user()?->organization_id) {
-                $builder->where($builder->getModel()->qualifyColumn('organization_id'), $organizationId);
+            $user = auth()->user();
+
+            if ($user === null) {
+                // Oturum yok (zamanlanmış işler, kuyruk, seeder): sorgular zaten
+                // organizasyonu kendileri filtreler.
+                return;
             }
+
+            if ($user->organization_id === null) {
+                // Organizasyonu olmayan oturum (Platform Sahibi) hiçbir tenant
+                // verisini göremez (kurallar.md Bölüm 4) — varsayılan kapalı.
+                // Platform domain'i ihtiyaç duyduğu sayımları kapsamı açıkça
+                // kaldırarak ve organization_id vererek yapar.
+                $builder->whereRaw('1 = 0');
+
+                return;
+            }
+
+            $builder->where($builder->getModel()->qualifyColumn('organization_id'), $user->organization_id);
         });
 
         static::creating(function ($model) {

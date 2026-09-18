@@ -38,6 +38,17 @@ class DatabaseSeeder extends Seeder
             'status' => 'active',
         ]);
 
+        // Platform Sahibi (Süper Admin): hiçbir organizasyona bağlı değildir,
+        // yalnızca /platform panelini kullanır (mimari.md Bölüm 9).
+        User::factory()->create([
+            'organization_id' => null,
+            'name' => 'Platform Sahibi',
+            'email' => 'platform@dental-erp.test',
+            'password' => bcrypt('password'),
+            'role' => User::ROLE_PLATFORM_OWNER,
+            'status' => 'active',
+        ]);
+
         User::factory()->create([
             'organization_id' => $organization->id,
             'name' => 'Admin',

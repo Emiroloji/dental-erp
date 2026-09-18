@@ -10,6 +10,7 @@ use App\Domain\Catalog\Models\Supplier;
 use App\Domain\Inventory\Models\StockCount;
 use App\Domain\Organization\Concerns\BelongsToOrganization;
 use App\Domain\Organization\Models\Branch;
+use App\Domain\Organization\Models\Organization;
 use App\Domain\Organization\Models\Warehouse;
 use App\Domain\Purchasing\Models\PurchaseOrder;
 use App\Domain\Returns\Models\SupplierReturn;
@@ -37,6 +38,7 @@ class AuditLog extends Model
         PurchaseOrder::class => 'Satın Alma',
         StockCount::class => 'Stok Sayımı',
         SupplierReturn::class => 'İade',
+        Organization::class => 'Organizasyon',
     ];
 
     protected $fillable = [

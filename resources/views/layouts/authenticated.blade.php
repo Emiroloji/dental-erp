@@ -163,6 +163,11 @@
                 </header>
 
                 <main class="px-5 py-8 lg:px-10 lg:py-10 max-w-5xl">
+                    @if (auth()->user()->inReadOnlyOrganization())
+                        <div class="mb-6 rounded-md bg-status-warn-bg border border-status-warn/30 text-status-warn text-[13px] px-4 py-3">
+                            Organizasyonunuz <strong>salt-okunur</strong> modda: kayıtları görüntüleyebilir ve rapor alabilirsiniz, ancak ekleme veya değişiklik yapamazsınız. Bilgi için Platform Sahibi ile iletişime geçin.
+                        </div>
+                    @endif
                     {{ $slot }}
                 </main>
             </div>
