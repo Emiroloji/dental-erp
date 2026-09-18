@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Purchasing\PurchaseReceiptDocumentController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
@@ -59,6 +60,14 @@ Route::livewire('/stok-hareketleri', 'pages::stock.movements')
 Route::livewire('/transferler', 'pages::transfer.index')
     ->middleware(['auth', 'can:transfer.viewAny'])
     ->name('transfers.index');
+
+Route::livewire('/satin-alma', 'pages::purchasing.index')
+    ->middleware(['auth', 'can:purchasing.viewAny'])
+    ->name('purchasing.index');
+
+Route::get('/satin-alma/teslim/{receipt}/belge', PurchaseReceiptDocumentController::class)
+    ->middleware(['auth', 'can:purchasing.viewAny'])
+    ->name('purchasing.receipts.document');
 
 Route::livewire('/bildirimler', 'pages::notifications.index')
     ->middleware('auth')

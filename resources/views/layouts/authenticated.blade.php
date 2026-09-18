@@ -74,6 +74,12 @@
                             Transferler
                         </x-nav-link>
                     @endcan
+                    @can('purchasing.viewAny')
+                        <x-nav-link :href="route('purchasing.index')" :active="request()->routeIs('purchasing.index')">
+                            <x-slot:icon><path d="M3 4h2l2.4 11.2a1 1 0 0 0 1 .8h9.2a1 1 0 0 0 1-.8L20 8H6M9 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2Zm9 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" stroke-linecap="round" stroke-linejoin="round"/></x-slot:icon>
+                            Satın Alma
+                        </x-nav-link>
+                    @endcan
                     @can('reports.viewAny')
                         <x-nav-link :href="route('reports.stock')" :active="request()->routeIs('reports.stock')">
                             <x-slot:icon><path d="M4 19V9m6 10V5m6 14v-7" stroke-linecap="round" stroke-linejoin="round"/></x-slot:icon>

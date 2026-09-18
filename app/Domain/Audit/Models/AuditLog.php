@@ -10,6 +10,7 @@ use App\Domain\Catalog\Models\Supplier;
 use App\Domain\Organization\Concerns\BelongsToOrganization;
 use App\Domain\Organization\Models\Branch;
 use App\Domain\Organization\Models\Warehouse;
+use App\Domain\Purchasing\Models\PurchaseOrder;
 use App\Domain\Transfer\Models\TransferRequest;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
@@ -31,6 +32,7 @@ class AuditLog extends Model
         Branch::class => 'Şube',
         Warehouse::class => 'Depo',
         TransferRequest::class => 'Transfer',
+        PurchaseOrder::class => 'Satın Alma',
     ];
 
     protected $fillable = [
