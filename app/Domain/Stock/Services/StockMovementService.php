@@ -5,6 +5,7 @@ namespace App\Domain\Stock\Services;
 use App\Domain\Catalog\Models\Product;
 use App\Domain\Organization\Models\Warehouse;
 use App\Domain\Reporting\Services\DashboardMetricsService;
+use App\Domain\Stock\Exceptions\InactiveLocationException;
 use App\Domain\Stock\Exceptions\InsufficientStockException;
 use App\Domain\Stock\Models\StockLot;
 use App\Domain\Stock\Models\StockMovement;
@@ -34,6 +35,8 @@ class StockMovementService
             throw new InvalidArgumentException('Giriş miktarı sıfırdan büyük olmalıdır.');
         }
 
+        $this->ensureOperational($warehouse);
+
         return DB::transaction(function () use ($product, $warehouse, $quantity, $lotAttributes, $actor, $reason) {
             $lot = $this->resolveOrCreateLot($product, $warehouse, $lotAttributes);
             $lot = StockLot::whereKey($lot->id)->lockForUpdate()->firstOrFail();
@@ -60,6 +63,8 @@ class StockMovementService
             throw new InvalidArgumentException('Çıkış miktarı sıfırdan büyük olmalıdır.');
         }
 
+        $this->ensureOperational($warehouse);
+
         return DB::transaction(function () use ($product, $warehouse, $quantity, $lot, $actor, $reason, $reasonCode) {
             if ($lot) {
                 return collect([$this->withdrawFromLot($lot, $quantity, $actor, $reason, $reasonCode)]);
@@ -79,6 +84,8 @@ class StockMovementService
             throw new InvalidArgumentException('Sayılan miktar negatif olamaz.');
         }
 
+        $this->ensureOperational($lot->warehouse);
+
         return DB::transaction(function () use ($lot, $countedQuantity, $reason, $actor) {
             $locked = StockLot::whereKey($lot->id)->lockForUpdate()->firstOrFail();
 
@@ -92,6 +99,8 @@ class StockMovementService
 
     public function cancel(StockMovement $movement, ?User $actor = null): StockMovement
     {
+        $this->ensureOperational($movement->warehouse);
+
         return DB::transaction(function () use ($movement, $actor) {
             $lot = StockLot::whereKey($movement->lot_id)->lockForUpdate()->firstOrFail();
 
@@ -114,6 +123,17 @@ class StockMovementService
                 relatedEntityId: $movement->id,
             );
         });
+    }
+
+    /**
+     * kurallar.md Bölüm 4: pasif depo veya pasif şubedeki bir depo üzerinde
+     * hiçbir stok işlemi (giriş, çıkış, düzeltme, iptal) yapılamaz.
+     */
+    private function ensureOperational(Warehouse $warehouse): void
+    {
+        if (! $warehouse->isOperational()) {
+            throw new InactiveLocationException("\"{$warehouse->name}\" deposu veya bağlı olduğu şube pasif; bu depoda stok işlemi yapılamaz.");
+        }
     }
 
     private function withdrawFromLot(StockLot $lot, float $quantity, ?User $actor, ?string $reason, ?StockOutReason $reasonCode): StockMovement

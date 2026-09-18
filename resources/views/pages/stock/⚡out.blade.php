@@ -3,6 +3,7 @@
 use App\Domain\Access\Support\Module;
 use App\Domain\Catalog\Models\Product;
 use App\Domain\Organization\Models\Warehouse;
+use App\Domain\Stock\Exceptions\InactiveLocationException;
 use App\Domain\Stock\Exceptions\InsufficientStockException;
 use App\Domain\Stock\Models\StockLot;
 use App\Domain\Stock\Models\StockMovement;
@@ -107,6 +108,10 @@ new #[Layout('layouts::authenticated')] class extends Component
             $this->addError('quantity', $e->getMessage());
 
             return;
+        } catch (InactiveLocationException $e) {
+            $this->addError('warehouse_id', $e->getMessage());
+
+            return;
         }
 
         $this->closeForm();
@@ -146,7 +151,7 @@ new #[Layout('layouts::authenticated')] class extends Component
         return [
             'movements' => $movements,
             'products' => Product::where('status', 'active')->orderBy('name')->get(),
-            'warehouses' => Warehouse::whereHas('branch')->inBranches($this->branchIds())->with('branch')->where('status', 'active')->orderBy('name')->get(),
+            'warehouses' => Warehouse::operational()->inBranches($this->branchIds())->with('branch')->orderBy('name')->get(),
             'availableLots' => $availableLots,
             'reasons' => StockOutReason::cases(),
         ];

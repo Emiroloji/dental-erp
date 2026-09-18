@@ -38,6 +38,21 @@ class Warehouse extends Model
         }
     }
 
+    /**
+     * Yeni stok işlemine açık depolar: kendisi ve şubesi aktif.
+     */
+    public function scopeOperational(Builder $query): void
+    {
+        $query->where($this->qualifyColumn('status'), 'active')
+            ->whereHas('branch', fn ($branch) => $branch->where('status', 'active'));
+    }
+
+    public function isOperational(): bool
+    {
+        return $this->status === 'active'
+            && $this->branch()->withoutGlobalScopes()->where('status', 'active')->exists();
+    }
+
     protected function auditOrganizationId(): ?int
     {
         return $this->branch()->withoutGlobalScopes()->value('organization_id');

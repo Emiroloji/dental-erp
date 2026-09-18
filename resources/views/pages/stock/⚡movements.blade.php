@@ -2,6 +2,7 @@
 
 use App\Domain\Access\Support\Module;
 use App\Domain\Organization\Models\Warehouse;
+use App\Domain\Stock\Exceptions\InactiveLocationException;
 use App\Domain\Stock\Exceptions\InsufficientStockException;
 use App\Domain\Stock\Models\StockMovement;
 use App\Domain\Stock\Services\StockMovementService;
@@ -63,7 +64,7 @@ new #[Layout('layouts::authenticated')] class extends Component
 
         try {
             $service->cancel($movement, auth()->user());
-        } catch (InsufficientStockException $e) {
+        } catch (InsufficientStockException|InactiveLocationException $e) {
             session()->flash('error', $e->getMessage());
 
             return;

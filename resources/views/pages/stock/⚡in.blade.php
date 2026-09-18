@@ -3,6 +3,7 @@
 use App\Domain\Access\Support\Module;
 use App\Domain\Catalog\Models\Product;
 use App\Domain\Organization\Models\Warehouse;
+use App\Domain\Stock\Exceptions\InactiveLocationException;
 use App\Domain\Stock\Models\StockMovement;
 use App\Domain\Stock\Services\StockMovementService;
 use App\Domain\Stock\Support\StockMovementType;
@@ -74,18 +75,24 @@ new #[Layout('layouts::authenticated')] class extends Component
             abort(404);
         }
 
-        $service->in(
-            $product,
-            $warehouse,
-            (float) $validated['quantity'],
-            [
-                'lot_no' => $validated['lot_no'] ?: null,
-                'expiry_date' => $validated['expiry_date'] ?: null,
-                'unit_cost' => filled($validated['unit_cost']) ? (float) $validated['unit_cost'] : 0,
-            ],
-            auth()->user(),
-            $validated['reason'] ?: null,
-        );
+        try {
+            $service->in(
+                $product,
+                $warehouse,
+                (float) $validated['quantity'],
+                [
+                    'lot_no' => $validated['lot_no'] ?: null,
+                    'expiry_date' => $validated['expiry_date'] ?: null,
+                    'unit_cost' => filled($validated['unit_cost']) ? (float) $validated['unit_cost'] : 0,
+                ],
+                auth()->user(),
+                $validated['reason'] ?: null,
+            );
+        } catch (InactiveLocationException $e) {
+            $this->addError('warehouse_id', $e->getMessage());
+
+            return;
+        }
 
         $this->closeForm();
         session()->flash('status', 'Stok girişi kaydedildi.');
@@ -113,7 +120,7 @@ new #[Layout('layouts::authenticated')] class extends Component
         return [
             'movements' => $movements,
             'products' => Product::with('supplier')->where('status', 'active')->orderBy('name')->get(),
-            'warehouses' => Warehouse::whereHas('branch')->inBranches($this->branchIds())->with('branch')->where('status', 'active')->orderBy('name')->get(),
+            'warehouses' => Warehouse::operational()->inBranches($this->branchIds())->with('branch')->orderBy('name')->get(),
         ];
     }
 };
