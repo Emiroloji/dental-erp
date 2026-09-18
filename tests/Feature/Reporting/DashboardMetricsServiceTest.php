@@ -58,6 +58,28 @@ class DashboardMetricsServiceTest extends TestCase
         $this->assertSame(0, $summary['levelCounts']['critical']);
     }
 
+    public function test_cancelled_movements_are_not_counted_as_usage_or_daily_totals(): void
+    {
+        $this->actingAs($this->admin);
+
+        $service = app(StockMovementService::class);
+        $service->in($this->product, $this->warehouse, 100, ['unit_cost' => 5], $this->admin);
+        $mistakenIn = $service->in($this->product, $this->warehouse, 10, ['unit_cost' => 5], $this->admin);
+        $service->out($this->product, $this->warehouse, 20, null, $this->admin, 'Klinik içi kullanım');
+        $mistakenOut = $service->out($this->product, $this->warehouse, 5, null, $this->admin, 'Klinik içi kullanım')->sole();
+
+        $service->cancel($mistakenIn, $this->admin);
+        $service->cancel($mistakenOut, $this->admin);
+
+        $summary = app(DashboardMetricsService::class)->summaryFor($this->organization->id);
+
+        $this->assertSame(80.0, $summary['totalStockQuantity']);
+        $this->assertSame(100.0, $summary['todayIn']);
+        $this->assertSame(20.0, $summary['todayOut']);
+        $this->assertSame(20.0, $summary['monthlyUsage']);
+        $this->assertSame([['name' => 'Kompozit A', 'used' => 20.0]], $summary['topUsedProducts']);
+    }
+
     public function test_the_summary_is_cached_and_survives_new_data_until_invalidated(): void
     {
         $this->actingAs($this->admin);

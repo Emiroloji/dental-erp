@@ -5,6 +5,7 @@ namespace App\Domain\Stock\Models;
 use App\Domain\Organization\Models\Warehouse;
 use App\Domain\Stock\Support\StockMovementType;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
@@ -43,6 +44,23 @@ class StockMovement extends Model
     public function actor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'actor_id');
+    }
+
+    /**
+     * İptal edilmiş hareketleri dışarıda bırakır. İptal, orijinal hareketi silmez;
+     * ona related_entity ile bağlı ters bir Cancel hareketi yazar (kurallar.md
+     * Bölüm 2). Giriş/çıkış/kullanım toplamları bu yüzden iptal edilen orijinali
+     * saymamalıdır — aksi halde stok geri gelir ama kullanım rakamı düşmez.
+     */
+    public function scopeWithoutCancelled(Builder $query): void
+    {
+        $query->whereNotExists(function ($cancellations) use ($query) {
+            $cancellations->selectRaw('1')
+                ->from('stock_movements as cancellations')
+                ->where('cancellations.type', StockMovementType::Cancel->value)
+                ->where('cancellations.related_entity_type', self::class)
+                ->whereColumn('cancellations.related_entity_id', $query->getModel()->qualifyColumn('id'));
+        });
     }
 
     public function relatedEntity(): MorphTo

@@ -82,7 +82,8 @@ class DashboardMetricsService
             return Carbon::today()->diffInDays($lot->expiry_date->copy()->startOfDay(), false) <= $expiryWarningDays;
         })->count();
 
-        $movements = StockMovement::whereHas('lot.product', fn ($query) => $query->where('organization_id', $organizationId));
+        $movements = StockMovement::whereHas('lot.product', fn ($query) => $query->where('organization_id', $organizationId))
+            ->withoutCancelled();
 
         $todayIn = (float) (clone $movements)->where('type', 'in')->whereDate('created_at', Carbon::today())->sum('quantity');
         $todayOut = abs((float) (clone $movements)->where('type', 'out')->whereDate('created_at', Carbon::today())->sum('quantity'));
@@ -95,6 +96,7 @@ class DashboardMetricsService
             ->join('products', 'stock_lots.product_id', '=', 'products.id')
             ->where('products.organization_id', $organizationId)
             ->where('stock_movements.type', 'out')
+            ->withoutCancelled()
             ->groupBy('products.id', 'products.name')
             ->orderByDesc('used_quantity')
             ->limit(5)
