@@ -1,5 +1,6 @@
 <?php
 
+use App\Domain\Access\Support\Module;
 use App\Domain\Organization\Models\Warehouse;
 use App\Domain\Stock\Exceptions\InsufficientStockException;
 use App\Domain\Stock\Models\StockMovement;
@@ -34,7 +35,7 @@ new #[Layout('layouts::authenticated')] class extends Component
         Gate::authorize('stock_movement.update');
 
         try {
-            $movement = StockMovement::whereHas('lot.product')->findOrFail($movementId);
+            $movement = StockMovement::whereHas('lot.product')->inBranches($this->branchIds())->findOrFail($movementId);
         } catch (ModelNotFoundException) {
             // Livewire's test harness doesn't convert ModelNotFoundException into a 404
             // response the way a real HTTP request does, so we convert it explicitly —
@@ -71,10 +72,19 @@ new #[Layout('layouts::authenticated')] class extends Component
         session()->flash('status', 'Hareket iptal edildi.');
     }
 
+    /**
+     * @return array<int, int>|null
+     */
+    private function branchIds(): ?array
+    {
+        return auth()->user()->accessibleBranchIds(Module::StockMovement);
+    }
+
     public function with(): array
     {
         $movements = StockMovement::query()
             ->whereHas('lot.product')
+            ->inBranches($this->branchIds())
             ->with(['lot.product', 'warehouse', 'actor'])
             ->when($this->typeFilter, fn ($query) => $query->where('type', $this->typeFilter))
             ->when($this->warehouseFilter, fn ($query) => $query->where('warehouse_id', $this->warehouseFilter))
@@ -91,7 +101,7 @@ new #[Layout('layouts::authenticated')] class extends Component
         return [
             'movements' => $movements,
             'cancelledMovementIds' => $cancelledMovementIds,
-            'warehouses' => Warehouse::whereHas('branch')->with('branch')->where('status', 'active')->orderBy('name')->get(),
+            'warehouses' => Warehouse::whereHas('branch')->inBranches($this->branchIds())->with('branch')->where('status', 'active')->orderBy('name')->get(),
             'types' => StockMovementType::cases(),
         ];
     }

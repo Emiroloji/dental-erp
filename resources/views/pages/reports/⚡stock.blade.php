@@ -1,5 +1,6 @@
 <?php
 
+use App\Domain\Access\Support\Module;
 use App\Domain\Catalog\Models\Category;
 use App\Domain\Catalog\Models\Supplier;
 use App\Domain\Organization\Models\Warehouse;
@@ -53,27 +54,35 @@ new #[Layout('layouts::authenticated')] class extends Component
         ];
     }
 
+    /**
+     * @return array<int, int>|null
+     */
+    private function branchIds(): ?array
+    {
+        return auth()->user()->accessibleBranchIds(Module::Reports);
+    }
+
     public function exportExcel(StockReportService $reports)
     {
-        return $reports->exportExcel($this->filters());
+        return $reports->exportExcel($this->filters(), $this->branchIds());
     }
 
     public function exportPdf(StockReportService $reports)
     {
-        return $reports->exportPdf($this->filters());
+        return $reports->exportPdf($this->filters(), $this->branchIds());
     }
 
     public function with(StockReportService $reports): array
     {
         $products = $reports->query($this->filters())->paginate(15);
 
-        $products->setCollection($reports->rows($products->getCollection(), $this->warehouseId ?: null));
+        $products->setCollection($reports->rows($products->getCollection(), $this->warehouseId ?: null, $this->branchIds()));
 
         return [
             'rows' => $products,
             'categories' => Category::where('status', 'active')->orderBy('name')->get(),
             'suppliers' => Supplier::where('status', 'active')->orderBy('name')->get(),
-            'warehouses' => Warehouse::whereHas('branch')->with('branch')->where('status', 'active')->orderBy('name')->get(),
+            'warehouses' => Warehouse::whereHas('branch')->inBranches($this->branchIds())->with('branch')->where('status', 'active')->orderBy('name')->get(),
         ];
     }
 };

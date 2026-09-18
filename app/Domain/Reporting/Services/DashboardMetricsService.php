@@ -28,48 +28,77 @@ class DashboardMetricsService
     public function __construct(private readonly StockLevelService $levels) {}
 
     /**
+     * @param  array<int, int>|null  $branchIds  Görüntüleyenin erişebildiği şubeler
+     *                                           (User::accessibleBranchIds); null = tüm organizasyon
      * @return array<string, mixed>
      */
-    public function summaryFor(int $organizationId): array
+    public function summaryFor(int $organizationId, ?array $branchIds = null): array
     {
         $ttl = (int) config('reporting.dashboard_cache_ttl', 120);
 
         return Cache::remember(
-            $this->cacheKey($organizationId),
+            $this->cacheKey($organizationId, $branchIds),
             $ttl,
-            fn () => $this->compute($organizationId),
+            fn () => $this->compute($organizationId, $branchIds),
         );
     }
 
+    /**
+     * Organizasyonun tüm kapsamlardaki (Admin, her şube kombinasyonu) özetlerini
+     * birlikte geçersiz kılar: anahtarlar bir "nesil" sayacı içerir, sayaç
+     * artınca eski anahtarlar bir daha okunmaz ve TTL ile kendiliğinden düşer.
+     */
     public function forget(int $organizationId): void
     {
-        Cache::forget($this->cacheKey($organizationId));
+        $generationKey = $this->generationKey($organizationId);
+
+        Cache::forever($generationKey, (int) Cache::get($generationKey, 0) + 1);
     }
 
-    private function cacheKey(int $organizationId): string
+    private function generationKey(int $organizationId): string
     {
-        // Özetin yapısı değiştiğinde sürüm artırılır; eski yapıdaki cache girdisi
-        // okunmaz (yeni alanlar eksik olduğu için dashboard hata verirdi).
-        return "dashboard:summary:v2:organization:{$organizationId}";
+        return "dashboard:generation:organization:{$organizationId}";
     }
 
     /**
+     * @param  array<int, int>|null  $branchIds
+     */
+    private function cacheKey(int $organizationId, ?array $branchIds): string
+    {
+        $generation = (int) Cache::get($this->generationKey($organizationId), 0);
+        $scope = $branchIds === null ? 'all' : 'branches-'.implode('-', $branchIds);
+
+        // Özetin yapısı değiştiğinde sürüm (v2) artırılır; eski yapıdaki cache
+        // girdisi okunmaz (yeni alanlar eksik olduğu için dashboard hata verirdi).
+        return "dashboard:summary:v2:organization:{$organizationId}:gen:{$generation}:{$scope}";
+    }
+
+    /**
+     * @param  array<int, int>|null  $branchIds
      * @return array<string, mixed>
      */
-    private function compute(int $organizationId): array
+    private function compute(int $organizationId, ?array $branchIds): array
     {
         $products = Product::where('organization_id', $organizationId)
             ->where('status', 'active')
             ->get();
 
+        // Kapsamı sınırlı görüntüleyen yalnızca şubelerinde lotu olan ürünlerin
+        // seviyesini sayar. Seviyenin kendisi ürünün organizasyon toplamından
+        // hesaplanır (StockLevelService) — uyarılarla aynı kural.
+        $levelProducts = $branchIds === null
+            ? $products
+            : $products->whereIn('id', StockLot::inBranches($branchIds)->distinct()->pluck('product_id'));
+
         $levelCounts = ['normal' => 0, 'low' => 0, 'critical' => 0];
 
-        foreach ($products as $product) {
+        foreach ($levelProducts as $product) {
             $level = $this->levels->assess($product)['level'];
             $levelCounts[$level->value]++;
         }
 
         $lots = StockLot::whereHas('product', fn ($query) => $query->where('organization_id', $organizationId))
+            ->inBranches($branchIds)
             ->where('quantity', '>', 0)
             ->get();
 
@@ -86,6 +115,7 @@ class DashboardMetricsService
         })->count();
 
         $movements = StockMovement::whereHas('lot.product', fn ($query) => $query->where('organization_id', $organizationId))
+            ->inBranches($branchIds)
             ->withoutCancelled();
 
         $todayIn = (float) (clone $movements)->where('type', 'in')->whereDate('created_at', Carbon::today())->sum('quantity');
@@ -119,6 +149,7 @@ class DashboardMetricsService
             ->where('products.organization_id', $organizationId)
             ->where('stock_movements.type', 'out')
             ->whereIn('stock_movements.reason_code', $usageCodes)
+            ->inBranches($branchIds)
             ->withoutCancelled()
             ->groupBy('products.id', 'products.name')
             ->orderByDesc('used_quantity')
@@ -132,6 +163,7 @@ class DashboardMetricsService
             ->join('products', 'stock_lots.product_id', '=', 'products.id')
             ->where('products.organization_id', $organizationId)
             ->where('stock_lots.quantity', '>', 0)
+            ->inBranches($branchIds)
             ->groupBy('branches.id', 'branches.name')
             ->orderByDesc('total_quantity')
             ->selectRaw('branches.id, branches.name, SUM(stock_lots.quantity) as total_quantity')
@@ -141,8 +173,12 @@ class DashboardMetricsService
             'productCount' => $products->count(),
             'categoryCount' => Category::where('organization_id', $organizationId)->where('status', 'active')->count(),
             'supplierCount' => Supplier::where('organization_id', $organizationId)->where('status', 'active')->count(),
-            'staffCount' => User::where('organization_id', $organizationId)->where('role', User::ROLE_STAFF)->count(),
-            'branchCount' => Branch::where('organization_id', $organizationId)->where('status', 'active')->count(),
+            'staffCount' => User::where('organization_id', $organizationId)->where('role', User::ROLE_STAFF)
+                ->when($branchIds !== null, fn ($query) => $query->whereIn('branch_id', $branchIds))
+                ->count(),
+            'branchCount' => Branch::where('organization_id', $organizationId)->where('status', 'active')
+                ->when($branchIds !== null, fn ($query) => $query->whereIn('id', $branchIds))
+                ->count(),
             'totalStockQuantity' => (float) $lots->sum('quantity'),
             'totalStockValue' => (float) $lots->sum(fn (StockLot $lot) => $lot->quantity * $lot->unit_cost),
             'levelCounts' => $levelCounts,

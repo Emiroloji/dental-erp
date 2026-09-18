@@ -51,12 +51,14 @@ class StockReportService
      * mevcut miktar, toplam değer ve uyarı seviyesi eklenir.
      *
      * @param  Collection<int, Product>  $products
+     * @param  array<int, int>|null  $branchIds  Kullanıcının erişebildiği şubeler (null = kısıt yok)
      * @return Collection<int, array{product: Product, quantity: float, value: float, level: StockLevel}>
      */
-    public function rows(Collection $products, int|string|null $warehouseId = null): Collection
+    public function rows(Collection $products, int|string|null $warehouseId = null, ?array $branchIds = null): Collection
     {
-        return $products->map(function (Product $product) use ($warehouseId) {
+        return $products->map(function (Product $product) use ($warehouseId, $branchIds) {
             $lots = StockLot::where('product_id', $product->id)
+                ->inBranches($branchIds)
                 ->where('quantity', '>', 0)
                 ->when($warehouseId, fn ($query, $value) => $query->where('warehouse_id', $value))
                 ->get();
@@ -80,20 +82,22 @@ class StockReportService
 
     /**
      * @param  array{category_id?: int|string|null, supplier_id?: int|string|null, warehouse_id?: int|string|null, search?: ?string}  $filters
+     * @param  array<int, int>|null  $branchIds
      */
-    public function exportExcel(array $filters): BinaryFileResponse
+    public function exportExcel(array $filters, ?array $branchIds = null): BinaryFileResponse
     {
-        $rows = $this->rows($this->query($filters)->get(), $filters['warehouse_id'] ?? null);
+        $rows = $this->rows($this->query($filters)->get(), $filters['warehouse_id'] ?? null, $branchIds);
 
         return Excel::download(new StockReportExport($rows), 'stok-raporu.xlsx');
     }
 
     /**
      * @param  array{category_id?: int|string|null, supplier_id?: int|string|null, warehouse_id?: int|string|null, search?: ?string}  $filters
+     * @param  array<int, int>|null  $branchIds
      */
-    public function exportPdf(array $filters): Response
+    public function exportPdf(array $filters, ?array $branchIds = null): Response
     {
-        $rows = $this->rows($this->query($filters)->get(), $filters['warehouse_id'] ?? null);
+        $rows = $this->rows($this->query($filters)->get(), $filters['warehouse_id'] ?? null, $branchIds);
 
         return Pdf::loadView('reports.stock-pdf', ['rows' => $rows])
             ->setPaper('a4', 'landscape')

@@ -3,6 +3,7 @@
 namespace App\Domain\Stock\Models;
 
 use App\Domain\Catalog\Models\Product;
+use App\Domain\Organization\Concerns\LocatedInWarehouse;
 use App\Domain\Organization\Models\Warehouse;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -10,6 +11,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class StockLot extends Model
 {
+    use LocatedInWarehouse;
+
     protected $fillable = [
         'product_id',
         'warehouse_id',

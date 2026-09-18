@@ -110,8 +110,10 @@ class AuditableTest extends TestCase
     {
         $this->actingAs($this->admin);
 
+        $branch = Branch::create(['organization_id' => $this->organization->id, 'name' => 'Merkez', 'status' => 'active']);
+
         $staff = app(StaffService::class)->createStaff(
-            ['name' => 'Ayşe', 'email' => 'ayse@example.com', 'password' => 'password'],
+            ['name' => 'Ayşe', 'email' => 'ayse@example.com', 'password' => 'password', 'branch_id' => $branch->id],
             ['reports' => ['read' => true, 'write' => false, 'delete' => false]],
             PermissionScope::OwnBranch,
         );

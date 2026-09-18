@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Hash;
 class StaffService
 {
     /**
-     * @param  array{name: string, email: string, password: string}  $attributes
+     * @param  array{name: string, email: string, password: string, branch_id: int}  $attributes
      * @param  array<string, array{read: bool, write: bool, delete: bool}>  $modulePermissions
      * @param  array<int>  $branchIds
      */
@@ -24,6 +24,7 @@ class StaffService
         return DB::transaction(function () use ($attributes, $modulePermissions, $scope, $branchIds) {
             $user = User::create([
                 'organization_id' => auth()->user()->organization_id,
+                'branch_id' => $attributes['branch_id'],
                 'name' => $attributes['name'],
                 'email' => $attributes['email'],
                 'password' => Hash::make($attributes['password']),

@@ -2,6 +2,7 @@
 
 namespace App\Domain\Stock\Models;
 
+use App\Domain\Organization\Concerns\LocatedInWarehouse;
 use App\Domain\Organization\Models\Warehouse;
 use App\Domain\Stock\Support\StockMovementType;
 use App\Domain\Stock\Support\StockOutReason;
@@ -13,6 +14,8 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 class StockMovement extends Model
 {
+    use LocatedInWarehouse;
+
     const UPDATED_AT = null;
 
     protected $fillable = [

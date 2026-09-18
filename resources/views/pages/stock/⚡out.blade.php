@@ -1,5 +1,6 @@
 <?php
 
+use App\Domain\Access\Support\Module;
 use App\Domain\Catalog\Models\Product;
 use App\Domain\Organization\Models\Warehouse;
 use App\Domain\Stock\Exceptions\InsufficientStockException;
@@ -75,7 +76,7 @@ new #[Layout('layouts::authenticated')] class extends Component
 
             // Warehouse has no BelongsToOrganization scope of its own; re-fetching it
             // through its scoped Branch relation is what actually enforces tenant isolation.
-            $warehouse = Warehouse::whereHas('branch')->findOrFail($validated['warehouse_id']);
+            $warehouse = Warehouse::whereHas('branch')->inBranches($this->branchIds())->findOrFail($validated['warehouse_id']);
         } catch (ModelNotFoundException) {
             // Livewire's test harness doesn't convert ModelNotFoundException into a 404
             // response the way a real HTTP request does, so we convert it explicitly —
@@ -112,10 +113,19 @@ new #[Layout('layouts::authenticated')] class extends Component
         session()->flash('status', 'Stok çıkışı kaydedildi.');
     }
 
+    /**
+     * @return array<int, int>|null
+     */
+    private function branchIds(): ?array
+    {
+        return auth()->user()->accessibleBranchIds(Module::StockMovement);
+    }
+
     public function with(): array
     {
         $movements = StockMovement::query()
             ->whereHas('lot.product')
+            ->inBranches($this->branchIds())
             ->where('type', StockMovementType::Out->value)
             ->with(['lot.product', 'warehouse', 'actor'])
             ->latest('created_at')
@@ -125,6 +135,7 @@ new #[Layout('layouts::authenticated')] class extends Component
         $availableLots = collect();
         if (filled($this->product_id) && filled($this->warehouse_id)) {
             $availableLots = StockLot::whereHas('product')
+                ->inBranches($this->branchIds())
                 ->where('product_id', $this->product_id)
                 ->where('warehouse_id', $this->warehouse_id)
                 ->where('quantity', '>', 0)
@@ -135,7 +146,7 @@ new #[Layout('layouts::authenticated')] class extends Component
         return [
             'movements' => $movements,
             'products' => Product::where('status', 'active')->orderBy('name')->get(),
-            'warehouses' => Warehouse::whereHas('branch')->with('branch')->where('status', 'active')->orderBy('name')->get(),
+            'warehouses' => Warehouse::whereHas('branch')->inBranches($this->branchIds())->with('branch')->where('status', 'active')->orderBy('name')->get(),
             'availableLots' => $availableLots,
             'reasons' => StockOutReason::cases(),
         ];

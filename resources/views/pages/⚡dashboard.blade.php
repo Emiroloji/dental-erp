@@ -1,5 +1,6 @@
 <?php
 
+use App\Domain\Access\Support\Module;
 use App\Domain\Reporting\Services\DashboardMetricsService;
 use App\Domain\Stock\Support\StockLevel;
 use Livewire\Attributes\Layout;
@@ -10,7 +11,11 @@ new #[Layout('layouts::authenticated')] class extends Component
     public function with(DashboardMetricsService $metrics): array
     {
         return [
-            'summary' => $metrics->summaryFor(auth()->user()->organization_id),
+            // Stok verisi gösteren iki modülün (stok, raporlar) kapsamlarının birleşimi.
+            'summary' => $metrics->summaryFor(
+                auth()->user()->organization_id,
+                auth()->user()->accessibleBranchIds(Module::StockMovement, Module::Reports),
+            ),
         ];
     }
 };

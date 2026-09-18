@@ -90,7 +90,7 @@
                                 'admin' => 'Yönetici',
                                 'platform_owner' => 'Platform Sahibi',
                                 default => 'Personel',
-                            } }}</p>
+                            } }}@if (auth()->user()->branch) · {{ auth()->user()->branch->name }}@endif</p>
                         </div>
                         <div class="flex items-center gap-3 shrink-0">
                             <livewire:notification-bell />

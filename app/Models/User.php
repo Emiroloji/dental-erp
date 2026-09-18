@@ -5,7 +5,9 @@ namespace App\Models;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Domain\Access\Models\Permission;
 use App\Domain\Access\Support\Module;
+use App\Domain\Access\Support\PermissionScope;
 use App\Domain\Audit\Concerns\Auditable;
+use App\Domain\Organization\Models\Branch;
 use App\Domain\Organization\Models\Organization;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -16,7 +18,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
-#[Fillable(['name', 'email', 'password', 'organization_id', 'role', 'status'])]
+#[Fillable(['name', 'email', 'password', 'organization_id', 'branch_id', 'role', 'status'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -62,9 +64,50 @@ class User extends Authenticatable
         return $this->belongsTo(Organization::class);
     }
 
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(Branch::class);
+    }
+
     public function permissions(): HasMany
     {
         return $this->hasMany(Permission::class);
+    }
+
+    /**
+     * Verilen modüllerde erişebildiği şubeler (birden fazla modül verilirse
+     * birleşimi). null = kısıt yok (Admin veya "Tüm şubeler" kapsamı);
+     * boş dizi = hiçbir şube.
+     *
+     * @return array<int, int>|null
+     */
+    public function accessibleBranchIds(Module ...$modules): ?array
+    {
+        if ($this->isAdmin()) {
+            return null;
+        }
+
+        $branchIds = [];
+
+        foreach ($modules as $module) {
+            $permission = $this->permissions->firstWhere('module', $module);
+
+            $branchIds = [...$branchIds, ...match ($permission?->scope) {
+                null => [],
+                PermissionScope::All => [null],
+                PermissionScope::OwnBranch => $this->branch_id ? [$this->branch_id] : [],
+                PermissionScope::SelectedBranches => $permission->branches->modelKeys(),
+            }];
+        }
+
+        if (in_array(null, $branchIds, true)) {
+            return null;
+        }
+
+        $branchIds = array_values(array_unique($branchIds));
+        sort($branchIds);
+
+        return $branchIds;
     }
 
     public function canModule(Module $module, string $ability): bool

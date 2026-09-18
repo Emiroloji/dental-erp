@@ -5,6 +5,7 @@ namespace App\Domain\Stock\Services;
 use App\Domain\Access\Support\Module;
 use App\Domain\Catalog\Models\Product;
 use App\Domain\Organization\Models\Organization;
+use App\Domain\Stock\Models\StockLot;
 use App\Domain\Stock\Notifications\StockLevelAlert;
 use App\Domain\Stock\Support\StockLevel;
 use App\Models\User;
@@ -77,17 +78,22 @@ class StockAlertService
     }
 
     /**
-     * kurallar.md Bölüm 5: uyarılar, ilgili modülde bildirim/okuma yetkisi
-     * işaretlenmiş personele ve Ana Klinik Sahibi'ne (Admin) gönderilir.
-     * Personel yetki kapsamı (own_branch/selected_branches/all) bugün hiçbir
-     * ekranda veri filtrelemesi için kullanılmıyor (bkz. kod incelemesi); bu
-     * yüzden burada da tutarlı davranılır: stok_movement.read yetkisi olan
-     * her personel, kapsamından bağımsız olarak bilgilendirilir.
+     * kurallar.md Bölüm 5: uyarılar, ilgili şube/depoda stok okuma yetkisi
+     * olan personele ve Ana Klinik Sahibi'ne (Admin) gönderilir. Admin her
+     * uyarıyı alır; personel yalnızca ürünün erişebildiği şubelerden birinde
+     * lotu varsa (stok o şubede sıfıra düşmüş olsa bile) bilgilendirilir.
      *
      * @return Collection<int, User>
      */
     private function recipientsFor(Product $product): Collection
     {
+        $productBranchIds = StockLot::query()
+            ->join('warehouses', 'stock_lots.warehouse_id', '=', 'warehouses.id')
+            ->where('stock_lots.product_id', $product->id)
+            ->distinct()
+            ->pluck('warehouses.branch_id')
+            ->all();
+
         return User::where('organization_id', $product->organization_id)
             ->where('status', 'active')
             ->where(function ($query) {
@@ -97,6 +103,13 @@ class StockAlertService
                             ->where('can_read', true);
                     });
             })
-            ->get();
+            ->with('permissions.branches')
+            ->get()
+            ->filter(function (User $user) use ($productBranchIds) {
+                $accessible = $user->accessibleBranchIds(Module::StockMovement);
+
+                return $accessible === null || array_intersect($accessible, $productBranchIds) !== [];
+            })
+            ->values();
     }
 }

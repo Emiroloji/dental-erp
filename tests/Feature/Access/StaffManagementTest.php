@@ -58,12 +58,15 @@ class StaffManagementTest extends TestCase
             'status' => 'active',
         ]);
 
+        $branch = Branch::create(['organization_id' => $organization->id, 'name' => 'Merkez', 'status' => 'active']);
+
         $this->actingAs($admin);
 
         Livewire::test('pages::access.staff')
             ->set('name', 'Yeni Personel')
             ->set('email', 'personel@klinik.test')
             ->set('password', 'password123')
+            ->set('branch_id', (string) $branch->id)
             ->set('modules.reports.read', true)
             ->set('scope', 'own_branch')
             ->call('save')
@@ -102,6 +105,7 @@ class StaffManagementTest extends TestCase
             ->set('name', 'Şube Personeli')
             ->set('email', 'sube-personeli@klinik.test')
             ->set('password', 'password123')
+            ->set('branch_id', (string) $branchA->id)
             ->set('modules.stock_movement.read', true)
             ->set('modules.stock_movement.write', true)
             ->set('scope', 'selected_branches')

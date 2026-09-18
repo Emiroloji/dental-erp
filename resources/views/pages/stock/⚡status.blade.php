@@ -1,5 +1,6 @@
 <?php
 
+use App\Domain\Access\Support\Module;
 use App\Domain\Organization\Models\Warehouse;
 use App\Domain\Stock\Models\StockLot;
 use Livewire\Attributes\Layout;
@@ -24,10 +25,19 @@ new #[Layout('layouts::authenticated')] class extends Component
         $this->resetPage();
     }
 
+    /**
+     * @return array<int, int>|null
+     */
+    private function branchIds(): ?array
+    {
+        return auth()->user()->accessibleBranchIds(Module::StockMovement);
+    }
+
     public function with(): array
     {
         $lots = StockLot::query()
             ->whereHas('product')
+            ->inBranches($this->branchIds())
             ->with(['product', 'warehouse.branch'])
             ->when($this->warehouseFilter, fn ($query) => $query->where('warehouse_id', $this->warehouseFilter))
             ->when($this->search, fn ($query) => $query->whereHas('product', function ($query) {
@@ -41,7 +51,7 @@ new #[Layout('layouts::authenticated')] class extends Component
 
         return [
             'lots' => $lots,
-            'warehouses' => Warehouse::whereHas('branch')->with('branch')->where('status', 'active')->orderBy('name')->get(),
+            'warehouses' => Warehouse::whereHas('branch')->inBranches($this->branchIds())->with('branch')->where('status', 'active')->orderBy('name')->get(),
         ];
     }
 };

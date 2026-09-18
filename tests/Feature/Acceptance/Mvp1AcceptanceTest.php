@@ -76,6 +76,7 @@ class Mvp1AcceptanceTest extends TestCase
             ->set('name', 'Depo Görevlisi')
             ->set('email', 'depo@dental-erp.test')
             ->set('password', 'guclu-sifre-1')
+            ->set('branch_id', (string) $this->warehouse->branch_id)
             ->set('modules.stock_movement.read', true)
             ->set('modules.stock_movement.write', true)
             ->call('save')

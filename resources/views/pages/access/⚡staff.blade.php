@@ -20,6 +20,8 @@ new #[Layout('layouts::authenticated')] class extends Component
 
     public string $password = '';
 
+    public string $branch_id = '';
+
     public string $scope = 'own_branch';
 
     public array $selectedBranches = [];
@@ -41,7 +43,7 @@ new #[Layout('layouts::authenticated')] class extends Component
     public function closeForm(): void
     {
         $this->showForm = false;
-        $this->reset(['name', 'email', 'password', 'scope', 'selectedBranches']);
+        $this->reset(['name', 'email', 'password', 'branch_id', 'scope', 'selectedBranches']);
         $this->resetModules();
         $this->resetValidation();
     }
@@ -52,15 +54,21 @@ new #[Layout('layouts::authenticated')] class extends Component
 
         $organizationId = auth()->user()->organization_id;
 
+        // Şube kuralı hem "organizasyonun şubesi" hem de "yöneticinin kendi
+        // kapsamındaki şube" olmalı — kapsamı sınırlı bir personel yöneticisi
+        // başka şubeye personel atayamaz.
+        $branchRule = Rule::exists('branches', 'id')
+            ->where('organization_id', $organizationId)
+            ->when($this->branchIds() !== null, fn ($rule) => $rule->whereIn('id', $this->branchIds()));
+
         $validated = $this->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'unique:users,email'],
             'password' => ['required', 'string', 'min:8'],
+            'branch_id' => ['required', $branchRule],
             'scope' => ['required', Rule::in(array_column(PermissionScope::cases(), 'value'))],
             'selectedBranches' => ['required_if:scope,selected_branches', 'array'],
-            'selectedBranches.*' => [
-                Rule::exists('branches', 'id')->where('organization_id', $organizationId),
-            ],
+            'selectedBranches.*' => [$branchRule],
         ]);
 
         $staffService->createStaff(
@@ -68,6 +76,7 @@ new #[Layout('layouts::authenticated')] class extends Component
                 'name' => $validated['name'],
                 'email' => $validated['email'],
                 'password' => $validated['password'],
+                'branch_id' => (int) $validated['branch_id'],
             ],
             modulePermissions: $this->modules,
             scope: PermissionScope::from($validated['scope']),
@@ -85,13 +94,27 @@ new #[Layout('layouts::authenticated')] class extends Component
         }
     }
 
+    /**
+     * @return array<int, int>|null
+     */
+    private function branchIds(): ?array
+    {
+        return auth()->user()->accessibleBranchIds(Module::StaffManagement);
+    }
+
     public function with(): array
     {
         return [
             'staffMembers' => User::where('organization_id', auth()->user()->organization_id)
                 ->where('role', User::ROLE_STAFF)
+                ->when($this->branchIds() !== null, fn ($query) => $query->whereIn('branch_id', $this->branchIds()))
+                ->with('branch')
+                ->orderBy('name')
                 ->get(),
-            'branches' => Branch::all(),
+            'branches' => Branch::when($this->branchIds() !== null, fn ($query) => $query->whereIn('id', $this->branchIds()))
+                ->where('status', 'active')
+                ->orderBy('name')
+                ->get(),
             'moduleList' => Module::cases(),
             'scopeList' => PermissionScope::cases(),
         ];
@@ -125,6 +148,7 @@ new #[Layout('layouts::authenticated')] class extends Component
                 <tr class="text-left text-ink-muted text-[12px] border-b border-line">
                     <th class="px-5 py-3 font-medium">Ad Soyad</th>
                     <th class="px-5 py-3 font-medium">E-posta</th>
+                    <th class="px-5 py-3 font-medium">Şube</th>
                     <th class="px-5 py-3 font-medium">Durum</th>
                 </tr>
             </thead>
@@ -133,6 +157,7 @@ new #[Layout('layouts::authenticated')] class extends Component
                     <tr>
                         <td class="px-5 py-3">{{ $member->name }}</td>
                         <td class="px-5 py-3 text-ink-muted">{{ $member->email }}</td>
+                        <td class="px-5 py-3 text-ink-muted">{{ $member->branch?->name ?? '—' }}</td>
                         <td class="px-5 py-3">
                             <span @class([
                                 'inline-flex items-center px-2 py-0.5 rounded text-[12px]',
@@ -145,7 +170,7 @@ new #[Layout('layouts::authenticated')] class extends Component
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="3" class="px-5 py-8 text-center text-ink-muted text-[13px]">Henüz personel eklenmedi.</td>
+                        <td colspan="4" class="px-5 py-8 text-center text-ink-muted text-[13px]">Henüz personel eklenmedi.</td>
                     </tr>
                 @endforelse
             </tbody>
@@ -170,6 +195,18 @@ new #[Layout('layouts::authenticated')] class extends Component
                     <input type="password" wire:model="password" class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
                     @error('password') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
                 </div>
+            </div>
+
+            <div>
+                <label class="block text-[13px] text-ink-muted mb-1.5">Bağlı Olduğu Şube</label>
+                <select wire:model="branch_id" class="w-full sm:w-72 border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+                    <option value="">Şube seçin</option>
+                    @foreach ($branches as $branch)
+                        <option value="{{ $branch->id }}">{{ $branch->name }}</option>
+                    @endforeach
+                </select>
+                <p class="text-[12px] text-ink-muted mt-1">"Sadece kendi şubesi" kapsamı bu şubeye göre uygulanır.</p>
+                @error('branch_id') <span class="text-status-critical text-[12px] block mt-1">{{ $message }}</span> @enderror
             </div>
 
             <div>
