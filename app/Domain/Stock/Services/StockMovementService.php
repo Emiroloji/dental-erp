@@ -4,6 +4,7 @@ namespace App\Domain\Stock\Services;
 
 use App\Domain\Catalog\Models\Product;
 use App\Domain\Organization\Models\Warehouse;
+use App\Domain\Reporting\Services\DashboardMetricsService;
 use App\Domain\Stock\Exceptions\InsufficientStockException;
 use App\Domain\Stock\Models\StockLot;
 use App\Domain\Stock\Models\StockMovement;
@@ -15,6 +16,8 @@ use InvalidArgumentException;
 
 class StockMovementService
 {
+    public function __construct(private readonly DashboardMetricsService $dashboardMetrics) {}
+
     /**
      * @param  array{lot_no?: ?string, expiry_date?: ?string, unit_cost?: ?float}  $lotAttributes
      */
@@ -196,7 +199,7 @@ class StockMovementService
         ?string $relatedEntityType = null,
         ?int $relatedEntityId = null,
     ): StockMovement {
-        return StockMovement::create([
+        $movement = StockMovement::create([
             'type' => $type->value,
             'lot_id' => $lot->id,
             'warehouse_id' => $lot->warehouse_id,
@@ -206,5 +209,12 @@ class StockMovementService
             'related_entity_type' => $relatedEntityType,
             'related_entity_id' => $relatedEntityId,
         ]);
+
+        // mimari.md Bölüm 6: her stok hareketinde ilgili dashboard cache anahtarı
+        // geçersiz kılınır. Bu, in()/out()/adjust()/cancel()'in hepsinin geçtiği
+        // tek nokta olduğu için burada — dört ayrı yerde tekrar etmeye gerek yok.
+        $this->dashboardMetrics->forget($lot->product->organization_id);
+
+        return $movement;
     }
 }

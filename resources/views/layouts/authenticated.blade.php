@@ -68,6 +68,12 @@
                             Stok Hareketleri
                         </x-nav-link>
                     @endcan
+                    @can('reports.viewAny')
+                        <x-nav-link :href="route('reports.stock')" :active="request()->routeIs('reports.stock')">
+                            <x-slot:icon><path d="M4 19V9m6 10V5m6 14v-7" stroke-linecap="round" stroke-linejoin="round"/></x-slot:icon>
+                            Raporlar
+                        </x-nav-link>
+                    @endcan
                 </nav>
 
                 <div class="px-3 pb-4 pt-2 border-t border-panel-line/60 mx-3">

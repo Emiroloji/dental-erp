@@ -32,7 +32,7 @@ class StockMovementServiceTest extends TestCase
     {
         parent::setUp();
 
-        $this->service = new StockMovementService;
+        $this->service = app(StockMovementService::class);
 
         $organization = Organization::create(['name' => 'Klinik', 'status' => 'active', 'plan' => 'starter']);
         $branch = Branch::create(['organization_id' => $organization->id, 'name' => 'Merkez', 'status' => 'active']);

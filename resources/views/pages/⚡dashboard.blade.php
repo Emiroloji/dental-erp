@@ -1,25 +1,16 @@
 <?php
 
-use App\Domain\Catalog\Models\Category;
-use App\Domain\Catalog\Models\Product;
-use App\Domain\Catalog\Models\Supplier;
-use App\Domain\Organization\Models\Branch;
-use App\Models\User;
+use App\Domain\Reporting\Services\DashboardMetricsService;
+use App\Domain\Stock\Support\StockLevel;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 
 new #[Layout('layouts::authenticated')] class extends Component
 {
-    public function with(): array
+    public function with(DashboardMetricsService $metrics): array
     {
         return [
-            'productCount' => Product::where('status', 'active')->count(),
-            'categoryCount' => Category::where('status', 'active')->count(),
-            'supplierCount' => Supplier::where('status', 'active')->count(),
-            'staffCount' => User::where('organization_id', auth()->user()->organization_id)
-                ->where('role', User::ROLE_STAFF)
-                ->count(),
-            'branchCount' => Branch::where('status', 'active')->count(),
+            'summary' => $metrics->summaryFor(auth()->user()->organization_id),
         ];
     }
 };
@@ -34,25 +25,122 @@ new #[Layout('layouts::authenticated')] class extends Component
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-px bg-line rounded-lg overflow-hidden border border-line">
         <div class="bg-surface px-5 py-5">
             <p class="text-[13px] text-ink-muted">Aktif Ürün</p>
-            <p class="text-[26px] font-medium tabular-nums mt-1">{{ $productCount }}</p>
+            <p class="text-[26px] font-medium tabular-nums mt-1">{{ $summary['productCount'] }}</p>
         </div>
         <div class="bg-surface px-5 py-5">
-            <p class="text-[13px] text-ink-muted">Kategori</p>
-            <p class="text-[26px] font-medium tabular-nums mt-1">{{ $categoryCount }}</p>
+            <p class="text-[13px] text-ink-muted">Toplam Stok Miktarı</p>
+            <p class="text-[26px] font-medium tabular-nums mt-1">{{ number_format($summary['totalStockQuantity'], 0) }}</p>
         </div>
         <div class="bg-surface px-5 py-5">
-            <p class="text-[13px] text-ink-muted">Tedarikçi</p>
-            <p class="text-[26px] font-medium tabular-nums mt-1">{{ $supplierCount }}</p>
+            <p class="text-[13px] text-ink-muted">Toplam Stok Değeri</p>
+            <p class="text-[26px] font-medium tabular-nums mt-1">{{ number_format($summary['totalStockValue'], 2) }} ₺</p>
         </div>
         <div class="bg-surface px-5 py-5">
             <p class="text-[13px] text-ink-muted">Personel</p>
-            <p class="text-[26px] font-medium tabular-nums mt-1">{{ $staffCount }}</p>
+            <p class="text-[26px] font-medium tabular-nums mt-1">{{ $summary['staffCount'] }}</p>
         </div>
     </div>
 
-    <div class="mt-10 border border-line rounded-lg bg-surface px-6 py-10 text-center">
-        <p class="text-[14px] text-ink-muted max-w-sm mx-auto">
-            Stok hareketleri, kritik seviye uyarıları ve şube bazlı özet raporlar bir sonraki aşamada bu panele eklenecek.
-        </p>
+    <div class="mt-2 grid grid-cols-3 gap-px bg-line rounded-lg overflow-hidden border border-line">
+        <div class="bg-surface px-5 py-4">
+            <p class="text-[12px] text-ink-muted">Kategori</p>
+            <p class="text-[18px] font-medium tabular-nums mt-0.5">{{ $summary['categoryCount'] }}</p>
+        </div>
+        <div class="bg-surface px-5 py-4">
+            <p class="text-[12px] text-ink-muted">Tedarikçi</p>
+            <p class="text-[18px] font-medium tabular-nums mt-0.5">{{ $summary['supplierCount'] }}</p>
+        </div>
+        <div class="bg-surface px-5 py-4">
+            <p class="text-[12px] text-ink-muted">Şube</p>
+            <p class="text-[18px] font-medium tabular-nums mt-0.5">{{ $summary['branchCount'] }}</p>
+        </div>
     </div>
+
+    <div class="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-px bg-line rounded-lg overflow-hidden border border-line">
+        <div class="bg-surface px-5 py-5">
+            <p class="text-[13px] {{ StockLevel::Normal->badgeClasses() }} inline-flex px-2 py-0.5 rounded">{{ StockLevel::Normal->label() }}</p>
+            <p class="text-[26px] font-medium tabular-nums mt-2">{{ $summary['levelCounts']['normal'] }}</p>
+            <p class="text-[12px] text-ink-muted mt-0.5">ürün normal seviyede</p>
+        </div>
+        <div class="bg-surface px-5 py-5">
+            <p class="text-[13px] {{ StockLevel::Low->badgeClasses() }} inline-flex px-2 py-0.5 rounded">{{ StockLevel::Low->label() }}</p>
+            <p class="text-[26px] font-medium tabular-nums mt-2">{{ $summary['levelCounts']['low'] }}</p>
+            <p class="text-[12px] text-ink-muted mt-0.5">ürün düşük seviyede</p>
+        </div>
+        <div class="bg-surface px-5 py-5">
+            <p class="text-[13px] {{ StockLevel::Critical->badgeClasses() }} inline-flex px-2 py-0.5 rounded">{{ StockLevel::Critical->label() }}</p>
+            <p class="text-[26px] font-medium tabular-nums mt-2">{{ $summary['levelCounts']['critical'] }}</p>
+            <p class="text-[12px] text-ink-muted mt-0.5">ürün kritik seviyede</p>
+        </div>
+    </div>
+
+    <div class="mt-10 grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <section class="border border-line rounded-lg bg-surface p-6">
+            <h2 class="text-[15px] font-medium text-ink mb-4">Bugün / Bu Ay</h2>
+            <dl class="space-y-3 text-[14px]">
+                <div class="flex items-center justify-between">
+                    <dt class="text-ink-muted">Bugünkü Giriş</dt>
+                    <dd class="tabular-nums text-status-good">+{{ number_format($summary['todayIn'], 2) }}</dd>
+                </div>
+                <div class="flex items-center justify-between">
+                    <dt class="text-ink-muted">Bugünkü Çıkış</dt>
+                    <dd class="tabular-nums text-status-critical">-{{ number_format($summary['todayOut'], 2) }}</dd>
+                </div>
+                <div class="flex items-center justify-between">
+                    <dt class="text-ink-muted">Bu Ayki Kullanım (Çıkış)</dt>
+                    <dd class="tabular-nums">{{ number_format($summary['monthlyUsage'], 2) }}</dd>
+                </div>
+                <div class="flex items-center justify-between">
+                    <dt class="text-ink-muted">SKT'ye {{ config('stock.levels.expiry_warning_days') }} Gün veya Az Kalan Lot</dt>
+                    <dd class="tabular-nums text-status-warn">{{ $summary['expiringSoonLotCount'] }}</dd>
+                </div>
+                <div class="flex items-center justify-between">
+                    <dt class="text-ink-muted">Süresi Geçmiş Lot</dt>
+                    <dd class="tabular-nums text-status-critical">{{ $summary['expiredLotCount'] }}</dd>
+                </div>
+            </dl>
+        </section>
+
+        <section class="border border-line rounded-lg bg-surface p-6">
+            <h2 class="text-[15px] font-medium text-ink mb-4">Şube Bazlı Stok Dağılımı</h2>
+            @if (count($summary['branchDistribution']) > 0)
+                @php $maxBranchQty = max(array_column($summary['branchDistribution'], 'quantity')) ?: 1; @endphp
+                <div class="space-y-3">
+                    @foreach ($summary['branchDistribution'] as $branch)
+                        <div>
+                            <div class="flex items-center justify-between text-[13px] mb-1">
+                                <span class="text-ink">{{ $branch['name'] }}</span>
+                                <span class="text-ink-muted tabular-nums">{{ number_format($branch['quantity'], 0) }}</span>
+                            </div>
+                            <div class="h-1.5 rounded-full bg-line overflow-hidden">
+                                <div class="h-full bg-brand-500 rounded-full" style="width: {{ max(4, round($branch['quantity'] / $maxBranchQty * 100)) }}%"></div>
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            @else
+                <p class="text-[13px] text-ink-muted">Henüz stok hareketi yok.</p>
+            @endif
+        </section>
+
+        <section class="border border-line rounded-lg bg-surface p-6 lg:col-span-2">
+            <h2 class="text-[15px] font-medium text-ink mb-4">En Çok Kullanılan Ürünler</h2>
+            @if (count($summary['topUsedProducts']) > 0)
+                <ol class="divide-y divide-line">
+                    @foreach ($summary['topUsedProducts'] as $index => $product)
+                        <li class="flex items-center justify-between py-2.5 text-[14px]">
+                            <span class="text-ink"><span class="text-ink-muted mr-2 tabular-nums">{{ $index + 1 }}.</span>{{ $product['name'] }}</span>
+                            <span class="text-ink-muted tabular-nums">{{ number_format($product['used'], 2) }}</span>
+                        </li>
+                    @endforeach
+                </ol>
+            @else
+                <p class="text-[13px] text-ink-muted">Henüz çıkış hareketi yok.</p>
+            @endif
+        </section>
+    </div>
+
+    <p class="mt-6 text-[12px] text-ink-muted">
+        Rakamlar en fazla {{ (int) (config('reporting.dashboard_cache_ttl') / 60) ?: 1 }} dakikalığına önbelleklenir; bir stok hareketi yapıldığında anında güncellenir.
+    </p>
 </div>
