@@ -74,6 +74,12 @@
                             Raporlar
                         </x-nav-link>
                     @endcan
+                    @can('warehouse_stock.viewAny')
+                        <x-nav-link :href="route('reports.warehouse-stock')" :active="request()->routeIs('reports.warehouse-stock')">
+                            <x-slot:icon><path d="M4 4h7v7H4V4Zm9 0h7v7h-7V4ZM4 13h7v7H4v-7Zm9 3h7M16.5 13v7" stroke-linecap="round" stroke-linejoin="round"/></x-slot:icon>
+                            Depo Stokları
+                        </x-nav-link>
+                    @endcan
                     @can('branches.manage')
                         <div class="px-3 pt-4 pb-1 text-[11px] font-medium uppercase tracking-wide text-white/40">Kuruluş</div>
                         <x-nav-link :href="route('branches.index')" :active="request()->routeIs('branches.index')">

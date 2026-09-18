@@ -64,6 +64,10 @@ Route::livewire('/raporlar', 'pages::reports.stock')
     ->middleware(['auth', 'can:reports.viewAny'])
     ->name('reports.stock');
 
+Route::livewire('/depo-stoklari', 'pages::reports.warehouse-stock')
+    ->middleware(['auth', 'can:warehouse_stock.viewAny'])
+    ->name('reports.warehouse-stock');
+
 Route::livewire('/subeler', 'pages::organization.branches')
     ->middleware(['auth', 'can:branches.manage'])
     ->name('branches.index');
