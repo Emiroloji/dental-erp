@@ -57,6 +57,14 @@ Route::livewire('/stok-hareketleri', 'pages::stock.movements')
     ->middleware(['auth', 'can:stock_movement.viewAny'])
     ->name('stock.movements');
 
+Route::livewire('/stok-sayimi', 'pages::inventory.index')
+    ->middleware(['auth', 'can:stock_movement.viewAny'])
+    ->name('inventory.index');
+
+Route::livewire('/stok-sayimi/{count}', 'pages::inventory.show')
+    ->middleware(['auth', 'can:stock_movement.viewAny'])
+    ->name('inventory.show');
+
 Route::livewire('/transferler', 'pages::transfer.index')
     ->middleware(['auth', 'can:transfer.viewAny'])
     ->name('transfers.index');

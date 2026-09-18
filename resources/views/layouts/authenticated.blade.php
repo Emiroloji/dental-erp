@@ -67,6 +67,10 @@
                             <x-slot:icon><path d="M3 12h18M3 6h18M3 18h18" stroke-linecap="round"/></x-slot:icon>
                             Stok Hareketleri
                         </x-nav-link>
+                        <x-nav-link :href="route('inventory.index')" :active="request()->routeIs('inventory.*')">
+                            <x-slot:icon><path d="M9 4h6M9 4a1 1 0 0 0-1 1v1h8V5a1 1 0 0 0-1-1M8 6H6a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1h-2M9 13l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"/></x-slot:icon>
+                            Stok Sayımı
+                        </x-nav-link>
                     @endcan
                     @can('transfer.viewAny')
                         <x-nav-link :href="route('transfers.index')" :active="request()->routeIs('transfers.index')">
