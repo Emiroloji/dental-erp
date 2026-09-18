@@ -9,10 +9,10 @@ use App\Domain\Stock\Services\StockLevelService;
 use App\Domain\Stock\Support\StockLevel;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Http\Response;
 use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Facades\Excel;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * fazlar-adimlar.md Aşama 7: "Basit rapor ekranı" — ürün, stok ve maliyet
@@ -95,12 +95,13 @@ class StockReportService
      * @param  array{category_id?: int|string|null, supplier_id?: int|string|null, warehouse_id?: int|string|null, search?: ?string}  $filters
      * @param  array<int, int>|null  $branchIds
      */
-    public function exportPdf(array $filters, ?array $branchIds = null): Response
+    public function exportPdf(array $filters, ?array $branchIds = null): StreamedResponse
     {
         $rows = $this->rows($this->query($filters)->get(), $filters['warehouse_id'] ?? null, $branchIds);
 
-        return Pdf::loadView('reports.stock-pdf', ['rows' => $rows])
-            ->setPaper('a4', 'landscape')
-            ->download('stok-raporu.pdf');
+        $pdf = Pdf::loadView('reports.stock-pdf', ['rows' => $rows])->setPaper('a4', 'landscape');
+
+        // Livewire düz Response'u indirme olarak gönderemez (bkz. ReportDownloader::pdf).
+        return ReportDownloader::streamPdf($pdf->output(), 'stok-raporu.pdf');
     }
 }

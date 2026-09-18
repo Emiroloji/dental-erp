@@ -93,6 +93,18 @@ Route::livewire('/raporlar', 'pages::reports.stock')
     ->middleware(['auth', 'can:reports.viewAny'])
     ->name('reports.stock');
 
+Route::livewire('/raporlar/hareketler', 'pages::reports.movements')
+    ->middleware(['auth', 'can:reports.viewAny'])
+    ->name('reports.movements');
+
+Route::livewire('/raporlar/kullanim', 'pages::reports.usage')
+    ->middleware(['auth', 'can:reports.viewAny'])
+    ->name('reports.usage');
+
+Route::livewire('/raporlar/satin-alma', 'pages::reports.purchasing')
+    ->middleware(['auth', 'can:reports.viewAny'])
+    ->name('reports.purchasing');
+
 Route::livewire('/depo-stoklari', 'pages::reports.warehouse-stock')
     ->middleware(['auth', 'can:warehouse_stock.viewAny'])
     ->name('reports.warehouse-stock');

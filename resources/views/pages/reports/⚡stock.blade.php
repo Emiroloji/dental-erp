@@ -1,40 +1,16 @@
 <?php
 
-use App\Domain\Access\Support\Module;
-use App\Domain\Catalog\Models\Category;
-use App\Domain\Catalog\Models\Supplier;
-use App\Domain\Organization\Models\Warehouse;
 use App\Domain\Reporting\Services\StockReportService;
+use App\Http\Livewire\Concerns\WithReportFilters;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithPagination;
 
 new #[Layout('layouts::authenticated')] class extends Component
 {
-    use WithPagination;
-
-    public string $categoryId = '';
-
-    public string $supplierId = '';
-
-    public string $warehouseId = '';
+    use WithPagination, WithReportFilters;
 
     public string $search = '';
-
-    public function updatingCategoryId(): void
-    {
-        $this->resetPage();
-    }
-
-    public function updatingSupplierId(): void
-    {
-        $this->resetPage();
-    }
-
-    public function updatingWarehouseId(): void
-    {
-        $this->resetPage();
-    }
 
     public function updatingSearch(): void
     {
@@ -55,11 +31,13 @@ new #[Layout('layouts::authenticated')] class extends Component
     }
 
     /**
+     * Stok durumu bir andır (tarih filtresi yok); şube seçimi kapsamla kesiştirilir.
+     *
      * @return array<int, int>|null
      */
     private function branchIds(): ?array
     {
-        return auth()->user()->accessibleBranchIds(Module::Reports);
+        return $this->reportFilters()->branchScope($this->accessibleBranchIds());
     }
 
     public function exportExcel(StockReportService $reports)
@@ -80,19 +58,17 @@ new #[Layout('layouts::authenticated')] class extends Component
 
         return [
             'rows' => $products,
-            'categories' => Category::where('status', 'active')->orderBy('name')->get(),
-            'suppliers' => Supplier::where('status', 'active')->orderBy('name')->get(),
-            'warehouses' => Warehouse::whereHas('branch')->inBranches($this->branchIds())->with('branch')->where('status', 'active')->orderBy('name')->get(),
+            'options' => $this->filterOptions(),
         ];
     }
 };
 ?>
 
 <div>
-    <div class="mb-8 flex items-start justify-between gap-4">
+    <div class="mb-6 flex items-start justify-between gap-4">
         <div>
-            <h1 class="text-[22px] font-medium tracking-tight text-ink">Stok Raporu</h1>
-            <p class="text-[14px] text-ink-muted mt-1">Ürün, kategori, tedarikçi ve depo bazlı stok özeti.</p>
+            <h1 class="text-[22px] font-medium tracking-tight text-ink">Raporlar</h1>
+            <p class="text-[14px] text-ink-muted mt-1">Ürün, kategori, tedarikçi, şube ve depo bazlı güncel stok özeti.</p>
         </div>
         <div class="flex gap-2 shrink-0">
             <button wire:click="exportExcel" class="text-[13px] border border-line rounded-md px-3 py-2 hover:bg-canvas transition-colors">Excel'e Aktar</button>
@@ -100,30 +76,11 @@ new #[Layout('layouts::authenticated')] class extends Component
         </div>
     </div>
 
-    <div class="mb-4 flex flex-col sm:flex-row gap-3">
-        <div class="relative flex-1">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3" stroke-linecap="round"/></svg>
-            <input type="text" wire:model.live.debounce.300ms="search" placeholder="Ürün adı veya kodu ara" class="w-full border border-line rounded-md pl-9 pr-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
-        </div>
-        <select wire:model.live="categoryId" class="border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
-            <option value="">Tüm Kategoriler</option>
-            @foreach ($categories as $category)
-                <option value="{{ $category->id }}">{{ $category->name }}</option>
-            @endforeach
-        </select>
-        <select wire:model.live="supplierId" class="border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
-            <option value="">Tüm Tedarikçiler</option>
-            @foreach ($suppliers as $supplier)
-                <option value="{{ $supplier->id }}">{{ $supplier->name }}</option>
-            @endforeach
-        </select>
-        <select wire:model.live="warehouseId" class="border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
-            <option value="">Tüm Depolar</option>
-            @foreach ($warehouses as $warehouse)
-                <option value="{{ $warehouse->id }}">{{ $warehouse->branch->name }} — {{ $warehouse->name }}</option>
-            @endforeach
-        </select>
-    </div>
+    <x-report-tabs />
+
+    <x-report-filters :options="$options" :dates="false">
+        <input type="text" wire:model.live.debounce.300ms="search" placeholder="Ürün adı veya kodu ara" class="border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+    </x-report-filters>
 
     <section class="border border-line rounded-lg bg-surface overflow-hidden">
         <table class="w-full text-[14px]">

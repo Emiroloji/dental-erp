@@ -7,6 +7,9 @@ use App\Domain\Inventory\Services\StockCountService;
 use App\Domain\Inventory\Support\CountDifferenceReason;
 use App\Domain\Inventory\Support\StockCountPermissions;
 use App\Domain\Inventory\Support\StockCountStatus;
+use App\Domain\Reporting\Services\ReportDownloader;
+use App\Domain\Reporting\Services\StockCountReportService;
+use App\Domain\Reporting\Support\ReportFilters;
 use App\Domain\Stock\Exceptions\InactiveLocationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Livewire\Attributes\Layout;
@@ -84,6 +87,20 @@ new #[Layout('layouts::authenticated')] class extends Component
     {
         $this->attempt(fn () => $counts->cancel($this->count(), auth()->user(), $this->actionNote ?: null), 'Sayım iptal edildi.');
         $this->actionNote = '';
+    }
+
+    public function exportExcel(StockCountReportService $report, ReportDownloader $downloader)
+    {
+        $count = $this->count();
+
+        return $downloader->excel($count->number(), 'sayim-'.$count->number(), $report->table($count));
+    }
+
+    public function exportPdf(StockCountReportService $report, ReportDownloader $downloader)
+    {
+        $count = $this->count();
+
+        return $downloader->pdf($report->title($count), 'sayim-'.$count->number(), $report->table($count), new ReportFilters);
     }
 
     private function persistEntries(?StockCountService $counts = null): bool
@@ -191,6 +208,10 @@ new #[Layout('layouts::authenticated')] class extends Component
                     <span class="inline-flex items-center px-2 py-0.5 rounded text-[12px] font-normal {{ $count->status->badgeClasses() }}">{{ $count->status->label() }}</span>
                 </h1>
                 <p class="text-[14px] text-ink-muted mt-1">{{ $count->warehouse->branch->name }} · {{ $count->warehouse->name }} — {{ $count->starter?->name ?? '—' }}, {{ $count->created_at->format('d.m.Y H:i') }}@if ($count->note) · {{ $count->note }}@endif</p>
+            </div>
+            <div class="flex gap-2 shrink-0 mt-4 sm:mt-0">
+                <button wire:click="exportExcel" class="text-[13px] border border-line rounded-md px-3 py-2 hover:bg-canvas transition-colors">Excel'e Aktar</button>
+                <button wire:click="exportPdf" class="text-[13px] border border-line rounded-md px-3 py-2 hover:bg-canvas transition-colors">PDF'e Aktar</button>
             </div>
         </div>
     </div>

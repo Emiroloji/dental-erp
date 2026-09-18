@@ -11,11 +11,13 @@ use App\Domain\Inventory\Support\StockCountStatus;
 use App\Domain\Organization\Models\Branch;
 use App\Domain\Organization\Models\Organization;
 use App\Domain\Organization\Models\Warehouse;
+use App\Domain\Reporting\Exports\TableExport;
 use App\Domain\Stock\Models\StockLot;
 use App\Domain\Stock\Services\StockMovementService;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
+use Maatwebsite\Excel\Facades\Excel;
 use Tests\TestCase;
 
 class StockCountScreenTest extends TestCase
@@ -154,5 +156,24 @@ class StockCountScreenTest extends TestCase
 
         $otherAdmin = User::factory()->create(['organization_id' => Organization::create(['name' => 'Rakip', 'status' => 'active', 'plan' => 'starter'])->id, 'role' => User::ROLE_ADMIN, 'status' => 'active']);
         $this->actingAs($otherAdmin)->get(route('inventory.show', $count))->assertNotFound();
+    }
+
+    public function test_count_report_exports_to_excel_and_pdf(): void
+    {
+        Excel::fake();
+        $this->stock(2, 10);
+        $counts = app(StockCountService::class);
+        $count = $counts->start($this->warehouse, $this->counter);
+        $line = $count->lines()->orderBy('id')->first();
+        $counts->record($count, [$line->id => ['counted_quantity' => 9, 'reason' => 'loss']], $this->counter);
+
+        $this->actingAs($this->counter);
+        Livewire::test('pages::inventory.show', ['count' => $count->id])->call('exportExcel');
+        Excel::assertDownloaded('sayim-'.$count->number().'.xlsx', fn (TableExport $export) => $export->headings()[5] === 'Fark'
+            && $export->collection()->contains(fn ($row) => $row[0] === 'Ürün 01' && $row[5] === -1.0 && $row[6] === 'Kayıp')
+            && $export->collection()->contains(fn ($row) => $row[0] === 'Ürün 02' && $row[4] === null));
+
+        Livewire::test('pages::inventory.show', ['count' => $count->id])->call('exportPdf')
+            ->assertFileDownloaded('sayim-'.$count->number().'.pdf', contentType: 'application/pdf');
     }
 }
