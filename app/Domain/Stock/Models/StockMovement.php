@@ -69,6 +69,17 @@ class StockMovement extends Model
         });
     }
 
+    /**
+     * Bir iş akışının (transfer, satın alma teslimi...) oluşturduğu hareketler o
+     * akışa aittir; Stok Hareketleri ekranından tek başına iptal edilirlerse
+     * akışın durumu (transfer, sipariş satırı) ile stok birbirini tutmaz.
+     * İptal hareketleri de bir harekete bağlıdır ama akış hareketi değildir.
+     */
+    public function belongsToWorkflow(): bool
+    {
+        return $this->related_entity_type !== null && $this->related_entity_type !== self::class;
+    }
+
     public function relatedEntity(): MorphTo
     {
         return $this->morphTo(__FUNCTION__, 'related_entity_type', 'related_entity_id');

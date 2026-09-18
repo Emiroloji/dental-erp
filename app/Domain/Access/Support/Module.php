@@ -9,6 +9,7 @@ enum Module: string
     case SupplierManagement = 'supplier_management';
     case StockMovement = 'stock_movement';
     case Transfer = 'transfer';
+    case Purchasing = 'purchasing';
     case StaffManagement = 'staff_management';
     case Reports = 'reports';
     case SystemSettings = 'system_settings';
@@ -21,6 +22,7 @@ enum Module: string
             self::SupplierManagement => 'Tedarikçi Yönetimi',
             self::StockMovement => 'Stok Giriş/Çıkış',
             self::Transfer => 'Şubeler Arası Talep/Transfer (Onay dahil)',
+            self::Purchasing => 'Satın Alma (onay yalnızca Admin)',
             self::StaffManagement => 'Personel Yönetimi',
             self::Reports => 'Raporlar',
             self::SystemSettings => 'Sistem Ayarları',

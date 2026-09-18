@@ -50,10 +50,8 @@ new #[Layout('layouts::authenticated')] class extends Component
             return;
         }
 
-        // Transfer hareketleri transferin kendi akışına aittir; burada tek başına
-        // iptal edilirse transfer durumu ile stok birbirini tutmaz.
-        if ($movement->type->isTransfer()) {
-            session()->flash('error', 'Transfer hareketleri buradan iptal edilemez; Transferler ekranından transferi iptal edin.');
+        if ($movement->belongsToWorkflow()) {
+            session()->flash('error', 'Bu hareket bir transfer veya satın alma teslimine ait; buradan iptal edilemez. İlgili ekrandan işlem yapın.');
 
             return;
         }
@@ -182,7 +180,7 @@ new #[Layout('layouts::authenticated')] class extends Component
                         </td>
                         <td class="px-5 py-3 text-right">
                             @can('stock_movement.update')
-                                @if ($movement->type !== \App\Domain\Stock\Support\StockMovementType::Cancel && ! $movement->type->isTransfer() && ! in_array($movement->id, $cancelledMovementIds))
+                                @if ($movement->type !== \App\Domain\Stock\Support\StockMovementType::Cancel && ! $movement->belongsToWorkflow() && ! in_array($movement->id, $cancelledMovementIds))
                                     <button wire:click="cancel({{ $movement->id }})" wire:confirm="Bu hareketi iptal etmek istediğine emin misin?" class="text-[13px] text-status-critical hover:underline">
                                         İptal Et
                                     </button>

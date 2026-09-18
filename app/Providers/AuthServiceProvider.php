@@ -9,6 +9,7 @@ use App\Domain\Access\Support\Module;
 use App\Domain\Catalog\Policies\CategoryPolicy;
 use App\Domain\Catalog\Policies\ProductPolicy;
 use App\Domain\Catalog\Policies\SupplierPolicy;
+use App\Domain\Purchasing\Policies\PurchasingPolicy;
 use App\Domain\Stock\Policies\StockPolicy;
 use App\Domain\Transfer\Policies\TransferPolicy;
 use App\Models\User;
@@ -23,6 +24,7 @@ class AuthServiceProvider extends ServiceProvider
         Module::SupplierManagement->value => SupplierPolicy::class,
         Module::StockMovement->value => StockPolicy::class,
         Module::Transfer->value => TransferPolicy::class,
+        Module::Purchasing->value => PurchasingPolicy::class,
         Module::StaffManagement->value => StaffPolicy::class,
         Module::Reports->value => ReportPolicy::class,
         Module::SystemSettings->value => SettingsPolicy::class,

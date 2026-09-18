@@ -23,6 +23,7 @@ class StockMovementService
 
     /**
      * @param  array{lot_no?: ?string, expiry_date?: ?string, unit_cost?: ?float}  $lotAttributes
+     * @param  Model|null  $related  Girişi doğuran kayıt (ör. satın alma teslim alımı)
      */
     public function in(
         Product $product,
@@ -31,6 +32,7 @@ class StockMovementService
         array $lotAttributes = [],
         ?User $actor = null,
         ?string $reason = null,
+        ?Model $related = null,
     ): StockMovement {
         if ($quantity <= 0) {
             throw new InvalidArgumentException('Giriş miktarı sıfırdan büyük olmalıdır.');
@@ -38,13 +40,16 @@ class StockMovementService
 
         $this->ensureOperational($warehouse);
 
-        return DB::transaction(function () use ($product, $warehouse, $quantity, $lotAttributes, $actor, $reason) {
+        return DB::transaction(function () use ($product, $warehouse, $quantity, $lotAttributes, $actor, $reason, $related) {
             $lot = $this->resolveOrCreateLot($product, $warehouse, $lotAttributes);
             $lot = StockLot::whereKey($lot->id)->lockForUpdate()->firstOrFail();
 
             $lot->update(['quantity' => $lot->quantity + $quantity]);
 
-            return $this->recordMovement(StockMovementType::In, $lot, $quantity, $actor, $reason);
+            return $this->recordMovement(
+                StockMovementType::In, $lot, $quantity, $actor, $reason,
+                relatedEntityType: $related?->getMorphClass(), relatedEntityId: $related?->getKey(),
+            );
         });
     }
 

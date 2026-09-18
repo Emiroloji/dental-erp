@@ -12,11 +12,6 @@ enum StockMovementType: string
     case ReturnMovement = 'return';
     case Cancel = 'cancel';
 
-    public function isTransfer(): bool
-    {
-        return $this === self::TransferOut || $this === self::TransferIn;
-    }
-
     public function label(): string
     {
         return match ($this) {
