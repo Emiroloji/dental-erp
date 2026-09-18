@@ -2,6 +2,7 @@
 
 namespace App\Domain\Catalog\Models;
 
+use App\Domain\Audit\Concerns\Auditable;
 use App\Domain\Catalog\Support\ProductType;
 use App\Domain\Organization\Concerns\BelongsToOrganization;
 use Illuminate\Database\Eloquent\Model;
@@ -9,7 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Product extends Model
 {
-    use BelongsToOrganization;
+    use Auditable, BelongsToOrganization;
 
     protected $fillable = [
         'organization_id',

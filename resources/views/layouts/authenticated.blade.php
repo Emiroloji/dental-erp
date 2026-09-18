@@ -74,6 +74,12 @@
                             Raporlar
                         </x-nav-link>
                     @endcan
+                    @can('audit_logs.viewAny')
+                        <x-nav-link :href="route('audit.index')" :active="request()->routeIs('audit.index')">
+                            <x-slot:icon><path d="M12 3 4 6v6c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V6l-8-3Z" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"/></x-slot:icon>
+                            Denetim Kayıtları
+                        </x-nav-link>
+                    @endcan
                 </nav>
 
                 <div class="px-3 pb-4 pt-2 border-t border-panel-line/60 mx-3">

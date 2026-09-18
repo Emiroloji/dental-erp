@@ -38,5 +38,9 @@ class AuthServiceProvider extends ServiceProvider
             Gate::define("{$module}.update", [$policy, 'update']);
             Gate::define("{$module}.delete", [$policy, 'delete']);
         }
+
+        // Denetim kayıtları bir yetki kutucuğu değildir: yalnızca Admin görür
+        // (Gate::before üzerinden), personele hiçbir modül yetkisiyle açılmaz.
+        Gate::define('audit_logs.viewAny', fn (User $user) => false);
     }
 }

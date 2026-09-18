@@ -4,6 +4,7 @@ namespace App\Domain\Access\Models;
 
 use App\Domain\Access\Support\Module;
 use App\Domain\Access\Support\PermissionScope;
+use App\Domain\Audit\Concerns\Auditable;
 use App\Domain\Organization\Models\Branch;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
@@ -12,6 +13,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Permission extends Model
 {
+    use Auditable;
+
     protected $fillable = [
         'user_id',
         'module',
@@ -37,6 +40,11 @@ class Permission extends Model
     public function branches(): BelongsToMany
     {
         return $this->belongsToMany(Branch::class, 'permission_branch');
+    }
+
+    protected function auditOrganizationId(): ?int
+    {
+        return $this->user()->value('organization_id');
     }
 
     public function allows(string $ability): bool

@@ -63,3 +63,7 @@ Route::livewire('/bildirimler', 'pages::notifications.index')
 Route::livewire('/raporlar', 'pages::reports.stock')
     ->middleware(['auth', 'can:reports.viewAny'])
     ->name('reports.stock');
+
+Route::livewire('/denetim-kayitlari', 'pages::audit.index')
+    ->middleware(['auth', 'can:audit_logs.viewAny'])
+    ->name('audit.index');
