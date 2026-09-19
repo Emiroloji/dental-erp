@@ -29,11 +29,12 @@ class EnsureTenantAccess
         }
 
         if ($user->organization && ! $user->organization->status->allowsLogin()) {
-            Auth::logout();
-            $request->session()->invalidate();
-            $request->session()->regenerateToken();
+            return $this->logout($request, 'Organizasyonunuz pasif durumda, sisteme erişim engellendi.');
+        }
 
-            return redirect()->route('login')->withErrors(['email' => 'Organizasyonunuz pasif durumda, sisteme erişim engellendi.']);
+        // Pasife alınan personelin açık oturumu da kapanır (kurallar.md Bölüm 4).
+        if (! $user->isActive()) {
+            return $this->logout($request, 'Bu kullanıcı pasif durumda, giriş yapamaz.');
         }
 
         if ($user->must_change_password) {
@@ -41,5 +42,14 @@ class EnsureTenantAccess
         }
 
         return $next($request);
+    }
+
+    private function logout(Request $request, string $message): Response
+    {
+        Auth::logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
+        return redirect()->route('login')->withErrors(['email' => $message]);
     }
 }

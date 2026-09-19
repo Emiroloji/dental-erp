@@ -2,6 +2,7 @@
 
 namespace App\Domain\Access\Services;
 
+use App\Domain\Access\Exceptions\StaffRuleException;
 use App\Domain\Access\Models\Permission;
 use App\Domain\Access\Support\PermissionScope;
 use App\Domain\Organization\Models\Organization;
@@ -59,6 +60,46 @@ class StaffService
             }
 
             return $user;
+        });
+    }
+
+    /**
+     * Pasif personel sisteme giriş yapamaz (kurallar.md Bölüm 4); açık oturumu
+     * da bir sonraki istekte kapatılır (EnsureTenantAccess). Kayıt silinmez,
+     * geçmiş hareketlerdeki "işlemi yapan" bilgisi korunur.
+     */
+    public function deactivate(User $staff): User
+    {
+        if ($staff->is(auth()->user())) {
+            throw new StaffRuleException('Kendi hesabınızı pasifleştiremezsiniz.');
+        }
+
+        if ($staff->role !== User::ROLE_STAFF) {
+            throw new StaffRuleException('Yalnızca personel hesapları buradan pasifleştirilebilir.');
+        }
+
+        $staff->update(['status' => 'passive']);
+
+        return $staff;
+    }
+
+    public function activate(User $staff): User
+    {
+        if ($staff->isActive()) {
+            return $staff;
+        }
+
+        if ($staff->role !== User::ROLE_STAFF) {
+            throw new StaffRuleException('Yalnızca personel hesapları buradan aktifleştirilebilir.');
+        }
+
+        return DB::transaction(function () use ($staff) {
+            // Aktif kullanıcı sayısı paket limitine dahildir (Faz 3).
+            $this->limits->ensureCanAddUser(Organization::whereKey($staff->organization_id)->lockForUpdate()->firstOrFail());
+
+            $staff->update(['status' => 'active']);
+
+            return $staff;
         });
     }
 }

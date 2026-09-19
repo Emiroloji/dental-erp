@@ -1,11 +1,13 @@
 <?php
 
-use App\Domain\Platform\Exceptions\PlanLimitException;
+use App\Domain\Access\Exceptions\StaffRuleException;
 use App\Domain\Access\Services\StaffService;
+use App\Domain\Platform\Exceptions\PlanLimitException;
 use App\Domain\Access\Support\Module;
 use App\Domain\Access\Support\PermissionScope;
 use App\Domain\Organization\Models\Branch;
 use App\Models\User;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Layout;
@@ -95,6 +97,56 @@ new #[Layout('layouts::authenticated')] class extends Component
         session()->flash('status', 'Personel oluşturuldu.');
     }
 
+    public function deactivate(int $userId, StaffService $staffService): void
+    {
+        Gate::authorize('staff_management.update');
+
+        try {
+            $staffService->deactivate($this->findStaff($userId));
+        } catch (StaffRuleException $e) {
+            session()->flash('error', $e->getMessage());
+
+            return;
+        }
+
+        session()->flash('status', 'Personel pasife alındı; sisteme giriş yapamaz.');
+    }
+
+    public function activate(int $userId, StaffService $staffService): void
+    {
+        Gate::authorize('staff_management.update');
+
+        try {
+            $staffService->activate($this->findStaff($userId));
+        } catch (StaffRuleException|PlanLimitException $e) {
+            session()->flash('error', $e->getMessage());
+
+            return;
+        }
+
+        session()->flash('status', 'Personel aktifleştirildi.');
+    }
+
+    /**
+     * Yalnızca bu organizasyonun ve yöneticinin kapsamındaki şubelerin
+     * personeli; kapsam dışı bir kayıt 404 döner.
+     */
+    private function findStaff(int $userId): User
+    {
+        try {
+            return $this->staffQuery()->findOrFail($userId);
+        } catch (ModelNotFoundException) {
+            abort(404);
+        }
+    }
+
+    private function staffQuery()
+    {
+        return User::where('organization_id', auth()->user()->organization_id)
+            ->where('role', User::ROLE_STAFF)
+            ->when($this->branchIds() !== null, fn ($query) => $query->whereIn('branch_id', $this->branchIds()));
+    }
+
     private function resetModules(): void
     {
         foreach (Module::cases() as $module) {
@@ -144,9 +196,7 @@ new #[Layout('layouts::authenticated')] class extends Component
     public function with(): array
     {
         return [
-            'staffMembers' => User::where('organization_id', auth()->user()->organization_id)
-                ->where('role', User::ROLE_STAFF)
-                ->when($this->branchIds() !== null, fn ($query) => $query->whereIn('branch_id', $this->branchIds()))
+            'staffMembers' => $this->staffQuery()
                 ->with('branch')
                 ->orderBy('name')
                 ->get(),
@@ -181,6 +231,12 @@ new #[Layout('layouts::authenticated')] class extends Component
         </div>
     @endif
 
+    @if (session('error'))
+        <div class="mb-6 rounded-md bg-status-critical-bg border border-status-critical/20 text-status-critical text-[13px] px-4 py-3">
+            {{ session('error') }}
+        </div>
+    @endif
+
     <section class="border border-line rounded-lg bg-surface overflow-x-auto">
         <table class="w-full text-[14px]">
             <thead>
@@ -189,6 +245,7 @@ new #[Layout('layouts::authenticated')] class extends Component
                     <th class="px-5 py-3 font-medium">E-posta</th>
                     <th class="px-5 py-3 font-medium">Şube</th>
                     <th class="px-5 py-3 font-medium">Durum</th>
+                    <th class="px-5 py-3"></th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-line">
@@ -206,10 +263,25 @@ new #[Layout('layouts::authenticated')] class extends Component
                                 {{ $member->status === 'active' ? 'Aktif' : 'Pasif' }}
                             </span>
                         </td>
+                        <td class="px-5 py-3 text-right whitespace-nowrap">
+                            @can('staff_management.update')
+                                @if ($member->is(auth()->user()))
+                                    <span class="text-[12px] text-ink-muted">Siz</span>
+                                @elseif ($member->status === 'active')
+                                    <button wire:click="deactivate({{ $member->id }})" wire:confirm="{{ $member->name }} pasife alınsın mı? Pasif personel sisteme giriş yapamaz; geçmiş kayıtları korunur." class="text-[13px] text-status-critical hover:underline">
+                                        Pasife Al
+                                    </button>
+                                @else
+                                    <button wire:click="activate({{ $member->id }})" class="text-[13px] text-brand-600 hover:underline">
+                                        Aktifleştir
+                                    </button>
+                                @endif
+                            @endcan
+                        </td>
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="4" class="px-5 py-8 text-center text-ink-muted text-[13px]">Henüz personel eklenmedi.</td>
+                        <td colspan="5" class="px-5 py-8 text-center text-ink-muted text-[13px]">Henüz personel eklenmedi.</td>
                     </tr>
                 @endforelse
             </tbody>
