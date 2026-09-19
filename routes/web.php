@@ -94,6 +94,10 @@ Route::middleware('tenant')->group(function () {
         ->middleware(['auth', 'can:stock_movement.viewAny'])
         ->name('stock.movements');
 
+    Route::livewire('/seri-takibi', 'pages::stock.serials')
+        ->middleware(['auth', 'can:stock_movement.viewAny'])
+        ->name('stock.serials');
+
     Route::livewire('/stok-sayimi', 'pages::inventory.index')
         ->middleware(['auth', 'can:stock_movement.viewAny'])
         ->name('inventory.index');
