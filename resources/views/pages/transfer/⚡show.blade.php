@@ -96,7 +96,7 @@ new #[Layout('layouts::authenticated')] class extends Component
 
     public function with(TransferPermissions $permissions): array
     {
-        $transfer = $this->transfer()->load(['events.actor', 'movements.lot']);
+        $transfer = $this->transfer()->load(['events.actor', 'movements.lot', 'movements.serials']);
         $user = auth()->user();
         $status = $transfer->status;
         $allowed = fn (TransferStatus $target, string $ability) => $status->canTransitionTo($target) && $permissions->can($user, $ability, $transfer);
@@ -193,7 +193,12 @@ new #[Layout('layouts::authenticated')] class extends Component
                             <tr>
                                 <td class="px-5 py-3 text-ink-muted">{{ $movement->created_at->format('d.m.Y H:i') }}</td>
                                 <td class="px-5 py-3">{{ $movement->type->label() }}</td>
-                                <td class="px-5 py-3 font-mono text-[13px]">{{ $movement->lot->lot_no ?? '—' }}</td>
+                                <td class="px-5 py-3 font-mono text-[13px]">
+                                    {{ $movement->lot->lot_no ?? '—' }}
+                                    @if ($movement->serials->isNotEmpty())
+                                        <div class="text-[12px] text-ink-muted">Seri: {{ $movement->serials->pluck('serial_no')->sort()->implode(', ') }}</div>
+                                    @endif
+                                </td>
                                 <td class="px-5 py-3">{{ $movement->lot->expiry_date?->format('d.m.Y') ?? '—' }}</td>
                                 <td class="px-5 py-3 text-right tabular-nums {{ (float) $movement->quantity < 0 ? 'text-status-critical' : 'text-status-good' }}">{{ (float) $movement->quantity > 0 ? '+' : '' }}{{ Number::format((float) $movement->quantity, precision: 2) }}</td>
                             </tr>

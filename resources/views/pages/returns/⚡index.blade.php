@@ -13,6 +13,8 @@ use App\Domain\Returns\Support\ReturnReason;
 use App\Domain\Returns\Support\ReturnStatus;
 use App\Domain\Stock\Models\StockLot;
 use App\Domain\Stock\Models\StockMovement;
+use App\Domain\Stock\Models\StockSerial;
+use App\Domain\Stock\Support\SerialStatus;
 use App\Domain\Stock\Support\StockMovementType;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
@@ -46,6 +48,9 @@ new #[Layout('layouts::authenticated')] class extends Component
 
     public string $invoice_number = '';
 
+    /** Seri takipli üründe iade edilen birimler (Aşama 26); miktar seri sayısıdır. */
+    public array $selectedSerials = [];
+
     public function updatingStatusFilter(): void
     {
         $this->resetPage();
@@ -55,7 +60,7 @@ new #[Layout('layouts::authenticated')] class extends Component
     {
         Gate::authorize('stock_movement.create');
 
-        $this->reset(['warehouse_id', 'product_id', 'lot_id', 'quantity', 'reason', 'reason_note', 'supplier_id', 'purchase_order_id', 'invoice_number']);
+        $this->reset(['warehouse_id', 'product_id', 'lot_id', 'quantity', 'reason', 'reason_note', 'supplier_id', 'purchase_order_id', 'invoice_number', 'selectedSerials']);
         $this->resetValidation();
         $this->showForm = true;
     }
@@ -84,8 +89,15 @@ new #[Layout('layouts::authenticated')] class extends Component
      * numarası o teslimden önerilir (proje.md Bölüm 9: stok girişi siparişe
      * ve tedarikçiye bağlı kalır).
      */
+    public function updatedSelectedSerials(): void
+    {
+        $this->quantity = (string) count($this->selectedSerials);
+    }
+
     public function updatedLotId(): void
     {
+        $this->selectedSerials = [];
+
         $receipt = $this->receiptOf($this->lot_id);
 
         if ($receipt) {
@@ -132,6 +144,7 @@ new #[Layout('layouts::authenticated')] class extends Component
                     'reason_note' => $validated['reason_note'],
                     'purchase_order_id' => $validated['purchase_order_id'] ?: null,
                     'invoice_number' => $validated['invoice_number'],
+                    'serials' => array_values(array_map('strval', $this->selectedSerials)),
                 ],
             );
         } catch (ReturnException $e) {
@@ -217,6 +230,9 @@ new #[Layout('layouts::authenticated')] class extends Component
                 ? Product::whereIn('id', StockLot::inBranches($this->branchIds())->where('warehouse_id', $this->warehouse_id)->where('quantity', '>', 0)->select('product_id'))->orderBy('name')->get()
                 : collect(),
             'lots' => $this->showForm ? $this->lots() : collect(),
+            'lotSerials' => $this->showForm && filled($this->lot_id)
+                ? StockSerial::where('lot_id', $this->lot_id)->whereIn('lot_id', $this->lots()->modelKeys())->where('status', SerialStatus::InStock->value)->orderBy('serial_no')->limit(200)->get()
+                : collect(),
             'reasons' => ReturnReason::cases(),
             'suppliers' => $this->showForm ? Supplier::where(fn ($query) => $query->where('status', 'active')->orWhere('id', $this->supplier_id ?: null))->orderBy('name')->get() : collect(),
             'orders' => $this->showForm ? $this->orders() : collect(),
@@ -326,6 +342,19 @@ new #[Layout('layouts::authenticated')] class extends Component
                     @error('lot_id') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
                 </div>
             </div>
+            @if ($lotSerials->isNotEmpty())
+                <div class="rounded-md border border-line bg-canvas px-3 py-2.5 text-[13px]">
+                    <p class="text-ink-muted mb-2">İade edilecek birimlerin seri numaraları — {{ count($selectedSerials) }} seçili</p>
+                    <div class="max-h-40 overflow-y-auto grid grid-cols-2 sm:grid-cols-3 gap-1">
+                        @foreach ($lotSerials as $serial)
+                            <label class="flex items-center gap-1.5 font-mono text-[12px]">
+                                <input type="checkbox" wire:model.live="selectedSerials" value="{{ $serial->serial_no }}" class="accent-brand-500">
+                                {{ $serial->serial_no }}
+                            </label>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                     <label class="block text-[13px] text-ink-muted mb-1.5">Miktar</label>

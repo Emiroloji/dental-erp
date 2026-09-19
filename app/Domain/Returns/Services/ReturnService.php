@@ -10,8 +10,12 @@ use App\Domain\Returns\Notifications\ReturnNotifier;
 use App\Domain\Returns\Support\ReturnPermissions;
 use App\Domain\Returns\Support\ReturnReason;
 use App\Domain\Returns\Support\ReturnStatus;
+use App\Domain\Stock\Exceptions\SerialException;
 use App\Domain\Stock\Models\StockLot;
+use App\Domain\Stock\Models\StockSerial;
+use App\Domain\Stock\Services\SerialRegistry;
 use App\Domain\Stock\Services\StockMovementService;
+use App\Domain\Stock\Support\SerialStatus;
 use App\Domain\Stock\Support\StockMovementType;
 use App\Models\User;
 use Closure;
@@ -37,7 +41,7 @@ class ReturnService
     ) {}
 
     /**
-     * @param  array{reason_note?: ?string, purchase_order_id?: ?int, invoice_number?: ?string}  $details
+     * @param  array{reason_note?: ?string, purchase_order_id?: ?int, invoice_number?: ?string, serials?: array<int, string>}  $details
      */
     public function request(StockLot $lot, float $quantity, ReturnReason $reason, Supplier $supplier, User $actor, array $details = []): SupplierReturn
     {
@@ -58,6 +62,24 @@ class ReturnService
         // Stok kargoya verilince düşer; yine de lotta olmayan bir miktar için talep açılmaz.
         if ($quantity > (float) $lot->quantity) {
             throw new ReturnException('İade miktarı lottaki mevcut miktardan ('.$this->format((float) $lot->quantity).') fazla olamaz.');
+        }
+
+        // Seri takipli ürün (Aşama 26): hangi birimlerin iade edildiği seçilir;
+        // seriler bu lotta stokta olmalıdır. Miktar seri sayısıdır.
+        $serials = null;
+        if ($lot->product->tracks_serials) {
+            try {
+                $serials = SerialRegistry::normalize($details['serials'] ?? []);
+                SerialRegistry::ensureMatchesQuantity($lot->product, $quantity, $serials);
+            } catch (SerialException $e) {
+                throw new ReturnException($e->getMessage());
+            }
+
+            $inLot = StockSerial::where('lot_id', $lot->id)->where('status', SerialStatus::InStock->value)->whereIn('serial_no', $serials)->pluck('serial_no')->all();
+
+            if ($missing = array_values(array_diff($serials, $inLot))) {
+                throw new ReturnException('Bu seri numaraları seçilen lotta stokta değil: '.implode(', ', $missing));
+            }
         }
 
         $reasonNote = trim((string) ($details['reason_note'] ?? '')) ?: null;
@@ -84,7 +106,7 @@ class ReturnService
             }
         }
 
-        $return = DB::transaction(function () use ($lot, $quantity, $reason, $reasonNote, $supplier, $order, $details, $actor) {
+        $return = DB::transaction(function () use ($lot, $quantity, $reason, $reasonNote, $supplier, $order, $details, $actor, $serials) {
             $return = SupplierReturn::create([
                 'organization_id' => $actor->organization_id,
                 'stock_lot_id' => $lot->id,
@@ -94,6 +116,7 @@ class ReturnService
                 'purchase_order_id' => $order?->id,
                 'invoice_number' => trim((string) ($details['invoice_number'] ?? '')) ?: null,
                 'quantity' => $quantity,
+                'serial_numbers' => $serials,
                 'reason' => $reason,
                 'reason_note' => $reasonNote,
                 'status' => ReturnStatus::Requested,
@@ -133,7 +156,9 @@ class ReturnService
     public function ship(SupplierReturn $return, User $actor, ?string $note = null): SupplierReturn
     {
         return $this->transition($return, ReturnStatus::Shipped, $actor, $note, effect: function (SupplierReturn $locked) use ($actor) {
-            $this->stock->returnOut($locked->lot, (float) $locked->quantity, $locked, $actor, "{$locked->number()} tedarikçiye iade: {$locked->reasonText()}");
+            $this->stock->returnOut($locked->lot, (float) $locked->quantity, $locked, $actor, "{$locked->number()} tedarikçiye iade: {$locked->reasonText()}", [
+                'serials' => $locked->serial_numbers ?? [],
+            ]);
         });
     }
 

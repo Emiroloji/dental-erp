@@ -38,6 +38,7 @@ class SupplierReturn extends Model
         'purchase_order_id',
         'invoice_number',
         'quantity',
+        'serial_numbers',
         'reason',
         'reason_note',
         'status',
@@ -49,6 +50,7 @@ class SupplierReturn extends Model
 
     protected $casts = [
         'quantity' => 'decimal:2',
+        'serial_numbers' => 'array',
         'credit_amount' => 'decimal:2',
         'reason' => ReturnReason::class,
         'status' => ReturnStatus::class,

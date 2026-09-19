@@ -115,6 +115,7 @@ new #[Layout('layouts::authenticated')] class extends Component
             'entries.*.counted_quantity' => ['nullable', 'numeric', 'min:0'],
             'entries.*.reason' => ['nullable', 'in:'.implode(',', array_column(CountDifferenceReason::cases(), 'value'))],
             'entries.*.note' => ['nullable', 'string', 'max:255'],
+            'entries.*.counted_serials' => ['nullable', 'string', 'max:20000'],
         ]);
 
         return $this->attempt(fn () => ($counts ?? app(StockCountService::class))->record($count, $this->entries, auth()->user()), null);
@@ -126,6 +127,8 @@ new #[Layout('layouts::authenticated')] class extends Component
             'counted_quantity' => $line->counted_quantity === null ? '' : rtrim(rtrim((string) $line->counted_quantity, '0'), '.'),
             'reason' => $line->reason?->value ?? '',
             'note' => (string) $line->note,
+            // Seri takipli lot (Aşama 26): bulunan seriler, her satıra bir seri.
+            ...($line->product->tracks_serials ? ['counted_serials' => implode("\n", $line->counted_serials ?? [])] : []),
         ]])->all();
     }
 
@@ -259,7 +262,19 @@ new #[Layout('layouts::authenticated')] class extends Component
                         </td>
                         <td class="px-4 py-2.5 text-right tabular-nums text-ink-muted">{{ Number::format((float) $line->system_quantity, precision: 2) }}</td>
                         <td class="px-4 py-2.5">
-                            @if ($canCount)
+                            @if ($canCount && $line->product->tracks_serials)
+                                @php
+                                    try {
+                                        $serialCount = count(\App\Domain\Stock\Services\SerialRegistry::parseList($entry['counted_serials'] ?? ''));
+                                    } catch (\App\Domain\Stock\Exceptions\SerialException) {
+                                        $serialCount = null;
+                                    }
+                                    $counted = blank($entry['counted_serials'] ?? '') && ($entry['counted_quantity'] ?? '') === '' ? '' : $serialCount;
+                                    $difference = $counted === '' || $counted === null ? null : (float) $counted - (float) $line->system_quantity;
+                                @endphp
+                                <textarea wire:model.live.debounce.400ms="entries.{{ $line->id }}.counted_serials" rows="2" placeholder="Bulunan seriler" class="w-40 border border-line rounded-md px-2 py-1.5 text-[12px] font-mono"></textarea>
+                                <div class="text-[12px] text-ink-muted">{{ $serialCount === null ? 'Tekrar eden seri' : "{$serialCount} seri" }}</div>
+                            @elseif ($canCount)
                                 <input type="number" step="0.01" min="0" wire:model.live.debounce.400ms="entries.{{ $line->id }}.counted_quantity" class="w-full border border-line rounded-md px-2 py-1.5 tabular-nums">
                                 @error("entries.{$line->id}.counted_quantity") <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
                             @else

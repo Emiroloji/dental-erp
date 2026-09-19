@@ -10,7 +10,9 @@ use App\Domain\Inventory\Support\CountDifferenceReason;
 use App\Domain\Inventory\Support\StockCountPermissions;
 use App\Domain\Inventory\Support\StockCountStatus;
 use App\Domain\Organization\Models\Warehouse;
+use App\Domain\Stock\Exceptions\SerialException;
 use App\Domain\Stock\Models\StockLot;
+use App\Domain\Stock\Services\SerialRegistry;
 use App\Domain\Stock\Services\StockMovementService;
 use App\Models\User;
 use Closure;
@@ -110,6 +112,25 @@ class StockCountService
                 }
 
                 $counted = $entry['counted_quantity'] ?? null;
+                $countedSerials = null;
+
+                // Seri takipli lot (Aşama 26): fiilen bulunan serilerin listesi
+                // girilir; sayılan miktar liste uzunluğudur.
+                if ($line->product->tracks_serials && array_key_exists('counted_serials', $entry)) {
+                    $raw = $entry['counted_serials'];
+
+                    if ($raw === null || (is_string($raw) && trim($raw) === '' && ($counted === null || $counted === ''))) {
+                        $counted = null;
+                    } else {
+                        try {
+                            $countedSerials = is_array($raw) ? SerialRegistry::normalize($raw) : SerialRegistry::parseList($raw);
+                        } catch (SerialException $e) {
+                            throw new StockCountException("{$this->lineLabel($line)}: {$e->getMessage()}");
+                        }
+
+                        $counted = count($countedSerials);
+                    }
+                }
 
                 if ($counted !== null && $counted !== '' && (float) $counted < 0) {
                     throw new StockCountException('Sayılan miktar negatif olamaz.');
@@ -117,6 +138,7 @@ class StockCountService
 
                 $line->update([
                     'counted_quantity' => ($counted === null || $counted === '') ? null : (float) $counted,
+                    'counted_serials' => $countedSerials,
                     'reason' => ($entry['reason'] ?? null) ?: null,
                     'note' => ($entry['note'] ?? null) ?: null,
                 ]);
@@ -139,6 +161,10 @@ class StockCountService
 
                 if (! $line->isCounted()) {
                     throw new StockCountException("{$label} henüz sayılmadı.");
+                }
+
+                if ($line->product->tracks_serials && $line->counted_serials === null) {
+                    throw new StockCountException("{$label}: seri takipli ürün; bulunan seri numaralarını girin.");
                 }
 
                 if ($line->hasDifference() && $line->reason === null) {
@@ -215,7 +241,9 @@ class StockCountService
             foreach ($lines->filter->hasDifference() as $line) {
                 $reason = "{$locked->number()} sayım farkı: {$line->reason->label()}".(filled($line->note) ? " — {$line->note}" : '');
 
-                $movement = $this->stock->adjust($line->lot, (float) $line->counted_quantity, $reason, $actor, $locked);
+                $movement = $this->stock->adjust($line->lot, (float) $line->counted_quantity, $reason, $actor, $locked, [
+                    'serials' => $line->counted_serials ?? [],
+                ]);
                 $line->update(['stock_movement_id' => $movement->id]);
 
                 $label = $this->lineLabel($line);

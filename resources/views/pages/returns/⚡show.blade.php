@@ -150,7 +150,7 @@ new #[Layout('layouts::authenticated')] class extends Component
         <dl class="grid grid-cols-1 sm:grid-cols-2 gap-px bg-line rounded-lg overflow-hidden text-[14px]">
             <div class="bg-surface px-5 py-3"><dt class="text-[12px] text-ink-muted">Ürün</dt><dd>{{ $return->product->name }}</dd></div>
             <div class="bg-surface px-5 py-3"><dt class="text-[12px] text-ink-muted">Lot / SKT</dt><dd><span class="font-mono">{{ $return->lot->lot_no ?? '—' }}</span> · {{ $return->lot->expiry_date?->format('d.m.Y') ?? '—' }}</dd></div>
-            <div class="bg-surface px-5 py-3"><dt class="text-[12px] text-ink-muted">Miktar</dt><dd class="tabular-nums">{{ Number::format((float) $return->quantity, precision: 2) }} {{ $return->product->base_unit }}</dd></div>
+            <div class="bg-surface px-5 py-3"><dt class="text-[12px] text-ink-muted">Miktar</dt><dd class="tabular-nums">{{ Number::format((float) $return->quantity, precision: 2) }} {{ $return->product->base_unit }}@if ($return->serial_numbers) <span class="block font-mono text-[12px] text-ink-muted">Seri: {{ implode(', ', $return->serial_numbers) }}</span>@endif</dd></div>
             <div class="bg-surface px-5 py-3"><dt class="text-[12px] text-ink-muted">İade Nedeni</dt><dd>{{ $return->reasonText() }}</dd></div>
             <div class="bg-surface px-5 py-3"><dt class="text-[12px] text-ink-muted">Tedarikçi</dt><dd>{{ $return->supplier->name }}</dd></div>
             <div class="bg-surface px-5 py-3"><dt class="text-[12px] text-ink-muted">İlgili Sipariş / Fatura</dt><dd>{{ $return->purchaseOrder?->number() ?? '—' }} · {{ $return->invoice_number ?? '—' }}</dd></div>
