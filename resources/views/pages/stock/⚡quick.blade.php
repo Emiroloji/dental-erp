@@ -9,6 +9,7 @@ use App\Domain\Stock\Exceptions\ScanException;
 use App\Domain\Stock\Models\StockLot;
 use App\Domain\Stock\Services\ScanResolver;
 use App\Domain\Stock\Services\StockMovementService;
+use App\Domain\Stock\Support\ExpiredUsageWarning;
 use App\Domain\Stock\Support\StockOutReason;
 use App\Support\UnitConverter;
 use Illuminate\Support\Facades\Gate;
@@ -160,7 +161,10 @@ new #[Layout('layouts::authenticated')] class extends Component
                     return;
                 }
 
-                $stock->out($product, $warehouse, $baseQuantity, $lot, auth()->user(), "{$reason->label()} — hızlı çıkış (barkod){$unitNote}", $reason);
+                $warning = ExpiredUsageWarning::for(
+                    $stock->out($product, $warehouse, $baseQuantity, $lot, auth()->user(), "{$reason->label()} — hızlı çıkış (barkod){$unitNote}", $reason),
+                    $reason,
+                );
             }
         } catch (InsufficientStockException $e) {
             $this->addError('quantity', $e->getMessage());
@@ -181,6 +185,10 @@ new #[Layout('layouts::authenticated')] class extends Component
         $this->recent = array_slice($this->recent, 0, 10);
 
         session()->flash('status', ($this->mode === 'in' ? 'Giriş' : 'Çıkış')." kaydedildi: {$quantityText} {$product->name}. Depoda kalan: ".Number::format($this->available($product), maxPrecision: 2)." {$product->base_unit}.");
+
+        if ($warning ?? null) {
+            session()->flash('warning', $warning);
+        }
         $this->clearProduct();
         $this->dispatch('scan-ready');
     }
@@ -249,6 +257,10 @@ new #[Layout('layouts::authenticated')] class extends Component
 
     @if (session('status'))
         <div class="mb-4 rounded-md bg-brand-100 border border-brand-500/20 text-brand-600 text-[14px] px-4 py-3">{{ session('status') }}</div>
+    @endif
+
+    @if (session('warning'))
+        <div class="mb-4 rounded-md bg-status-warn-bg border border-status-warn/20 text-status-warn text-[14px] px-4 py-3">{{ session('warning') }}</div>
     @endif
 
     <div class="grid grid-cols-2 gap-2 mb-4" role="tablist">
@@ -330,7 +342,7 @@ new #[Layout('layouts::authenticated')] class extends Component
                             <select wire:model="lot_id" class="w-full border border-line rounded-md px-3 py-3 text-[15px]">
                                 <option value="">Otomatik (SKT'si en yakın — FEFO)</option>
                                 @foreach ($lots as $lot)
-                                    <option value="{{ $lot->id }}">{{ $lot->lot_no ?? 'Lot #'.$lot->id }} · SKT {{ $lot->expiry_date?->format('d.m.Y') ?? '—' }} · {{ Number::format((float) $lot->quantity, maxPrecision: 2) }}</option>
+                                    <option value="{{ $lot->id }}">{{ $lot->lot_no ?? 'Lot #'.$lot->id }} · SKT {{ $lot->expiry_date?->format('d.m.Y') ?? '—' }}{{ $lot->isExpired() ? ' (GEÇTİ)' : '' }} · {{ Number::format((float) $lot->quantity, maxPrecision: 2) }}</option>
                                 @endforeach
                             </select>
                             @error('lot_id') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror

@@ -41,6 +41,15 @@ enum StockOutReason: string
         ));
     }
 
+    /**
+     * İmha niteliğindeki çıkışlar: "kullanımı engelle" ayarında da SKT'si
+     * geçmiş lottan yapılabilir (ExpiredLotPolicy).
+     */
+    public function disposesStock(): bool
+    {
+        return in_array($this, [self::Expired, self::Damaged, self::ReturnToSupplier], true);
+    }
+
     public function label(): string
     {
         return match ($this) {

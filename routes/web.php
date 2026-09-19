@@ -156,6 +156,10 @@ Route::middleware('tenant')->group(function () {
         ->middleware(['auth', 'can:subscription.view'])
         ->name('subscription.show');
 
+    Route::livewire('/ayarlar', 'pages::settings.index')
+        ->middleware(['auth', 'can:system_settings.viewAny'])
+        ->name('settings.index');
+
     Route::livewire('/denetim-kayitlari', 'pages::audit.index')
         ->middleware(['auth', 'can:audit_logs.viewAny'])
         ->name('audit.index');

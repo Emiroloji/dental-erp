@@ -9,6 +9,7 @@ use App\Domain\Stock\Models\StockLot;
 use App\Domain\Stock\Models\StockMovement;
 use App\Domain\Stock\Services\StockMovementService;
 use App\Domain\Stock\Support\StockMovementType;
+use App\Domain\Stock\Support\ExpiredUsageWarning;
 use App\Domain\Stock\Support\StockOutReason;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\Gate;
@@ -103,7 +104,7 @@ new #[Layout('layouts::authenticated')] class extends Component
         $reason = filled($validated['reasonNote']) ? "{$reasonCode->label()}: {$validated['reasonNote']}" : $reasonCode->label();
 
         try {
-            $service->out($product, $warehouse, (float) $validated['quantity'], $lot, auth()->user(), $reason, $reasonCode);
+            $movements = $service->out($product, $warehouse, (float) $validated['quantity'], $lot, auth()->user(), $reason, $reasonCode);
         } catch (InsufficientStockException $e) {
             $this->addError('quantity', $e->getMessage());
 
@@ -116,6 +117,10 @@ new #[Layout('layouts::authenticated')] class extends Component
 
         $this->closeForm();
         session()->flash('status', 'Stok çıkışı kaydedildi.');
+
+        if ($warning = ExpiredUsageWarning::for($movements, $reasonCode)) {
+            session()->flash('warning', $warning);
+        }
     }
 
     /**
@@ -176,6 +181,12 @@ new #[Layout('layouts::authenticated')] class extends Component
     @if (session('status'))
         <div class="mb-6 rounded-md bg-brand-100 border border-brand-500/20 text-brand-600 text-[13px] px-4 py-3">
             {{ session('status') }}
+        </div>
+    @endif
+
+    @if (session('warning'))
+        <div class="mb-6 rounded-md bg-status-warn-bg border border-status-warn/20 text-status-warn text-[13px] px-4 py-3">
+            {{ session('warning') }}
         </div>
     @endif
 
@@ -246,7 +257,7 @@ new #[Layout('layouts::authenticated')] class extends Component
                     <select wire:model="lot_id" class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
                         <option value="">Otomatik (FEFO)</option>
                         @foreach ($availableLots as $lot)
-                            <option value="{{ $lot->id }}">{{ $lot->lot_no ?? "Lot #{$lot->id}" }} — {{ Number::format((float) $lot->quantity, precision: 2) }} mevcut</option>
+                            <option value="{{ $lot->id }}">{{ $lot->lot_no ?? "Lot #{$lot->id}" }} — {{ Number::format((float) $lot->quantity, precision: 2) }} mevcut{{ $lot->isExpired() ? ' · SKT GEÇTİ' : '' }}</option>
                         @endforeach
                     </select>
                     @error('lot_id') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror

@@ -3,6 +3,7 @@
 namespace App\Domain\Organization\Models;
 
 use App\Domain\Audit\Concerns\Auditable;
+use App\Domain\Organization\Support\ExpiredLotPolicy;
 use App\Domain\Organization\Support\OrganizationStatus;
 use App\Domain\Platform\Support\Plan;
 use App\Models\User;
@@ -24,6 +25,7 @@ class Organization extends Model
         'max_branches',
         'max_users',
         'max_storage_mb',
+        'settings',
     ];
 
     protected $casts = [
@@ -32,6 +34,7 @@ class Organization extends Model
         'max_branches' => 'integer',
         'max_users' => 'integer',
         'max_storage_mb' => 'integer',
+        'settings' => 'array',
     ];
 
     public function branches(): HasMany
@@ -42,6 +45,11 @@ class Organization extends Model
     public function users(): HasMany
     {
         return $this->hasMany(User::class);
+    }
+
+    public function expiredLotPolicy(): ExpiredLotPolicy
+    {
+        return ExpiredLotPolicy::tryFrom((string) ($this->settings['expired_lot_policy'] ?? '')) ?? ExpiredLotPolicy::Warn;
     }
 
     public function isReadOnly(): bool

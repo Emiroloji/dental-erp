@@ -3,8 +3,11 @@
 namespace App\Domain\Stock\Services;
 
 use App\Domain\Catalog\Models\Product;
+use App\Domain\Organization\Models\Organization;
 use App\Domain\Organization\Models\Warehouse;
+use App\Domain\Organization\Support\ExpiredLotPolicy;
 use App\Domain\Reporting\Services\DashboardMetricsService;
+use App\Domain\Stock\Exceptions\ExpiredLotBlockedException;
 use App\Domain\Stock\Exceptions\InactiveLocationException;
 use App\Domain\Stock\Exceptions\InsufficientStockException;
 use App\Domain\Stock\Models\StockLot;
@@ -71,12 +74,21 @@ class StockMovementService
 
         $this->ensureOperational($warehouse);
 
-        return DB::transaction(function () use ($product, $warehouse, $quantity, $lot, $actor, $reason, $reasonCode) {
+        // "Kullanımı tamamen engelle" ayarı (proje.md Bölüm 7): kullanım
+        // çıkışında SKT'si geçmiş lot kullanılamaz; imha çıkışları serbesttir.
+        $blockExpired = ! ($reasonCode?->disposesStock() ?? false)
+            && $this->expiredLotPolicy($warehouse) === ExpiredLotPolicy::Block;
+
+        return DB::transaction(function () use ($product, $warehouse, $quantity, $lot, $actor, $reason, $reasonCode, $blockExpired) {
             if ($lot) {
+                if ($blockExpired && $lot->isExpired()) {
+                    throw new ExpiredLotBlockedException('Seçilen lotun son kullanma tarihi geçmiş; organizasyon ayarına göre kullanımı engelli. İmha için "SKT geçmiş" nedeniyle çıkış yapın.');
+                }
+
                 return collect([$this->withdrawFromLot($lot, $quantity, $actor, $reason, $reasonCode)]);
             }
 
-            return $this->withdrawFefo($product, $warehouse, $quantity, $actor, $reason, $reasonCode);
+            return $this->withdrawFefo($product, $warehouse, $quantity, $actor, $reason, $reasonCode, excludeExpired: $blockExpired);
         });
     }
 
@@ -209,6 +221,13 @@ class StockMovementService
      * kurallar.md Bölüm 4: pasif depo veya pasif şubedeki bir depo üzerinde
      * hiçbir stok işlemi (giriş, çıkış, düzeltme, iptal) yapılamaz.
      */
+    private function expiredLotPolicy(Warehouse $warehouse): ExpiredLotPolicy
+    {
+        $organizationId = $warehouse->branch()->withoutGlobalScopes()->value('organization_id');
+
+        return Organization::find($organizationId)?->expiredLotPolicy() ?? ExpiredLotPolicy::Warn;
+    }
+
     private function ensureOperational(Warehouse $warehouse): void
     {
         if (! $warehouse->isOperational()) {
@@ -251,6 +270,7 @@ class StockMovementService
         ?StockOutReason $reasonCode,
         StockMovementType $type = StockMovementType::Out,
         ?Model $related = null,
+        bool $excludeExpired = false,
     ): Collection {
         $lots = StockLot::where('product_id', $product->id)
             ->where('warehouse_id', $warehouse->id)
@@ -260,9 +280,18 @@ class StockMovementService
             ->lockForUpdate()
             ->get();
 
+        if ($excludeExpired) {
+            $expiredQuantity = $lots->filter(fn (StockLot $lot) => $lot->isExpired())->sum('quantity');
+            $lots = $lots->reject(fn (StockLot $lot) => $lot->isExpired())->values();
+        }
+
         $available = $lots->sum('quantity');
 
         if ($available < $quantity) {
+            if (($expiredQuantity ?? 0) > 0) {
+                throw new ExpiredLotBlockedException("Yeterli kullanılabilir stok yok: SKT'si geçmemiş mevcut {$available}, talep edilen {$quantity}. SKT'si geçmiş {$expiredQuantity} adetin kullanımı organizasyon ayarına göre engelli.");
+            }
+
             throw new InsufficientStockException("Yeterli stok yok: mevcut {$available}, talep edilen {$quantity}.");
         }
 
