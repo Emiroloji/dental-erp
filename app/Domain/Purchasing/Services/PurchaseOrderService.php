@@ -190,6 +190,10 @@ class PurchaseOrderService
                     $actor,
                     "{$locked->number()} teslim alımı",
                     $receipt,
+                    [
+                        'temperature' => $input['temperature'] ?? null,
+                        'temperature_note' => $input['temperature_note'] ?? null,
+                    ],
                 );
 
                 $receipt->lines()->create([

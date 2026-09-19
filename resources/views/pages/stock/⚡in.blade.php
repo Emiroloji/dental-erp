@@ -3,6 +3,7 @@
 use App\Domain\Access\Support\Module;
 use App\Domain\Catalog\Models\Product;
 use App\Domain\Organization\Models\Warehouse;
+use App\Domain\Stock\Exceptions\ColdChainException;
 use App\Domain\Stock\Exceptions\InactiveLocationException;
 use App\Domain\Stock\Models\StockMovement;
 use App\Domain\Stock\Services\StockMovementService;
@@ -37,6 +38,11 @@ new #[Layout('layouts::authenticated')] class extends Component
 
     public string $reason = '';
 
+    /** Soğuk zincir ürününde ölçülen sıcaklık ve aralık dışı kabul gerekçesi (Aşama 26). */
+    public string $temperature = '';
+
+    public string $temperature_note = '';
+
     public function openForm(): void
     {
         Gate::authorize('stock_movement.create');
@@ -47,7 +53,7 @@ new #[Layout('layouts::authenticated')] class extends Component
     public function closeForm(): void
     {
         $this->showForm = false;
-        $this->reset(['product_id', 'warehouse_id', 'quantity', 'unit', 'lot_no', 'expiry_date', 'reason']);
+        $this->reset(['product_id', 'warehouse_id', 'quantity', 'unit', 'lot_no', 'expiry_date', 'reason', 'temperature', 'temperature_note']);
         $this->unit_cost = '0';
         $this->resetValidation();
     }
@@ -70,6 +76,8 @@ new #[Layout('layouts::authenticated')] class extends Component
             'lot_no' => ['nullable', 'string', 'max:255'],
             'expiry_date' => ['nullable', 'date'],
             'reason' => ['nullable', 'string', 'max:255'],
+            'temperature' => ['nullable', 'numeric', 'between:-100,100'],
+            'temperature_note' => ['nullable', 'string', 'max:500'],
         ]);
 
         try {
@@ -109,9 +117,14 @@ new #[Layout('layouts::authenticated')] class extends Component
                 ],
                 auth()->user(),
                 $reason,
+                tracking: ['temperature' => $validated['temperature'], 'temperature_note' => $validated['temperature_note']],
             );
         } catch (InactiveLocationException $e) {
             $this->addError('warehouse_id', $e->getMessage());
+
+            return;
+        } catch (ColdChainException $e) {
+            $this->addError(blank($validated['temperature']) ? 'temperature' : 'temperature_note', $e->getMessage());
 
             return;
         }
@@ -189,7 +202,12 @@ new #[Layout('layouts::authenticated')] class extends Component
                         <td class="px-5 py-3 text-ink-muted">{{ $movement->warehouse->name }}</td>
                         <td class="px-5 py-3 font-mono text-[13px] text-ink-muted">{{ $movement->lot->lot_no ?? '—' }}</td>
                         <td class="px-5 py-3 text-ink-muted">{{ $movement->actor?->name ?? '—' }}</td>
-                        <td class="px-5 py-3 text-ink-muted">{{ $movement->reason ?? '—' }}</td>
+                        <td class="px-5 py-3 text-ink-muted">
+                            {{ $movement->reason ?? '—' }}
+                            @if ($movement->temperature !== null)
+                                <div @class(['text-[12px]', 'text-status-critical' => filled($movement->temperature_note)])>❄ {{ Number::format($movement->temperature, maxPrecision: 1) }} °C @if ($movement->temperature_note) — aralık dışı kabul: {{ $movement->temperature_note }} @endif</div>
+                            @endif
+                        </td>
                         <td class="px-5 py-3 text-right text-status-good tabular-nums">+{{ Number::format((float) $movement->quantity, precision: 2) }}</td>
                     </tr>
                 @empty
@@ -261,6 +279,7 @@ new #[Layout('layouts::authenticated')] class extends Component
                     <label class="block text-[13px] text-ink-muted mb-1.5">Son Kullanma Tarihi</label>
                     <input type="date" wire:model="expiry_date" class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
                 </div>
+                <x-cold-chain-input :product="$selectedProduct" :temperature="$temperature" />
             </div>
 
             @if ($product_id && ($selectedSupplier = $products->firstWhere('id', (int) $product_id)?->supplier))

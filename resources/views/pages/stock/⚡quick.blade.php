@@ -3,6 +3,7 @@
 use App\Domain\Access\Support\Module;
 use App\Domain\Catalog\Models\Product;
 use App\Domain\Organization\Models\Warehouse;
+use App\Domain\Stock\Exceptions\ColdChainException;
 use App\Domain\Stock\Exceptions\InactiveLocationException;
 use App\Domain\Stock\Exceptions\InsufficientStockException;
 use App\Domain\Stock\Exceptions\ScanException;
@@ -50,6 +51,11 @@ new #[Layout('layouts::authenticated')] class extends Component
     public string $expiry_date = '';
 
     public string $unit_cost = '';
+
+    /** Soğuk zincir girişinde ölçülen sıcaklık ve aralık dışı kabul gerekçesi (Aşama 26). */
+    public string $temperature = '';
+
+    public string $temperature_note = '';
 
     public string $scanError = '';
 
@@ -145,6 +151,8 @@ new #[Layout('layouts::authenticated')] class extends Component
             'lot_no' => ['nullable', 'string', 'max:255'],
             'expiry_date' => ['nullable', 'date'],
             'unit_cost' => ['nullable', 'numeric', 'min:0'],
+            'temperature' => ['nullable', 'numeric', 'between:-100,100'],
+            'temperature_note' => ['nullable', 'string', 'max:500'],
         ], [
             'warehouse_id.in' => 'Yalnızca kendi kapsamındaki işleme açık bir depoda işlem yapabilirsin.',
             'quantity.gt' => 'Miktar sıfırdan büyük olmalı.',
@@ -160,7 +168,7 @@ new #[Layout('layouts::authenticated')] class extends Component
                     'lot_no' => $validated['lot_no'] ?: null,
                     'expiry_date' => $validated['expiry_date'] ?: null,
                     'unit_cost' => $validated['unit_cost'] === '' || $validated['unit_cost'] === null ? (float) $product->purchase_price : (float) $validated['unit_cost'],
-                ], auth()->user(), 'Hızlı giriş (barkod)'.$unitNote);
+                ], auth()->user(), 'Hızlı giriş (barkod)'.$unitNote, tracking: ['temperature' => $validated['temperature'], 'temperature_note' => $validated['temperature_note']]);
             } else {
                 $reason = StockOutReason::from($validated['reasonCategory']);
                 $lot = filled($this->lot_id)
@@ -186,6 +194,10 @@ new #[Layout('layouts::authenticated')] class extends Component
             $this->addError('warehouse_id', $e->getMessage());
 
             return;
+        } catch (ColdChainException $e) {
+            $this->addError(blank($validated['temperature']) ? 'temperature' : 'temperature_note', $e->getMessage());
+
+            return;
         }
 
         $quantityText = Number::format($baseQuantity, maxPrecision: 2).' '.$product->base_unit;
@@ -207,7 +219,7 @@ new #[Layout('layouts::authenticated')] class extends Component
 
     public function clearProduct(): void
     {
-        $this->reset(['productId', 'lot_id', 'unit', 'quantity', 'lot_no', 'expiry_date', 'unit_cost']);
+        $this->reset(['productId', 'lot_id', 'unit', 'quantity', 'lot_no', 'expiry_date', 'unit_cost', 'temperature', 'temperature_note']);
         $this->resetValidation();
     }
 
@@ -367,6 +379,7 @@ new #[Layout('layouts::authenticated')] class extends Component
                             <label class="block text-[13px] text-ink-muted mb-1">Birim maliyet (ana birim)</label>
                             <input type="number" step="0.01" min="0" wire:model="unit_cost" class="w-full border border-line rounded-md px-3 py-3 text-[15px]">
                         </div>
+                        <x-cold-chain-input :product="$product" :temperature="$temperature" />
                     </div>
                 @endif
 

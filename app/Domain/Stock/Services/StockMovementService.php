@@ -7,11 +7,13 @@ use App\Domain\Organization\Models\Organization;
 use App\Domain\Organization\Models\Warehouse;
 use App\Domain\Organization\Support\ExpiredLotPolicy;
 use App\Domain\Reporting\Services\DashboardMetricsService;
+use App\Domain\Stock\Exceptions\ColdChainException;
 use App\Domain\Stock\Exceptions\ExpiredLotBlockedException;
 use App\Domain\Stock\Exceptions\InactiveLocationException;
 use App\Domain\Stock\Exceptions\InsufficientStockException;
 use App\Domain\Stock\Models\StockLot;
 use App\Domain\Stock\Models\StockMovement;
+use App\Domain\Stock\Notifications\ColdChainNotifier;
 use App\Domain\Stock\Support\StockMovementType;
 use App\Domain\Stock\Support\StockOutReason;
 use App\Models\User;
@@ -22,11 +24,15 @@ use InvalidArgumentException;
 
 class StockMovementService
 {
-    public function __construct(private readonly DashboardMetricsService $dashboardMetrics) {}
+    public function __construct(
+        private readonly DashboardMetricsService $dashboardMetrics,
+        private readonly ColdChainNotifier $coldChain,
+    ) {}
 
     /**
      * @param  array{lot_no?: ?string, expiry_date?: ?string, unit_cost?: ?float}  $lotAttributes
      * @param  Model|null  $related  Girişi doğuran kayıt (ör. satın alma teslim alımı)
+     * @param  array{temperature?: float|string|null, temperature_note?: ?string}  $tracking  İlaç/medikal takip bilgisi (Aşama 26)
      */
     public function in(
         Product $product,
@@ -36,14 +42,16 @@ class StockMovementService
         ?User $actor = null,
         ?string $reason = null,
         ?Model $related = null,
+        array $tracking = [],
     ): StockMovement {
         if ($quantity <= 0) {
             throw new InvalidArgumentException('Giriş miktarı sıfırdan büyük olmalıdır.');
         }
 
         $this->ensureOperational($warehouse);
+        [$temperature, $temperatureNote, $outOfRange] = $this->coldChainReading($product, $tracking);
 
-        return DB::transaction(function () use ($product, $warehouse, $quantity, $lotAttributes, $actor, $reason, $related) {
+        $movement = DB::transaction(function () use ($product, $warehouse, $quantity, $lotAttributes, $actor, $reason, $related, $temperature, $temperatureNote) {
             $lot = $this->resolveOrCreateLot($product, $warehouse, $lotAttributes);
             $lot = StockLot::whereKey($lot->id)->lockForUpdate()->firstOrFail();
 
@@ -52,8 +60,47 @@ class StockMovementService
             return $this->recordMovement(
                 StockMovementType::In, $lot, $quantity, $actor, $reason,
                 relatedEntityType: $related?->getMorphClass(), relatedEntityId: $related?->getKey(),
+                temperature: $temperature, temperatureNote: $temperatureNote,
             );
         });
+
+        if ($outOfRange) {
+            $this->coldChain->outOfRangeAccepted($movement, $actor);
+        }
+
+        return $movement;
+    }
+
+    /**
+     * Soğuk zincir kuralı (Aşama 26): girişte ölçülen sıcaklık zorunludur;
+     * saklama aralığı dışındaysa giriş ancak yazılı gerekçeyle kabul edilir.
+     *
+     * @param  array{temperature?: float|string|null, temperature_note?: ?string}  $tracking
+     * @return array{0: ?float, 1: ?string, 2: bool}
+     */
+    private function coldChainReading(Product $product, array $tracking): array
+    {
+        $raw = $tracking['temperature'] ?? null;
+        $temperature = $raw === null || $raw === '' ? null : (float) $raw;
+        $note = trim((string) ($tracking['temperature_note'] ?? '')) ?: null;
+
+        if (! $product->cold_chain) {
+            return [$temperature, $note, false];
+        }
+
+        if ($temperature === null) {
+            throw new ColdChainException("{$product->name} soğuk zincir ürünü; girişte ölçülen sıcaklık zorunludur.");
+        }
+
+        if ($product->temperatureInRange($temperature)) {
+            return [$temperature, $note, false];
+        }
+
+        if ($note === null) {
+            throw new ColdChainException("{$product->name}: ölçülen sıcaklık saklama aralığı ({$product->storageRangeLabel()}) dışında. Giriş reddedildi; kabul edilecekse gerekçe yazın.");
+        }
+
+        return [$temperature, $note, true];
     }
 
     /**
@@ -351,6 +398,8 @@ class StockMovementService
         ?string $relatedEntityType = null,
         ?int $relatedEntityId = null,
         ?StockOutReason $reasonCode = null,
+        ?float $temperature = null,
+        ?string $temperatureNote = null,
     ): StockMovement {
         $movement = StockMovement::create([
             'type' => $type->value,
@@ -360,6 +409,8 @@ class StockMovementService
             'actor_id' => $actor?->id,
             'reason' => $reason,
             'reason_code' => $reasonCode,
+            'temperature' => $temperature,
+            'temperature_note' => $temperatureNote,
             'related_entity_type' => $relatedEntityType,
             'related_entity_id' => $relatedEntityId,
         ]);

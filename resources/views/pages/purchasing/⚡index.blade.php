@@ -12,6 +12,7 @@ use App\Domain\Purchasing\Models\PurchaseOrder;
 use App\Domain\Purchasing\Services\PurchaseOrderService;
 use App\Domain\Purchasing\Support\PurchaseOrderStatus;
 use App\Domain\Purchasing\Support\PurchasingPermissions;
+use App\Domain\Stock\Exceptions\ColdChainException;
 use App\Domain\Stock\Exceptions\InactiveLocationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\Gate;
@@ -251,6 +252,8 @@ new #[Layout('layouts::authenticated')] class extends Component
                     'lot_no' => '',
                     'expiry_date' => '',
                     'unit_cost' => (string) $line->unit_price,
+                    'temperature' => '',
+                    'temperature_note' => '',
                 ];
             }
         }
@@ -277,6 +280,8 @@ new #[Layout('layouts::authenticated')] class extends Component
             'receiptLines.*.lot_no' => ['nullable', 'string', 'max:255'],
             'receiptLines.*.expiry_date' => ['nullable', 'date'],
             'receiptLines.*.unit_cost' => ['nullable', 'numeric', 'min:0'],
+            'receiptLines.*.temperature' => ['nullable', 'numeric', 'between:-100,100'],
+            'receiptLines.*.temperature_note' => ['nullable', 'string', 'max:500'],
         ]);
 
         // Satır bazında kalan kontrolü: hata ilgili satırın altında görünsün.
@@ -284,6 +289,17 @@ new #[Layout('layouts::authenticated')] class extends Component
             $quantity = (float) ($this->receiptLines[$line->id]['quantity'] ?? 0);
             if ($quantity > $line->remaining() + 0.0001) {
                 $this->addError("receiptLines.{$line->id}.quantity", 'Kalan sipariş miktarından ('.Number::format($line->remaining(), precision: 2).') fazlası teslim alınamaz.');
+            }
+
+            // Soğuk zincir (Aşama 26): ölçülen sıcaklık zorunlu, aralık dışıysa gerekçe gerekir.
+            if ($quantity > 0 && $line->product->cold_chain) {
+                $temperature = $this->receiptLines[$line->id]['temperature'] ?? '';
+
+                if (! is_numeric($temperature)) {
+                    $this->addError("receiptLines.{$line->id}.temperature", 'Soğuk zincir ürünü: ölçülen sıcaklığı girin.');
+                } elseif (! $line->product->temperatureInRange((float) $temperature) && blank($this->receiptLines[$line->id]['temperature_note'] ?? '')) {
+                    $this->addError("receiptLines.{$line->id}.temperature_note", "Sıcaklık saklama aralığı ({$line->product->storageRangeLabel()}) dışında; kabul edilecekse gerekçe yazın.");
+                }
             }
         }
 
@@ -325,7 +341,7 @@ new #[Layout('layouts::authenticated')] class extends Component
     {
         try {
             $action();
-        } catch (PurchasingException|InactiveLocationException $e) {
+        } catch (PurchasingException|InactiveLocationException|ColdChainException $e) {
             session()->flash('error', $e->getMessage());
 
             return false;
@@ -630,6 +646,13 @@ new #[Layout('layouts::authenticated')] class extends Component
                                     </td>
                                     <td class="px-3 py-2"><input type="number" step="0.01" wire:model="receiptLines.{{ $line->id }}.unit_cost" class="w-full border border-line rounded-md px-2 py-1.5"></td>
                                 </tr>
+                                @if ($line->product->cold_chain)
+                                    <tr wire:key="receipt-line-temp-{{ $line->id }}">
+                                        <td colspan="6" class="px-3 pb-3">
+                                            <x-cold-chain-input :product="$line->product" :temperature="$receiptLines[$line->id]['temperature'] ?? ''" field="receiptLines.{{ $line->id }}.temperature" note-field="receiptLines.{{ $line->id }}.temperature_note" compact />
+                                        </td>
+                                    </tr>
+                                @endif
                             @endforeach
                         </tbody>
                     </table>

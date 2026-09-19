@@ -26,6 +26,8 @@ class StockMovement extends Model
         'actor_id',
         'reason',
         'reason_code',
+        'temperature',
+        'temperature_note',
         'related_entity_type',
         'related_entity_id',
     ];
@@ -34,6 +36,7 @@ class StockMovement extends Model
         'type' => StockMovementType::class,
         'reason_code' => StockOutReason::class,
         'quantity' => 'decimal:2',
+        'temperature' => 'float',
         'created_at' => 'datetime',
     ];
 
