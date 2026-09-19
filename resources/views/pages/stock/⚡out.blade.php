@@ -264,6 +264,7 @@ new #[Layout('layouts::authenticated')] class extends Component
                             <option value="{{ $reasonOption->value }}">{{ $reasonOption->label() }}</option>
                         @endforeach
                     </select>
+                    <p class="text-[12px] text-ink-muted mt-1">Tedarikçiye iade için <a href="{{ route('returns.index') }}" wire:navigate class="text-brand-600 hover:underline">İadeler</a>, depolar arası aktarım için <a href="{{ route('transfers.index') }}" wire:navigate class="text-brand-600 hover:underline">Transferler</a> ekranını kullanın.</p>
                     @error('reasonCategory') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
                 </div>
                 <div>

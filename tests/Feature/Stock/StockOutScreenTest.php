@@ -61,6 +61,23 @@ class StockOutScreenTest extends TestCase
         $this->assertSame('Klinik içi kullanım', $movement->reason);
     }
 
+    public function test_stock_out_form_does_not_accept_return_to_supplier_reason(): void
+    {
+        // Tedarikçiye iade yalnızca İadeler akışından yapılır (iade kaydı ve durum takibi atlanmasın).
+        $this->actingAs($this->admin);
+
+        Livewire::test('pages::stock.out')
+            ->set('product_id', (string) $this->product->id)
+            ->set('warehouse_id', (string) $this->warehouse->id)
+            ->set('quantity', '5')
+            ->set('reasonCategory', 'return_to_supplier')
+            ->call('save')
+            ->assertHasErrors(['reasonCategory']);
+
+        $this->assertEquals(50, StockLot::firstOrFail()->quantity);
+        $this->assertSame(0, StockMovement::where('type', 'out')->count());
+    }
+
     public function test_stock_out_rejects_insufficient_stock_and_shows_an_error(): void
     {
         $this->actingAs($this->admin);

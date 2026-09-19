@@ -27,13 +27,18 @@ enum StockOutReason: string
     /**
      * Stok Çıkışı formunda seçilebilen nedenler. Transfer elle çıkış olarak
      * girilemez — stok düşer ama hiçbir depoya varmazdı; transfer, Transferler
-     * akışıyla yapılır. (Transfer değeri eski kayıtlar için enum'da kalır.)
+     * akışıyla yapılır. Tedarikçiye iade de elle çıkış olamaz — iade kaydı,
+     * durum takibi ve kredi notu atlanırdı; iade, İadeler akışıyla yapılır.
+     * (Bu değerler eski kayıtlar ve ilgili akışlar için enum'da kalır.)
      *
      * @return array<int, self>
      */
     public static function selectable(): array
     {
-        return array_values(array_filter(self::cases(), fn (self $reason) => $reason !== self::Transfer));
+        return array_values(array_filter(
+            self::cases(),
+            fn (self $reason) => ! in_array($reason, [self::Transfer, self::ReturnToSupplier], true),
+        ));
     }
 
     public function label(): string
