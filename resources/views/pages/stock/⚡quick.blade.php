@@ -128,7 +128,7 @@ new #[Layout('layouts::authenticated')] class extends Component
         $validated = $this->validate([
             'warehouse_id' => ['required', Rule::in($this->warehouses()->pluck('id')->all())],
             'quantity' => ['required', 'numeric', 'gt:0'],
-            'unit' => ['required', Rule::in($this->unitOptions($product))],
+            'unit' => ['required', Rule::in($product->unitOptions())],
             'reasonCategory' => [Rule::requiredIf($this->mode === 'out'), Rule::in(array_column(StockOutReason::selectable(), 'value'))],
             'lot_no' => ['nullable', 'string', 'max:255'],
             'expiry_date' => ['nullable', 'date'],
@@ -204,14 +204,6 @@ new #[Layout('layouts::authenticated')] class extends Component
         return $this->productId ? Product::where('status', 'active')->find($this->productId) : null;
     }
 
-    /**
-     * @return array<int, string>
-     */
-    private function unitOptions(Product $product): array
-    {
-        return [$product->base_unit, ...collect($product->conversion_rules ?? [])->pluck('unit')->all()];
-    }
-
     private function available(Product $product): float
     {
         return (float) StockLot::where('product_id', $product->id)->where('warehouse_id', $this->warehouse_id ?: 0)->sum('quantity');
@@ -240,7 +232,7 @@ new #[Layout('layouts::authenticated')] class extends Component
             'lots' => $product && $this->mode === 'out' && filled($this->warehouse_id)
                 ? StockLot::where('product_id', $product->id)->where('warehouse_id', $this->warehouse_id)->where('quantity', '>', 0)->orderByRaw('expiry_date IS NULL, expiry_date ASC')->get()
                 : collect(),
-            'units' => $product ? $this->unitOptions($product) : [],
+            'units' => $product ? $product->unitOptions() : [],
             'conversions' => $product ? collect($product->conversion_rules ?? []) : collect(),
             'warehouses' => $this->warehouses(),
             'reasons' => StockOutReason::selectable(),

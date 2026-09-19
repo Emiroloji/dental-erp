@@ -7,6 +7,7 @@ use App\Domain\Stock\Exceptions\InactiveLocationException;
 use App\Domain\Stock\Models\StockMovement;
 use App\Domain\Stock\Services\StockMovementService;
 use App\Domain\Stock\Support\StockMovementType;
+use App\Support\UnitConverter;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Layout;
@@ -24,6 +25,9 @@ new #[Layout('layouts::authenticated')] class extends Component
     public string $warehouse_id = '';
 
     public string $quantity = '';
+
+    /** Girilen miktarın birimi; kayıt ana birime çevrilerek yapılır. */
+    public string $unit = '';
 
     public string $unit_cost = '0';
 
@@ -43,12 +47,17 @@ new #[Layout('layouts::authenticated')] class extends Component
     public function closeForm(): void
     {
         $this->showForm = false;
-        $this->reset(['product_id', 'warehouse_id', 'quantity', 'lot_no', 'expiry_date', 'reason']);
+        $this->reset(['product_id', 'warehouse_id', 'quantity', 'unit', 'lot_no', 'expiry_date', 'reason']);
         $this->unit_cost = '0';
         $this->resetValidation();
     }
 
-    public function save(StockMovementService $service): void
+    public function updatedProductId(): void
+    {
+        $this->unit = (string) Product::find($this->product_id)?->base_unit;
+    }
+
+    public function save(StockMovementService $service, UnitConverter $units): void
     {
         Gate::authorize('stock_movement.create');
 
@@ -56,6 +65,7 @@ new #[Layout('layouts::authenticated')] class extends Component
             'product_id' => ['required', 'exists:products,id'],
             'warehouse_id' => ['required', 'exists:warehouses,id'],
             'quantity' => ['required', 'numeric', 'min:0.01'],
+            'unit' => ['nullable', 'string', 'max:50'],
             'unit_cost' => ['nullable', 'numeric', 'min:0'],
             'lot_no' => ['nullable', 'string', 'max:255'],
             'expiry_date' => ['nullable', 'date'],
@@ -75,18 +85,30 @@ new #[Layout('layouts::authenticated')] class extends Component
             abort(404);
         }
 
+        $unit = filled($validated['unit']) ? $validated['unit'] : $product->base_unit;
+
+        if (! in_array($unit, $product->unitOptions(), true)) {
+            $this->addError('unit', 'Bu ürün için tanımlı olmayan birim.');
+
+            return;
+        }
+
+        // Kayıt her zaman ana birimle yapılır; alternatif birim açıklamada kalır (kurallar.md Bölüm 3).
+        $unitNote = $unit === $product->base_unit ? null : "{$validated['quantity']} {$unit}";
+        $reason = collect([$validated['reason'] ?: null, $unitNote ? "({$unitNote})" : null])->filter()->implode(' ') ?: null;
+
         try {
             $service->in(
                 $product,
                 $warehouse,
-                (float) $validated['quantity'],
+                $units->toBaseUnit($product, (float) $validated['quantity'], $unit),
                 [
                     'lot_no' => $validated['lot_no'] ?: null,
                     'expiry_date' => $validated['expiry_date'] ?: null,
                     'unit_cost' => filled($validated['unit_cost']) ? (float) $validated['unit_cost'] : 0,
                 ],
                 auth()->user(),
-                $validated['reason'] ?: null,
+                $reason,
             );
         } catch (InactiveLocationException $e) {
             $this->addError('warehouse_id', $e->getMessage());
@@ -186,6 +208,7 @@ new #[Layout('layouts::authenticated')] class extends Component
     </section>
 
     <x-modal :show="$showForm" title="Yeni Stok Girişi" on-close="closeForm">
+        @php $selectedProduct = $product_id ? $products->firstWhere('id', (int) $product_id) : null; @endphp
         <form wire:submit="save" class="space-y-6">
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
@@ -214,7 +237,20 @@ new #[Layout('layouts::authenticated')] class extends Component
                     @error('quantity') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
                 </div>
                 <div>
-                    <label class="block text-[13px] text-ink-muted mb-1.5">Alış Fiyatı (Birim)</label>
+                    <label class="block text-[13px] text-ink-muted mb-1.5">Birim</label>
+                    <select wire:model="unit" @disabled(! $selectedProduct) class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+                        @if ($selectedProduct)
+                            @foreach ($selectedProduct->unitOptions() as $unitOption)
+                                <option value="{{ $unitOption }}">{{ $unitOption }}@if ($unitOption !== $selectedProduct->base_unit) (= {{ Number::format((float) collect($selectedProduct->conversion_rules)->firstWhere('unit', $unitOption)['factor'], maxPrecision: 2) }} {{ $selectedProduct->base_unit }})@endif</option>
+                            @endforeach
+                        @else
+                            <option value="">Önce ürün seçin</option>
+                        @endif
+                    </select>
+                    @error('unit') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
+                </div>
+                <div>
+                    <label class="block text-[13px] text-ink-muted mb-1.5">Alış Fiyatı ({{ $selectedProduct ? '1 '.$selectedProduct->base_unit : 'ana birim' }})</label>
                     <input type="number" step="0.01" wire:model="unit_cost" class="w-full border border-line rounded-md px-3 py-2 text-[14px] tabular-nums focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
                 </div>
                 <div>

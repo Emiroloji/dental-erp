@@ -36,6 +36,17 @@ class Product extends Model
         'product_type' => ProductType::class,
     ];
 
+    /**
+     * Giriş/çıkışta seçilebilen birimler: ana birim + ürün kartındaki
+     * dönüşüm birimleri (kurallar.md Bölüm 3). Kayıt her zaman ana birimle yapılır.
+     *
+     * @return array<int, string>
+     */
+    public function unitOptions(): array
+    {
+        return [$this->base_unit, ...collect($this->conversion_rules ?? [])->pluck('unit')->all()];
+    }
+
     public function category(): BelongsTo
     {
         return $this->belongsTo(Category::class);
