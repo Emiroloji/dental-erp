@@ -132,13 +132,62 @@ class PurchaseScreenTest extends TestCase
         $this->assertSame('FTR-2024-77', $receipt->invoice_number);
         Storage::disk('local')->assertExists($receipt->document_path);
 
-        Livewire::test('pages::purchasing.index')
-            ->call('showDetail', $order->id)
+        $this->get(route('purchasing.show', $order))
+            ->assertOk()
             ->assertSee('FTR-2024-77')
             ->assertSee('ELD-99')
             ->assertSee('Kısmi Teslim');
 
         $this->get(route('purchasing.receipts.document', $receipt))->assertOk()->assertDownload('fatura.pdf');
+    }
+
+    public function test_detail_page_runs_status_actions_with_list_permissions(): void
+    {
+        $orders = app(PurchaseOrderService::class);
+        $order = $orders->create($this->supplier, $this->kadikoyDepot, [['product_id' => $this->gloves->id, 'quantity' => 10, 'unit_price' => 2]], null, null, $this->buyer);
+
+        $this->actingAs($this->buyer);
+        Livewire::test('pages::purchasing.show', ['order' => $order->id])
+            ->assertSee('Lateks Eldiven')
+            ->call('submit');
+        $this->assertSame(PurchaseOrderStatus::PendingApproval, $order->fresh()->status);
+
+        // Sipariş onayı yalnızca Admin'e aittir (proje.md Bölüm 3).
+        Livewire::test('pages::purchasing.show', ['order' => $order->id])
+            ->assertDontSee('Onayla')
+            ->call('approve')
+            ->assertForbidden();
+
+        $this->actingAs($this->admin);
+        Livewire::test('pages::purchasing.show', ['order' => $order->id])->call('approve');
+
+        $this->actingAs($this->buyer);
+        Livewire::test('pages::purchasing.show', ['order' => $order->id])
+            ->call('markOrdered')
+            ->assertSee('Teslim Al');
+        $this->assertSame(PurchaseOrderStatus::Ordered, $order->fresh()->status);
+
+        // "Teslim Al" listedeki teslim alma penceresini açık getirir.
+        Livewire::withQueryParams(['teslim' => $order->id])
+            ->test('pages::purchasing.index')
+            ->assertSet('receivingId', $order->id);
+
+        Livewire::test('pages::purchasing.show', ['order' => $order->id])
+            ->set('actionNote', 'Tedarikçi stokta yok')
+            ->call('cancel');
+        $this->assertSame(PurchaseOrderStatus::Cancelled, $order->fresh()->status);
+        $this->assertSame('Tedarikçi stokta yok', $order->events()->latest('id')->value('note'));
+    }
+
+    public function test_purchase_notifications_link_to_the_detail_page(): void
+    {
+        $orders = app(PurchaseOrderService::class);
+        $order = $orders->create($this->supplier, $this->kadikoyDepot, [['product_id' => $this->gloves->id, 'quantity' => 10, 'unit_price' => 2]], null, null, $this->buyer);
+        $orders->submit($order, $this->buyer);
+
+        $notification = $this->admin->fresh()->notifications()->latest()->firstOrFail();
+
+        $this->assertSame(route('purchasing.show', $order), $notification->data['url']);
     }
 
     public function test_open_orders_filter_lists_remaining_quantities(): void
@@ -222,11 +271,12 @@ class PurchaseScreenTest extends TestCase
 
         $outsider = $this->staff('Beşiktaş Satınalmacısı', $this->besiktas);
         $this->actingAs($outsider)->get('/satin-alma')->assertOk()->assertDontSee($order->number());
-        Livewire::test('pages::purchasing.index')->call('showDetail', $order->id)->assertNotFound();
+        $this->get(route('purchasing.show', $order))->assertNotFound();
         $this->get(route('purchasing.receipts.document', $receipt))->assertNotFound();
 
         $otherOrgAdmin = User::factory()->create(['organization_id' => Organization::create(['name' => 'Rakip', 'status' => 'active', 'plan' => 'starter'])->id, 'role' => User::ROLE_ADMIN, 'status' => 'active']);
         $this->actingAs($otherOrgAdmin)->get('/satin-alma')->assertOk()->assertDontSee($order->number());
+        $this->get(route('purchasing.show', $order))->assertNotFound();
         $this->get(route('purchasing.receipts.document', $receipt))->assertNotFound();
     }
 

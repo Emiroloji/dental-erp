@@ -42,8 +42,6 @@ new #[Layout('layouts::authenticated')] class extends Component
 
     public string $note = '';
 
-    public ?int $detailId = null;
-
     public function updatingStatusFilter(): void
     {
         $this->resetPage();
@@ -151,16 +149,6 @@ new #[Layout('layouts::authenticated')] class extends Component
         $this->reset(['noteTransferId', 'noteAction', 'note']);
     }
 
-    public function showDetail(int $transferId): void
-    {
-        $this->detailId = $this->findTransfer($transferId)->id;
-    }
-
-    public function closeDetail(): void
-    {
-        $this->detailId = null;
-    }
-
     /**
      * Transfer kuralı ihlalleri kullanıcıya mesaj olarak gösterilir; yetki
      * hataları (AuthorizationException) Livewire tarafından 403'e çevrilir.
@@ -231,10 +219,6 @@ new #[Layout('layouts::authenticated')] class extends Component
                 ->sum('quantity');
         }
 
-        $detail = $this->detailId
-            ? $this->visibleTransfers()->with(['events.actor', 'movements.lot'])->find($this->detailId)
-            : null;
-
         return [
             'transfers' => $this->visibleTransfers()
                 ->when($this->statusFilter, fn ($query) => $query->where('status', $this->statusFilter))
@@ -247,7 +231,6 @@ new #[Layout('layouts::authenticated')] class extends Component
             'destinations' => $this->showForm ? $this->destinationWarehouses() : collect(),
             'sources' => $this->showForm ? $this->sourceWarehouses() : collect(),
             'sourceAvailable' => $sourceAvailable,
-            'detail' => $detail,
         ];
     }
 };
@@ -306,7 +289,7 @@ new #[Layout('layouts::authenticated')] class extends Component
                     @php $user = auth()->user(); $status = $transfer->status; @endphp
                     <tr wire:key="transfer-{{ $transfer->id }}">
                         <td class="px-5 py-3">
-                            <button wire:click="showDetail({{ $transfer->id }})" class="font-mono text-[13px] text-brand-600 hover:underline">#{{ $transfer->id }}</button>
+                            <a href="{{ route('transfers.show', $transfer) }}" wire:navigate class="font-mono text-[13px] text-brand-600 hover:underline">#{{ $transfer->id }}</a>
                             <div class="text-[12px] text-ink-muted">{{ $transfer->created_at->format('d.m.Y H:i') }}</div>
                         </td>
                         <td class="px-5 py-3">{{ $transfer->product->name }}</td>
@@ -429,52 +412,5 @@ new #[Layout('layouts::authenticated')] class extends Component
                 <button type="button" wire:click="closeNote" class="text-[14px] text-ink-muted hover:text-ink">Vazgeç</button>
             </div>
         </form>
-    </x-modal>
-
-    <x-modal :show="$detail !== null" :title="$detail ? 'Transfer #'.$detail->id : ''" on-close="closeDetail">
-        @if ($detail)
-            <dl class="grid grid-cols-2 gap-x-6 gap-y-2 text-[13px] mb-6">
-                <dt class="text-ink-muted">Ürün</dt><dd>{{ $detail->product->name }}</dd>
-                <dt class="text-ink-muted">Miktar</dt><dd class="tabular-nums">{{ Number::format((float) $detail->quantity, precision: 2) }} {{ $detail->product->base_unit }}</dd>
-                <dt class="text-ink-muted">Kaynak</dt><dd>{{ $detail->fromWarehouse->branch->name }} · {{ $detail->fromWarehouse->name }}</dd>
-                <dt class="text-ink-muted">Hedef</dt><dd>{{ $detail->toWarehouse->branch->name }} · {{ $detail->toWarehouse->name }}</dd>
-                <dt class="text-ink-muted">Neden</dt><dd>{{ $detail->reason ?? '—' }}</dd>
-            </dl>
-
-            <h3 class="text-[13px] font-medium text-ink mb-2">Durum Geçmişi</h3>
-            <ol class="border-l border-line ml-1 space-y-3 mb-6">
-                @foreach ($detail->events->sortBy('id') as $event)
-                    <li class="pl-4 relative">
-                        <span class="absolute -left-[5px] top-1.5 w-2 h-2 rounded-full bg-brand-500"></span>
-                        <div class="text-[13px]"><span class="font-medium">{{ $event->status->label() }}</span> · {{ $event->actor?->name ?? 'Sistem' }}</div>
-                        <div class="text-[12px] text-ink-muted">{{ $event->created_at->format('d.m.Y H:i') }}@if ($event->note) — {{ $event->note }}@endif</div>
-                    </li>
-                @endforeach
-            </ol>
-
-            @if ($detail->movements->isNotEmpty())
-                <h3 class="text-[13px] font-medium text-ink mb-2">Stok Hareketleri</h3>
-                <table class="w-full text-[13px]">
-                    <thead>
-                        <tr class="text-left text-ink-muted text-[12px] border-b border-line">
-                            <th class="py-2 font-medium">Tip</th>
-                            <th class="py-2 font-medium">Lot</th>
-                            <th class="py-2 font-medium">SKT</th>
-                            <th class="py-2 font-medium text-right">Miktar</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-line">
-                        @foreach ($detail->movements->sortBy('id') as $movement)
-                            <tr>
-                                <td class="py-2">{{ $movement->type->label() }}</td>
-                                <td class="py-2 font-mono">{{ $movement->lot->lot_no ?? '—' }}</td>
-                                <td class="py-2">{{ $movement->lot->expiry_date?->format('d.m.Y') ?? '—' }}</td>
-                                <td class="py-2 text-right tabular-nums">{{ Number::format((float) $movement->quantity, precision: 2) }}</td>
-                            </tr>
-                        @endforeach
-                    </tbody>
-                </table>
-            @endif
-        @endif
     </x-modal>
 </div>

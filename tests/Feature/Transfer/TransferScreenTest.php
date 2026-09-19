@@ -115,12 +115,78 @@ class TransferScreenTest extends TestCase
         $this->assertSame(TransferStatus::Received, $transfer->fresh()->status);
         $this->assertSame(20.0, $this->stockIn($this->besiktasDepot));
 
-        Livewire::test('pages::transfer.index')
-            ->call('showDetail', $transfer->id)
+        $this->get(route('transfers.show', $transfer))
+            ->assertOk()
             ->assertSee('Beşiktaş Hemşiresi')
             ->assertSee('Kadıköy Depocusu')
             ->assertSee('Teslim Alındı')
             ->assertSee('LOT-1');
+    }
+
+    public function test_detail_page_runs_the_flow_with_the_same_permissions_as_the_list(): void
+    {
+        $transfer = $this->requestAs($this->requester);
+
+        // Talep eden taraf (hedef) kendi talebini onaylayamaz; kaynak taraf onaylar.
+        Livewire::test('pages::transfer.show', ['transfer' => $transfer->id])
+            ->assertDontSee('Onayla')
+            ->call('approve')
+            ->assertForbidden();
+
+        $this->actingAs($this->sourceStaff);
+        Livewire::test('pages::transfer.show', ['transfer' => $transfer->id])
+            ->assertSee('Onayla')
+            ->call('approve')
+            ->call('prepare')
+            ->call('ship');
+
+        $this->assertSame(TransferStatus::Shipped, $transfer->fresh()->status);
+        $this->assertSame(30.0, $this->stockIn($this->kadikoyDepot));
+
+        $this->actingAs($this->requester);
+        Livewire::test('pages::transfer.show', ['transfer' => $transfer->id])
+            ->call('receive')
+            ->assertSee('Teslim Alındı')
+            ->assertSee('LOT-1');
+
+        $this->assertSame(20.0, $this->stockIn($this->besiktasDepot));
+    }
+
+    public function test_detail_page_cancel_after_shipping_returns_stock_with_a_reason(): void
+    {
+        $transfer = $this->requestAs($this->requester);
+        $service = app(TransferService::class);
+        $service->approve($transfer, $this->admin);
+        $service->prepare($transfer->fresh(), $this->admin);
+        $service->ship($transfer->fresh(), $this->admin);
+
+        $this->actingAs($this->admin);
+        Livewire::test('pages::transfer.show', ['transfer' => $transfer->id])
+            ->set('note', 'Yanlış depo')
+            ->call('cancel');
+
+        $this->assertSame(TransferStatus::Cancelled, $transfer->fresh()->status);
+        $this->assertSame(50.0, $this->stockIn($this->kadikoyDepot));
+        $this->assertSame('Yanlış depo', $transfer->events()->latest('id')->value('note'));
+    }
+
+    public function test_transfer_notifications_link_to_the_detail_page(): void
+    {
+        $transfer = $this->requestAs($this->requester);
+
+        $notification = $this->sourceStaff->fresh()->notifications()->latest()->firstOrFail();
+
+        $this->assertSame(route('transfers.show', $transfer), $notification->data['url']);
+    }
+
+    public function test_detail_page_of_another_organization_returns_not_found(): void
+    {
+        $transfer = $this->requestAs($this->requester);
+
+        $other = Organization::create(['name' => 'Diğer', 'status' => 'active', 'plan' => 'starter']);
+        $foreignAdmin = User::factory()->create(['organization_id' => $other->id, 'role' => User::ROLE_ADMIN, 'status' => 'active']);
+
+        $this->actingAs($foreignAdmin)->get(route('transfers.show', $transfer))->assertNotFound();
     }
 
     public function test_staff_can_only_request_into_their_own_branch(): void
@@ -184,7 +250,8 @@ class TransferScreenTest extends TestCase
         $bystander = $this->staff('Şişli Personeli', $sisli);
 
         $this->actingAs($bystander)->get('/transferler')->assertOk()->assertDontSee('Lateks Eldiven');
-        Livewire::test('pages::transfer.index')->call('showDetail', $transfer->id)->assertNotFound();
+        $this->get(route('transfers.show', $transfer))->assertNotFound();
+        Livewire::test('pages::transfer.show', ['transfer' => $transfer->id])->assertNotFound();
         Livewire::test('pages::transfer.index')->call('cancel', $transfer->id)->assertNotFound();
 
         $this->actingAs($this->requester)->get('/transferler')->assertOk()->assertSee('Lateks Eldiven');

@@ -103,7 +103,7 @@ class WorkflowNotificationTest extends TestCase
 
         $notification = $centralKeeper->notifications()->sole();
         $this->assertStringContainsString("Transfer #{$transfer->id} · Kompozit A · 10 Adet · Merkez Merkez Depo → Kuzey Kuzey Depo — Kuzeyde bitti", $notification->data['message']);
-        $this->assertSame(route('transfers.index'), $notification->data['url']);
+        $this->assertSame(route('transfers.show', $transfer), $notification->data['url']);
         $this->assertSame('transfer', $notification->data['kind']);
 
         $transfers->approve($transfer, $centralKeeper);

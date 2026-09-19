@@ -96,8 +96,9 @@ class PurchaseAcceptanceTest extends TestCase
         Livewire::test('pages::purchasing.index')
             ->set('statusFilter', 'open')
             ->assertSee($order->number())
-            ->assertSee('200,00 kalan')
-            ->call('showDetail', $order->id)
+            ->assertSee('200,00 kalan');
+
+        Livewire::test('pages::purchasing.show', ['order' => $order->id])
             ->assertSee('Kısmi Teslim')
             ->assertSee('FTR-2026-0915')
             ->assertSee('NTR-2609');

@@ -44,7 +44,7 @@ class TransferNotifier
             ."{$transfer->fromWarehouse->branch->name} {$transfer->fromWarehouse->name} → {$transfer->toWarehouse->branch->name} {$transfer->toWarehouse->name}"
             .(filled($note) ? " — {$note}" : '');
 
-        $this->recipients->send($recipients, new WorkflowNotification('transfer', $title, $message, route('transfers.index'), $level), $actor);
+        $this->recipients->send($recipients, new WorkflowNotification('transfer', $title, $message, route('transfers.show', $transfer), $level), $actor);
     }
 
     /**

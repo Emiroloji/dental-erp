@@ -36,6 +36,6 @@ class PurchaseNotifier
             .Number::format($order->total(), precision: 2)." ₺ · {$order->warehouse->branch->name} {$order->warehouse->name}"
             .(filled($note) ? " — {$note}" : '');
 
-        $this->recipients->send($recipients, new WorkflowNotification('purchase', $title, $message, route('purchasing.index'), $level), $actor);
+        $this->recipients->send($recipients, new WorkflowNotification('purchase', $title, $message, route('purchasing.show', $order), $level), $actor);
     }
 }

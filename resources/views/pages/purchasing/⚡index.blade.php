@@ -62,7 +62,16 @@ new #[Layout('layouts::authenticated')] class extends Component
 
     public string $actionNote = '';
 
-    public ?int $detailId = null;
+    /**
+     * Detay sayfasındaki "Teslim Al" düğmesi listeye ?teslim={id} ile gelir;
+     * teslim alma penceresi doğrudan açılır.
+     */
+    public function mount(): void
+    {
+        if ($orderId = request()->integer('teslim')) {
+            $this->openReceipt($orderId);
+        }
+    }
 
     public function updatingStatusFilter(): void
     {
@@ -312,16 +321,6 @@ new #[Layout('layouts::authenticated')] class extends Component
         }
     }
 
-    public function showDetail(int $orderId): void
-    {
-        $this->detailId = $this->findOrder($orderId)->id;
-    }
-
-    public function closeDetail(): void
-    {
-        $this->detailId = null;
-    }
-
     private function attempt(Closure $action, string $success): bool
     {
         try {
@@ -393,9 +392,6 @@ new #[Layout('layouts::authenticated')] class extends Component
             'products' => $formOpen ? Product::where('status', 'active')->orderBy('name')->get() : collect(),
             'warehouses' => $formOpen ? $this->warehouses() : collect(),
             'receiving' => $this->receivingId ? $this->visibleOrders()->find($this->receivingId) : null,
-            'detail' => $this->detailId
-                ? $this->visibleOrders()->with(['events.actor', 'receipts.lines.orderLine.product', 'receipts.receiver'])->find($this->detailId)
-                : null,
         ];
     }
 };
@@ -456,7 +452,7 @@ new #[Layout('layouts::authenticated')] class extends Component
                     @endphp
                     <tr wire:key="order-{{ $order->id }}">
                         <td class="px-5 py-3">
-                            <button wire:click="showDetail({{ $order->id }})" class="font-mono text-[13px] text-brand-600 hover:underline">{{ $order->number() }}</button>
+                            <a href="{{ route('purchasing.show', $order) }}" wire:navigate class="font-mono text-[13px] text-brand-600 hover:underline">{{ $order->number() }}</a>
                             <div class="text-[12px] text-ink-muted">{{ $order->created_at->format('d.m.Y') }} · {{ $order->lines->count() }} kalem</div>
                         </td>
                         <td class="px-5 py-3">{{ $order->supplier->name }}</td>
@@ -664,84 +660,5 @@ new #[Layout('layouts::authenticated')] class extends Component
                 <button type="button" wire:click="closeNote" class="text-[14px] text-ink-muted hover:text-ink">Vazgeç</button>
             </div>
         </form>
-    </x-modal>
-
-    {{-- Detay --}}
-    <x-modal :show="$detail !== null" :title="$detail ? $detail->number() : ''" on-close="closeDetail">
-        @if ($detail)
-            <dl class="grid grid-cols-2 gap-x-6 gap-y-2 text-[13px] mb-6">
-                <dt class="text-ink-muted">Tedarikçi</dt><dd>{{ $detail->supplier->name }}</dd>
-                <dt class="text-ink-muted">Teslim Deposu</dt><dd>{{ $detail->warehouse->branch->name }} · {{ $detail->warehouse->name }}</dd>
-                <dt class="text-ink-muted">Durum</dt><dd>{{ $detail->status->label() }}</dd>
-                <dt class="text-ink-muted">Talep Eden</dt><dd>{{ $detail->requester?->name ?? '—' }}</dd>
-                <dt class="text-ink-muted">Sipariş Tarihi</dt><dd>{{ $detail->ordered_at?->format('d.m.Y') ?? '—' }}</dd>
-                <dt class="text-ink-muted">Beklenen Teslim</dt><dd>{{ $detail->expected_delivery_date?->format('d.m.Y') ?? '—' }}</dd>
-                <dt class="text-ink-muted">Not</dt><dd>{{ $detail->note ?? '—' }}</dd>
-            </dl>
-
-            <table class="w-full text-[13px] mb-6">
-                <thead>
-                    <tr class="text-left text-ink-muted text-[12px] border-b border-line">
-                        <th class="py-2 font-medium">Ürün</th>
-                        <th class="py-2 font-medium text-right">Sipariş</th>
-                        <th class="py-2 font-medium text-right">Gelen</th>
-                        <th class="py-2 font-medium text-right">Kalan</th>
-                        <th class="py-2 font-medium text-right">Tutar</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-line">
-                    @foreach ($detail->lines as $line)
-                        <tr>
-                            <td class="py-2">{{ $line->product->name }}</td>
-                            <td class="py-2 text-right tabular-nums">{{ Number::format((float) $line->quantity, precision: 2) }}</td>
-                            <td class="py-2 text-right tabular-nums">{{ Number::format((float) $line->received_quantity, precision: 2) }}</td>
-                            <td class="py-2 text-right tabular-nums {{ $line->remaining() > 0 ? 'text-status-warn' : 'text-ink-muted' }}">{{ Number::format($line->remaining(), precision: 2) }}</td>
-                            <td class="py-2 text-right tabular-nums">{{ Number::format((float) $line->quantity * (float) $line->unit_price, precision: 2) }} ₺</td>
-                        </tr>
-                    @endforeach
-                </tbody>
-                <tfoot>
-                    <tr class="border-t border-line font-medium">
-                        <td class="py-2" colspan="4">Toplam</td>
-                        <td class="py-2 text-right tabular-nums">{{ Number::format($detail->total(), precision: 2) }} ₺</td>
-                    </tr>
-                </tfoot>
-            </table>
-
-            @if ($detail->receipts->isNotEmpty())
-                <h3 class="text-[13px] font-medium text-ink mb-2">Teslim Almalar</h3>
-                <div class="space-y-3 mb-6">
-                    @foreach ($detail->receipts->sortBy('id') as $receipt)
-                        <div class="border border-line rounded-md p-3 text-[13px]">
-                            <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
-                                <span>{{ $receipt->created_at->format('d.m.Y H:i') }} · {{ $receipt->receiver?->name ?? '—' }}</span>
-                                <span class="text-ink-muted">
-                                    Fatura: {{ $receipt->invoice_number ?? '—' }} · İrsaliye: {{ $receipt->delivery_note_number ?? '—' }}
-                                    @if ($receipt->document_path)
-                                        · <a href="{{ route('purchasing.receipts.document', $receipt->id) }}" class="text-brand-600 hover:underline">{{ $receipt->document_name ?? 'Belge' }}</a>
-                                    @endif
-                                </span>
-                            </div>
-                            <ul class="space-y-0.5 text-ink-muted">
-                                @foreach ($receipt->lines as $receiptLine)
-                                    <li>{{ $receiptLine->orderLine->product->name }}: {{ Number::format((float) $receiptLine->quantity, precision: 2) }} · Lot {{ $receiptLine->lot_no ?? '—' }} · SKT {{ $receiptLine->expiry_date?->format('d.m.Y') ?? '—' }} · {{ Number::format((float) $receiptLine->unit_cost, precision: 2) }} ₺</li>
-                                @endforeach
-                            </ul>
-                        </div>
-                    @endforeach
-                </div>
-            @endif
-
-            <h3 class="text-[13px] font-medium text-ink mb-2">Durum Geçmişi</h3>
-            <ol class="border-l border-line ml-1 space-y-3">
-                @foreach ($detail->events->sortBy('id') as $event)
-                    <li class="pl-4 relative">
-                        <span class="absolute -left-[5px] top-1.5 w-2 h-2 rounded-full bg-brand-500"></span>
-                        <div class="text-[13px]"><span class="font-medium">{{ $event->status->label() }}</span> · {{ $event->actor?->name ?? 'Sistem' }}</div>
-                        <div class="text-[12px] text-ink-muted">{{ $event->created_at->format('d.m.Y H:i') }}@if ($event->note) — {{ $event->note }}@endif</div>
-                    </li>
-                @endforeach
-            </ol>
-        @endif
     </x-modal>
 </div>
