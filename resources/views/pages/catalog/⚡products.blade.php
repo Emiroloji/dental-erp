@@ -89,7 +89,8 @@ new #[Layout('layouts::authenticated')] class extends Component
         $validated = $this->validate([
             'name' => ['required', 'string', 'max:255'],
             'code' => ['nullable', 'string', 'max:255'],
-            'barcode' => ['nullable', 'string', 'max:255'],
+            // Barkod okutunca tek ürün bulunmalı (Aşama 20): organizasyon içinde benzersiz.
+            'barcode' => ['nullable', 'string', 'max:255', Rule::unique('products', 'barcode')->where('organization_id', auth()->user()->organization_id)],
             'category_id' => ['nullable', 'exists:categories,id'],
             'supplier_id' => ['nullable', 'exists:suppliers,id'],
             'base_unit' => ['required', 'string', 'max:50'],
@@ -220,7 +221,8 @@ new #[Layout('layouts::authenticated')] class extends Component
                                 {{ $product->status === 'active' ? 'Aktif' : 'Pasif' }}
                             </span>
                         </td>
-                        <td class="px-5 py-3 text-right">
+                        <td class="px-5 py-3 text-right whitespace-nowrap">
+                            <a href="{{ route('labels.product', $product->id) }}" target="_blank" class="text-[13px] text-brand-600 hover:underline mr-3">Etiket</a>
                             @can('product_management.delete')
                                 @if ($product->status === 'active')
                                     <button wire:click="deactivate({{ $product->id }})" wire:confirm="Bu ürünü pasifleştirmek istediğine emin misin?" class="text-[13px] text-status-critical hover:underline">

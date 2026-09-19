@@ -93,7 +93,10 @@ new #[Layout('layouts::authenticated')] class extends Component
                     <tr wire:key="lot-{{ $lot->id }}">
                         <td class="px-5 py-3 text-ink-muted">{{ $lot->warehouse->branch->name }} — {{ $lot->warehouse->name }}</td>
                         <td class="px-5 py-3">{{ $lot->product->name }}</td>
-                        <td class="px-5 py-3 font-mono text-[13px] text-ink-muted">{{ $lot->lot_no ?? '—' }}</td>
+                        <td class="px-5 py-3 font-mono text-[13px] text-ink-muted">
+                            {{ $lot->lot_no ?? '—' }}
+                            <a href="{{ route('labels.lot', $lot->id) }}" target="_blank" class="ml-2 font-sans text-[12px] text-brand-600 hover:underline">Etiket</a>
+                        </td>
                         <td class="px-5 py-3">
                             @if ($lot->expiry_date)
                                 <span @class(['text-status-critical' => $lot->isExpired()])>{{ $lot->expiry_date->format('d.m.Y') }}</span>

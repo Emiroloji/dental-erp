@@ -51,6 +51,10 @@
                     @endcan
                     @can('stock_movement.viewAny')
                         <div class="px-3 pt-4 pb-1 text-[11px] font-medium uppercase tracking-wide text-white/40">Stok</div>
+                        <x-nav-link :href="route('stock.quick')" :active="request()->routeIs('stock.quick')">
+                            <x-slot:icon><path d="M4 7V5a1 1 0 0 1 1-1h2M17 4h2a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M7 20H5a1 1 0 0 1-1-1v-2M8 8v8M11 8v8M14 8v8M17 8v8" stroke-linecap="round" stroke-linejoin="round"/></x-slot:icon>
+                            Hızlı İşlem
+                        </x-nav-link>
                         <x-nav-link :href="route('stock.status')" :active="request()->routeIs('stock.status')">
                             <x-slot:icon><path d="M3 7l9-4 9 4-9 4-9-4Zm0 0v10l9 4m0-14v14m9-14v10l-9 4" stroke-linejoin="round"/></x-slot:icon>
                             Stok Durumu

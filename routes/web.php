@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Purchasing\PurchaseReceiptDocumentController;
+use App\Http\Controllers\Stock\LabelController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
@@ -74,6 +75,18 @@ Route::middleware('tenant')->group(function () {
     Route::livewire('/stok-cikislari', 'pages::stock.out')
         ->middleware(['auth', 'can:stock_movement.viewAny'])
         ->name('stock.out');
+
+    Route::livewire('/hizli-islem', 'pages::stock.quick')
+        ->middleware(['auth', 'can:stock_movement.viewAny'])
+        ->name('stock.quick');
+
+    Route::get('/etiket/urun/{product}', [LabelController::class, 'product'])
+        ->middleware(['auth', 'can:product_management.viewAny'])
+        ->name('labels.product');
+
+    Route::get('/etiket/lot/{lot}', [LabelController::class, 'lot'])
+        ->middleware(['auth', 'can:stock_movement.viewAny'])
+        ->name('labels.lot');
 
     Route::livewire('/stok-hareketleri', 'pages::stock.movements')
         ->middleware(['auth', 'can:stock_movement.viewAny'])
