@@ -10,6 +10,7 @@ use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 class StockMovement extends Model
@@ -48,6 +49,14 @@ class StockMovement extends Model
     public function warehouse(): BelongsTo
     {
         return $this->belongsTo(Warehouse::class);
+    }
+
+    /**
+     * Bu hareketin taşıdığı seri numaraları (seri takipli ürünler, Aşama 26).
+     */
+    public function serials(): BelongsToMany
+    {
+        return $this->belongsToMany(StockSerial::class, 'stock_movement_serials', 'stock_movement_id', 'stock_serial_id');
     }
 
     public function actor(): BelongsTo

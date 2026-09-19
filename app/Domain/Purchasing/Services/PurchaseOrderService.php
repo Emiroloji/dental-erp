@@ -12,6 +12,7 @@ use App\Domain\Purchasing\Models\PurchaseReceipt;
 use App\Domain\Purchasing\Notifications\PurchaseNotifier;
 use App\Domain\Purchasing\Support\PurchaseOrderStatus;
 use App\Domain\Purchasing\Support\PurchasingPermissions;
+use App\Domain\Stock\Services\SerialRegistry;
 use App\Domain\Stock\Services\StockMovementService;
 use App\Models\User;
 use Closure;
@@ -193,6 +194,7 @@ class PurchaseOrderService
                     [
                         'temperature' => $input['temperature'] ?? null,
                         'temperature_note' => $input['temperature_note'] ?? null,
+                        'serials' => is_array($input['serials'] ?? null) ? $input['serials'] : SerialRegistry::parseList($input['serials'] ?? ''),
                     ],
                 );
 

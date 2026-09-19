@@ -14,6 +14,8 @@ use App\Domain\Purchasing\Support\PurchaseOrderStatus;
 use App\Domain\Purchasing\Support\PurchasingPermissions;
 use App\Domain\Stock\Exceptions\ColdChainException;
 use App\Domain\Stock\Exceptions\InactiveLocationException;
+use App\Domain\Stock\Exceptions\SerialException;
+use App\Domain\Stock\Services\SerialRegistry;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
@@ -254,6 +256,7 @@ new #[Layout('layouts::authenticated')] class extends Component
                     'unit_cost' => (string) $line->unit_price,
                     'temperature' => '',
                     'temperature_note' => '',
+                    'serials' => '',
                 ];
             }
         }
@@ -282,6 +285,7 @@ new #[Layout('layouts::authenticated')] class extends Component
             'receiptLines.*.unit_cost' => ['nullable', 'numeric', 'min:0'],
             'receiptLines.*.temperature' => ['nullable', 'numeric', 'between:-100,100'],
             'receiptLines.*.temperature_note' => ['nullable', 'string', 'max:500'],
+            'receiptLines.*.serials' => ['nullable', 'string', 'max:20000'],
         ]);
 
         // Satır bazında kalan kontrolü: hata ilgili satırın altında görünsün.
@@ -289,6 +293,19 @@ new #[Layout('layouts::authenticated')] class extends Component
             $quantity = (float) ($this->receiptLines[$line->id]['quantity'] ?? 0);
             if ($quantity > $line->remaining() + 0.0001) {
                 $this->addError("receiptLines.{$line->id}.quantity", 'Kalan sipariş miktarından ('.Number::format($line->remaining(), precision: 2).') fazlası teslim alınamaz.');
+            }
+
+            // Seri takipli (Aşama 26): her gelen birimin seri numarası girilir.
+            if ($quantity > 0 && $line->product->tracks_serials) {
+                try {
+                    $serialCount = count(SerialRegistry::parseList($this->receiptLines[$line->id]['serials'] ?? ''));
+
+                    if ($serialCount !== (int) round($quantity) || abs($quantity - round($quantity)) > 0.0001) {
+                        $this->addError("receiptLines.{$line->id}.serials", "Seri takipli ürün: gelen {$quantity} birim için {$serialCount} seri girildi.");
+                    }
+                } catch (SerialException $e) {
+                    $this->addError("receiptLines.{$line->id}.serials", $e->getMessage());
+                }
             }
 
             // Soğuk zincir (Aşama 26): ölçülen sıcaklık zorunlu, aralık dışıysa gerekçe gerekir.
@@ -341,7 +358,7 @@ new #[Layout('layouts::authenticated')] class extends Component
     {
         try {
             $action();
-        } catch (PurchasingException|InactiveLocationException|ColdChainException $e) {
+        } catch (PurchasingException|InactiveLocationException|ColdChainException|SerialException $e) {
             session()->flash('error', $e->getMessage());
 
             return false;
@@ -646,6 +663,13 @@ new #[Layout('layouts::authenticated')] class extends Component
                                     </td>
                                     <td class="px-3 py-2"><input type="number" step="0.01" wire:model="receiptLines.{{ $line->id }}.unit_cost" class="w-full border border-line rounded-md px-2 py-1.5"></td>
                                 </tr>
+                                @if ($line->product->tracks_serials)
+                                    <tr wire:key="receipt-line-serials-{{ $line->id }}">
+                                        <td colspan="6" class="px-3 pb-3">
+                                            <x-serial-input :product="$line->product" :value="$receiptLines[$line->id]['serials'] ?? ''" field="receiptLines.{{ $line->id }}.serials" compact />
+                                        </td>
+                                    </tr>
+                                @endif
                                 @if ($line->product->cold_chain)
                                     <tr wire:key="receipt-line-temp-{{ $line->id }}">
                                         <td colspan="6" class="px-3 pb-3">

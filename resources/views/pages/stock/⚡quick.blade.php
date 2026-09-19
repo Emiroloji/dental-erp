@@ -7,9 +7,11 @@ use App\Domain\Stock\Exceptions\ColdChainException;
 use App\Domain\Stock\Exceptions\ControlledProductException;
 use App\Domain\Stock\Exceptions\InactiveLocationException;
 use App\Domain\Stock\Exceptions\InsufficientStockException;
+use App\Domain\Stock\Exceptions\SerialException;
 use App\Domain\Stock\Exceptions\ScanException;
 use App\Domain\Stock\Models\StockLot;
 use App\Domain\Stock\Services\ScanResolver;
+use App\Domain\Stock\Services\SerialRegistry;
 use App\Domain\Stock\Services\StockMovementService;
 use App\Domain\Stock\Support\ExpiredUsageWarning;
 use App\Domain\Stock\Support\StockOutReason;
@@ -49,6 +51,9 @@ new #[Layout('layouts::authenticated')] class extends Component
 
     /** Kontrollü ürün çıkışında zorunlu açıklama (Aşama 26). */
     public string $note = '';
+
+    /** Seri takipli üründe her satıra bir seri; miktar seri sayısıdır (Aşama 26). */
+    public string $serialsText = '';
 
     public string $lot_no = '';
 
@@ -101,10 +106,21 @@ new #[Layout('layouts::authenticated')] class extends Component
 
         $product = $result['product'];
         $lot = $result['lot'];
+        $gs1 = $result['gs1'] ?? null;
+
+        // Aynı seri takipli ürünün bir sonraki birimi okutuldu: form sıfırlanmaz,
+        // seri listeye eklenir (art arda okutma).
+        if ($product->tracks_serials && $this->productId === $product->id && filled($gs1['serial'] ?? null)) {
+            $this->appendSerial($gs1['serial']);
+
+            return;
+        }
 
         $this->productId = $product->id;
+        $this->serialsText = '';
         $this->unit = $product->base_unit;
-        $this->quantity = '1';
+        // Seri takipli üründe miktar, okutulan/girilen seri sayısıdır.
+        $this->quantity = $product->tracks_serials ? '0' : '1';
         $this->lot_id = '';
         $this->lot_no = '';
         $this->expiry_date = '';
@@ -124,7 +140,11 @@ new #[Layout('layouts::authenticated')] class extends Component
 
         // GS1 DataMatrix (ÜTS): kutudaki lot ve SKT forma dolar; çıkışta seçili
         // depoda aynı numaralı lot varsa o lot seçilir.
-        if ($gs1 = $result['gs1'] ?? null) {
+        if ($gs1) {
+            if ($product->tracks_serials && filled($gs1['serial'])) {
+                $this->appendSerial($gs1['serial']);
+            }
+
             $this->lot_no = (string) $gs1['lot_no'];
             $this->expiry_date = (string) $gs1['expiry_date'];
 
@@ -133,6 +153,21 @@ new #[Layout('layouts::authenticated')] class extends Component
                 $this->lot_id = (string) ($matching?->id ?? '');
             }
         }
+    }
+
+    public function updatedSerialsText(): void
+    {
+        try {
+            $this->quantity = (string) count(SerialRegistry::parseList($this->serialsText));
+        } catch (SerialException) {
+            // Tekrar eden seri: kayıtta hata olarak gösterilir.
+        }
+    }
+
+    private function appendSerial(string $serial): void
+    {
+        $this->serialsText = trim($this->serialsText."\n".$serial);
+        $this->updatedSerialsText();
     }
 
     public function submit(StockMovementService $stock, UnitConverter $units): void
@@ -163,6 +198,17 @@ new #[Layout('layouts::authenticated')] class extends Component
             'quantity.gt' => 'Miktar sıfırdan büyük olmalı.',
         ]);
 
+        $serials = [];
+        if ($product->tracks_serials) {
+            try {
+                $serials = SerialRegistry::parseList($this->serialsText);
+            } catch (SerialException $e) {
+                $this->addError('serialsText', $e->getMessage());
+
+                return;
+            }
+        }
+
         $warehouse = Warehouse::findOrFail($validated['warehouse_id']);
         $baseQuantity = $units->toBaseUnit($product, (float) $validated['quantity'], $validated['unit']);
         $unitNote = $validated['unit'] === $product->base_unit ? '' : " ({$validated['quantity']} {$validated['unit']})";
@@ -173,7 +219,7 @@ new #[Layout('layouts::authenticated')] class extends Component
                     'lot_no' => $validated['lot_no'] ?: null,
                     'expiry_date' => $validated['expiry_date'] ?: null,
                     'unit_cost' => $validated['unit_cost'] === '' || $validated['unit_cost'] === null ? (float) $product->purchase_price : (float) $validated['unit_cost'],
-                ], auth()->user(), 'Hızlı giriş (barkod)'.$unitNote, tracking: ['temperature' => $validated['temperature'], 'temperature_note' => $validated['temperature_note']]);
+                ], auth()->user(), 'Hızlı giriş (barkod)'.$unitNote, tracking: ['temperature' => $validated['temperature'], 'temperature_note' => $validated['temperature_note'], 'serials' => $serials]);
             } else {
                 $reason = StockOutReason::from($validated['reasonCategory']);
                 $lot = filled($this->lot_id)
@@ -187,7 +233,7 @@ new #[Layout('layouts::authenticated')] class extends Component
                 }
 
                 $warning = ExpiredUsageWarning::for(
-                    $stock->out($product, $warehouse, $baseQuantity, $lot, auth()->user(), "{$reason->label()} — hızlı çıkış (barkod){$unitNote}".(filled($validated['note']) ? ": {$validated['note']}" : ''), $reason, tracking: ['note' => $validated['note']]),
+                    $stock->out($product, $warehouse, $baseQuantity, $lot, auth()->user(), "{$reason->label()} — hızlı çıkış (barkod){$unitNote}".(filled($validated['note']) ? ": {$validated['note']}" : ''), $reason, tracking: ['note' => $validated['note'], 'serials' => $serials]),
                     $reason,
                 );
             }
@@ -205,6 +251,10 @@ new #[Layout('layouts::authenticated')] class extends Component
             return;
         } catch (ControlledProductException $e) {
             $this->addError('note', $e->getMessage());
+
+            return;
+        } catch (SerialException $e) {
+            $this->addError('serialsText', $e->getMessage());
 
             return;
         }
@@ -228,7 +278,7 @@ new #[Layout('layouts::authenticated')] class extends Component
 
     public function clearProduct(): void
     {
-        $this->reset(['productId', 'lot_id', 'unit', 'quantity', 'lot_no', 'expiry_date', 'unit_cost', 'temperature', 'temperature_note', 'note']);
+        $this->reset(['productId', 'lot_id', 'unit', 'quantity', 'lot_no', 'expiry_date', 'unit_cost', 'temperature', 'temperature_note', 'note', 'serialsText']);
         $this->resetValidation();
     }
 
@@ -338,7 +388,7 @@ new #[Layout('layouts::authenticated')] class extends Component
                 <div class="grid grid-cols-2 gap-3">
                     <div>
                         <label class="block text-[13px] text-ink-muted mb-1">Miktar</label>
-                        <input type="number" step="0.01" min="0" wire:model="quantity" inputmode="decimal" class="w-full border border-line rounded-md px-3 py-3 text-[17px] tabular-nums">
+                        <input type="number" step="0.01" min="0" wire:model="quantity" inputmode="decimal" @readonly($product->tracks_serials) class="read-only:bg-canvas w-full border border-line rounded-md px-3 py-3 text-[17px] tabular-nums">
                         @error('quantity') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
                     </div>
                     <div>
@@ -351,6 +401,8 @@ new #[Layout('layouts::authenticated')] class extends Component
                         @error('unit') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
                     </div>
                 </div>
+
+                <x-serial-input :product="$product" :value="$serialsText" compact />
 
                 @if ($mode === 'out')
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">

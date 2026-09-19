@@ -5,7 +5,9 @@ use App\Domain\Catalog\Models\Product;
 use App\Domain\Organization\Models\Warehouse;
 use App\Domain\Stock\Exceptions\ColdChainException;
 use App\Domain\Stock\Exceptions\InactiveLocationException;
+use App\Domain\Stock\Exceptions\SerialException;
 use App\Domain\Stock\Models\StockMovement;
+use App\Domain\Stock\Services\SerialRegistry;
 use App\Domain\Stock\Services\StockMovementService;
 use App\Domain\Stock\Support\StockMovementType;
 use App\Support\UnitConverter;
@@ -43,6 +45,9 @@ new #[Layout('layouts::authenticated')] class extends Component
 
     public string $temperature_note = '';
 
+    /** Seri takipli üründe her satıra bir seri numarası (Aşama 26). */
+    public string $serialsText = '';
+
     public function openForm(): void
     {
         Gate::authorize('stock_movement.create');
@@ -53,7 +58,7 @@ new #[Layout('layouts::authenticated')] class extends Component
     public function closeForm(): void
     {
         $this->showForm = false;
-        $this->reset(['product_id', 'warehouse_id', 'quantity', 'unit', 'lot_no', 'expiry_date', 'reason', 'temperature', 'temperature_note']);
+        $this->reset(['product_id', 'warehouse_id', 'quantity', 'unit', 'lot_no', 'expiry_date', 'reason', 'temperature', 'temperature_note', 'serialsText']);
         $this->unit_cost = '0';
         $this->resetValidation();
     }
@@ -61,6 +66,19 @@ new #[Layout('layouts::authenticated')] class extends Component
     public function updatedProductId(): void
     {
         $this->unit = (string) Product::find($this->product_id)?->base_unit;
+        $this->serialsText = '';
+    }
+
+    /**
+     * Seri takipli üründe miktar, girilen seri sayısıdır.
+     */
+    public function updatedSerialsText(): void
+    {
+        try {
+            $this->quantity = (string) count(SerialRegistry::parseList($this->serialsText));
+        } catch (SerialException) {
+            // Tekrar eden seri: kayıtta hata olarak gösterilir.
+        }
     }
 
     public function save(StockMovementService $service, UnitConverter $units): void
@@ -101,6 +119,17 @@ new #[Layout('layouts::authenticated')] class extends Component
             return;
         }
 
+        $serials = [];
+        if ($product->tracks_serials) {
+            try {
+                $serials = SerialRegistry::parseList($this->serialsText);
+            } catch (SerialException $e) {
+                $this->addError('serialsText', $e->getMessage());
+
+                return;
+            }
+        }
+
         // Kayıt her zaman ana birimle yapılır; alternatif birim açıklamada kalır (kurallar.md Bölüm 3).
         $unitNote = $unit === $product->base_unit ? null : "{$validated['quantity']} {$unit}";
         $reason = collect([$validated['reason'] ?: null, $unitNote ? "({$unitNote})" : null])->filter()->implode(' ') ?: null;
@@ -117,7 +146,7 @@ new #[Layout('layouts::authenticated')] class extends Component
                 ],
                 auth()->user(),
                 $reason,
-                tracking: ['temperature' => $validated['temperature'], 'temperature_note' => $validated['temperature_note']],
+                tracking: ['temperature' => $validated['temperature'], 'temperature_note' => $validated['temperature_note'], 'serials' => $serials],
             );
         } catch (InactiveLocationException $e) {
             $this->addError('warehouse_id', $e->getMessage());
@@ -125,6 +154,10 @@ new #[Layout('layouts::authenticated')] class extends Component
             return;
         } catch (ColdChainException $e) {
             $this->addError(blank($validated['temperature']) ? 'temperature' : 'temperature_note', $e->getMessage());
+
+            return;
+        } catch (SerialException $e) {
+            $this->addError('serialsText', $e->getMessage());
 
             return;
         }
@@ -251,7 +284,7 @@ new #[Layout('layouts::authenticated')] class extends Component
                 </div>
                 <div>
                     <label class="block text-[13px] text-ink-muted mb-1.5">Miktar</label>
-                    <input type="number" step="0.01" wire:model="quantity" class="w-full border border-line rounded-md px-3 py-2 text-[14px] tabular-nums focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+                    <input type="number" step="0.01" wire:model="quantity" @readonly($selectedProduct?->tracks_serials) class="w-full border border-line rounded-md px-3 py-2 text-[14px] tabular-nums read-only:bg-canvas focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
                     @error('quantity') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
                 </div>
                 <div>
@@ -280,6 +313,7 @@ new #[Layout('layouts::authenticated')] class extends Component
                     <input type="date" wire:model="expiry_date" class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
                 </div>
                 <x-cold-chain-input :product="$selectedProduct" :temperature="$temperature" />
+                <x-serial-input :product="$selectedProduct" :value="$serialsText" />
             </div>
 
             @if ($product_id && ($selectedSupplier = $products->firstWhere('id', (int) $product_id)?->supplier))

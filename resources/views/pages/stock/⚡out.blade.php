@@ -5,9 +5,12 @@ use App\Domain\Catalog\Models\Product;
 use App\Domain\Organization\Models\Warehouse;
 use App\Domain\Stock\Exceptions\ControlledProductException;
 use App\Domain\Stock\Exceptions\InactiveLocationException;
+use App\Domain\Stock\Exceptions\SerialException;
 use App\Domain\Stock\Exceptions\InsufficientStockException;
 use App\Domain\Stock\Models\StockLot;
 use App\Domain\Stock\Models\StockMovement;
+use App\Domain\Stock\Models\StockSerial;
+use App\Domain\Stock\Support\SerialStatus;
 use App\Domain\Stock\Services\StockMovementService;
 use App\Domain\Stock\Support\StockMovementType;
 use App\Domain\Stock\Support\ExpiredUsageWarning;
@@ -41,6 +44,11 @@ new #[Layout('layouts::authenticated')] class extends Component
 
     public string $reasonNote = '';
 
+    /** Seri takipli üründe çıkan birimler (Aşama 26); miktar seçilen seri sayısıdır. */
+    public array $selectedSerials = [];
+
+    public string $serialSearch = '';
+
     public function openForm(): void
     {
         Gate::authorize('stock_movement.create');
@@ -51,7 +59,7 @@ new #[Layout('layouts::authenticated')] class extends Component
     public function closeForm(): void
     {
         $this->showForm = false;
-        $this->reset(['product_id', 'warehouse_id', 'lot_id', 'quantity', 'unit', 'reasonCategory', 'reasonNote']);
+        $this->reset(['product_id', 'warehouse_id', 'lot_id', 'quantity', 'unit', 'reasonCategory', 'reasonNote', 'selectedSerials', 'serialSearch']);
         $this->resetValidation();
     }
 
@@ -59,11 +67,23 @@ new #[Layout('layouts::authenticated')] class extends Component
     {
         $this->lot_id = '';
         $this->unit = (string) Product::find($this->product_id)?->base_unit;
+        $this->reset(['selectedSerials', 'serialSearch']);
     }
 
     public function updatedWarehouseId(): void
     {
         $this->lot_id = '';
+        $this->reset(['selectedSerials']);
+    }
+
+    public function updatedLotId(): void
+    {
+        $this->reset(['selectedSerials']);
+    }
+
+    public function updatedSelectedSerials(): void
+    {
+        $this->quantity = (string) count($this->selectedSerials);
     }
 
     public function save(StockMovementService $service, UnitConverter $units): void
@@ -124,7 +144,10 @@ new #[Layout('layouts::authenticated')] class extends Component
         }
 
         try {
-            $movements = $service->out($product, $warehouse, $units->toBaseUnit($product, (float) $validated['quantity'], $unit), $lot, auth()->user(), $reason, $reasonCode, tracking: ['note' => $validated['reasonNote']]);
+            $movements = $service->out($product, $warehouse, $units->toBaseUnit($product, (float) $validated['quantity'], $unit), $lot, auth()->user(), $reason, $reasonCode, tracking: [
+                'note' => $validated['reasonNote'],
+                'serials' => $product->tracks_serials ? array_values(array_map('strval', $this->selectedSerials)) : [],
+            ]);
         } catch (InsufficientStockException $e) {
             $this->addError('quantity', $e->getMessage());
 
@@ -135,6 +158,10 @@ new #[Layout('layouts::authenticated')] class extends Component
             return;
         } catch (ControlledProductException $e) {
             $this->addError('reasonNote', $e->getMessage());
+
+            return;
+        } catch (SerialException $e) {
+            $this->addError('selectedSerials', $e->getMessage());
 
             return;
         }
@@ -177,8 +204,23 @@ new #[Layout('layouts::authenticated')] class extends Component
                 ->get();
         }
 
+        $selected = filled($this->product_id) ? Product::find($this->product_id) : null;
+        $availableSerials = collect();
+        if ($selected?->tracks_serials && filled($this->warehouse_id)) {
+            $availableSerials = StockSerial::where('product_id', $selected->id)
+                ->where('status', SerialStatus::InStock->value)
+                ->whereHas('lot', fn ($query) => $query->where('warehouse_id', $this->warehouse_id)->inBranches($this->branchIds()))
+                ->when(filled($this->lot_id), fn ($query) => $query->where('lot_id', $this->lot_id))
+                ->when(filled($this->serialSearch), fn ($query) => $query->whereLike('serial_no', "%{$this->serialSearch}%"))
+                ->with('lot')
+                ->orderBy('serial_no')
+                ->limit(200)
+                ->get();
+        }
+
         return [
             'movements' => $movements,
+            'availableSerials' => $availableSerials,
             'products' => Product::where('status', 'active')->orderBy('name')->get(),
             'warehouses' => Warehouse::operational()->inBranches($this->branchIds())->with('branch')->orderBy('name')->get(),
             'availableLots' => $availableLots,
@@ -289,7 +331,7 @@ new #[Layout('layouts::authenticated')] class extends Component
                 </div>
                 <div>
                     <label class="block text-[13px] text-ink-muted mb-1.5">Miktar</label>
-                    <input type="number" step="0.01" wire:model="quantity" class="w-full border border-line rounded-md px-3 py-2 text-[14px] tabular-nums focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+                    <input type="number" step="0.01" wire:model="quantity" @readonly($selectedProduct?->tracks_serials) class="w-full border border-line rounded-md px-3 py-2 text-[14px] tabular-nums read-only:bg-canvas focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
                     @error('quantity') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
                 </div>
                 <div>
@@ -305,6 +347,29 @@ new #[Layout('layouts::authenticated')] class extends Component
                     </select>
                     @error('unit') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
                 </div>
+                @if ($selectedProduct?->tracks_serials)
+                    <div class="sm:col-span-2 rounded-md border border-line bg-canvas px-3 py-2.5 text-[13px]">
+                        <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+                            <span class="text-ink-muted">Çıkan birimlerin seri numaraları — {{ count($selectedSerials) }} seçili</span>
+                            <input type="text" wire:model.live.debounce.300ms="serialSearch" placeholder="Seri ara / okut" class="border border-line rounded-md px-2 py-1 text-[13px] font-mono bg-surface">
+                        </div>
+                        @if (blank($warehouse_id))
+                            <p class="text-ink-muted">Önce depoyu seçin.</p>
+                        @else
+                            <div class="max-h-40 overflow-y-auto grid grid-cols-2 sm:grid-cols-3 gap-1">
+                                @forelse ($availableSerials as $serial)
+                                    <label class="flex items-center gap-1.5 font-mono text-[12px]">
+                                        <input type="checkbox" wire:model.live="selectedSerials" value="{{ $serial->serial_no }}" class="accent-brand-500">
+                                        {{ $serial->serial_no }} <span class="text-ink-muted">({{ $serial->lot->lot_no ?? 'lotsuz' }})</span>
+                                    </label>
+                                @empty
+                                    <span class="text-ink-muted col-span-full">Bu depoda stokta seri yok.</span>
+                                @endforelse
+                            </div>
+                        @endif
+                        @error('selectedSerials') <span class="text-status-critical text-[12px] block mt-1">{{ $message }}</span> @enderror
+                    </div>
+                @endif
                 <div>
                     <label class="block text-[13px] text-ink-muted mb-1.5">Çıkış Nedeni</label>
                     <select wire:model="reasonCategory" class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">

@@ -12,9 +12,11 @@ use App\Domain\Stock\Exceptions\ControlledProductException;
 use App\Domain\Stock\Exceptions\ExpiredLotBlockedException;
 use App\Domain\Stock\Exceptions\InactiveLocationException;
 use App\Domain\Stock\Exceptions\InsufficientStockException;
+use App\Domain\Stock\Exceptions\SerialException;
 use App\Domain\Stock\Models\StockLot;
 use App\Domain\Stock\Models\StockMovement;
 use App\Domain\Stock\Notifications\ColdChainNotifier;
+use App\Domain\Stock\Support\SerialStatus;
 use App\Domain\Stock\Support\StockMovementType;
 use App\Domain\Stock\Support\StockOutReason;
 use App\Models\User;
@@ -28,12 +30,13 @@ class StockMovementService
     public function __construct(
         private readonly DashboardMetricsService $dashboardMetrics,
         private readonly ColdChainNotifier $coldChain,
+        private readonly SerialRegistry $serials,
     ) {}
 
     /**
      * @param  array{lot_no?: ?string, expiry_date?: ?string, unit_cost?: ?float}  $lotAttributes
      * @param  Model|null  $related  Girişi doğuran kayıt (ör. satın alma teslim alımı)
-     * @param  array{temperature?: float|string|null, temperature_note?: ?string}  $tracking  İlaç/medikal takip bilgisi (Aşama 26)
+     * @param  array{temperature?: float|string|null, temperature_note?: ?string, serials?: array<int, string>}  $tracking  İlaç/medikal takip bilgisi (Aşama 26)
      */
     public function in(
         Product $product,
@@ -51,18 +54,25 @@ class StockMovementService
 
         $this->ensureOperational($warehouse);
         [$temperature, $temperatureNote, $outOfRange] = $this->coldChainReading($product, $tracking);
+        $serials = $this->serialsFor($product, $quantity, $tracking);
 
-        $movement = DB::transaction(function () use ($product, $warehouse, $quantity, $lotAttributes, $actor, $reason, $related, $temperature, $temperatureNote) {
+        $movement = DB::transaction(function () use ($product, $warehouse, $quantity, $lotAttributes, $actor, $reason, $related, $temperature, $temperatureNote, $serials) {
             $lot = $this->resolveOrCreateLot($product, $warehouse, $lotAttributes);
             $lot = StockLot::whereKey($lot->id)->lockForUpdate()->firstOrFail();
 
             $lot->update(['quantity' => $lot->quantity + $quantity]);
 
-            return $this->recordMovement(
+            $movement = $this->recordMovement(
                 StockMovementType::In, $lot, $quantity, $actor, $reason,
                 relatedEntityType: $related?->getMorphClass(), relatedEntityId: $related?->getKey(),
                 temperature: $temperature, temperatureNote: $temperatureNote,
             );
+
+            if ($serials !== null) {
+                $this->serials->receive($product, $lot, $serials, $movement);
+            }
+
+            return $movement;
         });
 
         if ($outOfRange) {
@@ -105,7 +115,7 @@ class StockMovementService
     }
 
     /**
-     * @param  array{note?: ?string}  $tracking  İlaç/medikal takip bilgisi (Aşama 26): kontrollü üründe çıkış açıklaması
+     * @param  array{note?: ?string, serials?: array<int, string>}  $tracking  İlaç/medikal takip bilgisi (Aşama 26): kontrollü üründe çıkış açıklaması, seri takipli üründe çıkan seriler
      * @return Collection<int, StockMovement>
      */
     public function out(
@@ -140,6 +150,27 @@ class StockMovementService
         $blockExpired = ! ($reasonCode?->disposesStock() ?? false)
             && $this->expiredLotPolicy($warehouse) === ExpiredLotPolicy::Block;
 
+        // Seri takipli ürün: çıkan birimler seri numarasıyla seçilir; lotlar
+        // serilerden gelir (FEFO uygulanmaz).
+        $serials = $this->serialsFor($product, $quantity, $tracking);
+
+        if ($serials !== null) {
+            return DB::transaction(function () use ($product, $warehouse, $lot, $actor, $reason, $reasonCode, $blockExpired, $serials) {
+                $selected = $this->serials->selectInStock($product, $warehouse, $serials, $lot);
+
+                if ($blockExpired && ($expired = $selected->first(fn ($serial) => $serial->lot->isExpired()))) {
+                    throw new ExpiredLotBlockedException("{$expired->serial_no} seri numaralı birimin lotunun son kullanma tarihi geçmiş; organizasyon ayarına göre kullanımı engelli.");
+                }
+
+                return $selected->groupBy('lot_id')->map(function ($group) use ($actor, $reason, $reasonCode) {
+                    $movement = $this->withdrawFromLot($group->first()->lot, $group->count(), $actor, $reason, $reasonCode);
+                    $this->serials->transition($group, $movement, SerialStatus::Out);
+
+                    return $movement;
+                })->values();
+            });
+        }
+
         return DB::transaction(function () use ($product, $warehouse, $quantity, $lot, $actor, $reason, $reasonCode, $blockExpired) {
             if ($lot) {
                 if ($blockExpired && $lot->isExpired()) {
@@ -167,10 +198,21 @@ class StockMovementService
 
         $this->ensureOperational($warehouse);
 
-        return DB::transaction(fn () => $this->withdrawFefo(
-            $product, $warehouse, $quantity, $actor, "Transfer #{$transfer->getKey()} gönderimi", null,
-            StockMovementType::TransferOut, $transfer,
-        ));
+        return DB::transaction(function () use ($product, $warehouse, $quantity, $transfer, $actor) {
+            $movements = $this->withdrawFefo(
+                $product, $warehouse, $quantity, $actor, "Transfer #{$transfer->getKey()} gönderimi", null,
+                StockMovementType::TransferOut, $transfer,
+            );
+
+            // Seri takipli ürün: her lottan gönderilen kadar seri "yolda" olur.
+            if ($product->tracks_serials) {
+                foreach ($movements as $movement) {
+                    $this->serials->transition($this->serials->pick($movement->lot, (int) round(abs((float) $movement->quantity))), $movement, SerialStatus::InTransit);
+                }
+            }
+
+            return $movements;
+        });
     }
 
     /**
@@ -194,10 +236,19 @@ class StockMovementService
 
             $lot->update(['quantity' => $lot->quantity + $quantity]);
 
-            return $this->recordMovement(
+            $movement = $this->recordMovement(
                 StockMovementType::TransferIn, $lot, $quantity, $actor, "Transfer #{$transfer->getKey()} teslim alımı",
                 relatedEntityType: $transfer->getMorphClass(), relatedEntityId: $transfer->getKey(),
             );
+
+            // Yoldaki seriler hedef lota geçer.
+            $inTransit = $shipped->serials()->where('status', SerialStatus::InTransit->value)->lockForUpdate()->get();
+
+            if ($inTransit->isNotEmpty()) {
+                $this->serials->transition($inTransit, $movement, SerialStatus::InStock, $lot);
+            }
+
+            return $movement;
         });
     }
 
@@ -207,24 +258,39 @@ class StockMovementService
      * edilebilir. Hareket iade kaydına bağlıdır; tedarikçi reddederse cancel()
      * ile ters kayıt yazılır.
      */
-    public function returnOut(StockLot $lot, float $quantity, Model $return, ?User $actor = null, ?string $reason = null): StockMovement
+    /**
+     * @param  array{serials?: array<int, string>}  $tracking  Seri takipli üründe iade edilen seriler (Aşama 26)
+     */
+    public function returnOut(StockLot $lot, float $quantity, Model $return, ?User $actor = null, ?string $reason = null, array $tracking = []): StockMovement
     {
         if ($quantity <= 0) {
             throw new InvalidArgumentException('İade miktarı sıfırdan büyük olmalıdır.');
         }
 
         $this->ensureOperational($lot->warehouse);
+        $serials = $this->serialsFor($lot->product, $quantity, $tracking);
 
-        return DB::transaction(fn () => $this->withdrawFromLot(
-            $lot, $quantity, $actor, $reason, StockOutReason::ReturnToSupplier,
-            StockMovementType::ReturnMovement, $return,
-        ));
+        return DB::transaction(function () use ($lot, $quantity, $return, $actor, $reason, $serials) {
+            $selected = $serials !== null ? $this->serials->selectInStock($lot->product, $lot->warehouse, $serials, $lot) : null;
+
+            $movement = $this->withdrawFromLot(
+                $lot, $quantity, $actor, $reason, StockOutReason::ReturnToSupplier,
+                StockMovementType::ReturnMovement, $return,
+            );
+
+            if ($selected !== null) {
+                $this->serials->transition($selected, $movement, SerialStatus::Out);
+            }
+
+            return $movement;
+        });
     }
 
     /**
      * @param  Model|null  $related  Düzeltmeyi doğuran kayıt (ör. onaylanan stok sayımı)
+     * @param  array{serials?: array<int, string>}  $tracking  Seri takipli üründe lotta fiilen bulunan serilerin tam listesi (Aşama 26)
      */
-    public function adjust(StockLot $lot, float $countedQuantity, string $reason, ?User $actor = null, ?Model $related = null): StockMovement
+    public function adjust(StockLot $lot, float $countedQuantity, string $reason, ?User $actor = null, ?Model $related = null, array $tracking = []): StockMovement
     {
         if (trim($reason) === '') {
             throw new InvalidArgumentException('Stok düzeltmesi bir neden olmadan yapılamaz.');
@@ -236,17 +302,27 @@ class StockMovementService
 
         $this->ensureOperational($lot->warehouse);
 
-        return DB::transaction(function () use ($lot, $countedQuantity, $reason, $actor, $related) {
+        $serials = $this->serialsFor($lot->product, $countedQuantity, $tracking, allowZero: true);
+
+        return DB::transaction(function () use ($lot, $countedQuantity, $reason, $actor, $related, $serials) {
             $locked = StockLot::whereKey($lot->id)->lockForUpdate()->firstOrFail();
 
             $delta = $countedQuantity - (float) $locked->quantity;
 
             $locked->update(['quantity' => $countedQuantity]);
 
-            return $this->recordMovement(
+            $movement = $this->recordMovement(
                 StockMovementType::CountAdjust, $locked, $delta, $actor, $reason,
                 relatedEntityType: $related?->getMorphClass(), relatedEntityId: $related?->getKey(),
             );
+
+            // Seri takipli: sayılan liste ile stoktaki seriler eşitlenir; net fark
+            // miktar farkıyla tutmalıdır (lot miktarı = stoktaki seri sayısı).
+            if ($serials !== null && abs($this->serials->reconcile($locked, $serials, $movement) - $delta) > 0.00001) {
+                throw new SerialException("Lot {$locked->lot_no}: sayılan seri listesi ile kayıtlı seriler uyuşmuyor.");
+            }
+
+            return $movement;
         });
     }
 
@@ -266,7 +342,7 @@ class StockMovementService
 
             $lot->update(['quantity' => $newQuantity]);
 
-            return $this->recordMovement(
+            $cancellation = $this->recordMovement(
                 StockMovementType::Cancel,
                 $lot,
                 $reverseDelta,
@@ -275,6 +351,11 @@ class StockMovementService
                 relatedEntityType: StockMovement::class,
                 relatedEntityId: $movement->id,
             );
+
+            // Seri takipli: hareketin taşıdığı seriler eski durumuna döner.
+            $this->serials->reverse($movement, $cancellation);
+
+            return $cancellation;
         });
     }
 
@@ -282,6 +363,27 @@ class StockMovementService
      * kurallar.md Bölüm 4: pasif depo veya pasif şubedeki bir depo üzerinde
      * hiçbir stok işlemi (giriş, çıkış, düzeltme, iptal) yapılamaz.
      */
+    /**
+     * Seri takipli ürün için seri listesi (doğrulanmış); diğer ürünlerde null.
+     *
+     * @param  array{serials?: array<int, string>}  $tracking
+     * @return array<int, string>|null
+     */
+    private function serialsFor(Product $product, float $quantity, array $tracking, bool $allowZero = false): ?array
+    {
+        if (! $product->tracks_serials) {
+            return null;
+        }
+
+        $serials = SerialRegistry::normalize($tracking['serials'] ?? []);
+
+        if (! $allowZero || $quantity > 0 || $serials !== []) {
+            SerialRegistry::ensureMatchesQuantity($product, $quantity, $serials);
+        }
+
+        return $serials;
+    }
+
     private function expiredLotPolicy(Warehouse $warehouse): ExpiredLotPolicy
     {
         $organizationId = $warehouse->branch()->withoutGlobalScopes()->value('organization_id');
