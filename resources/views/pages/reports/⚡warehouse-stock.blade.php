@@ -76,7 +76,7 @@ new #[Layout('layouts::authenticated')] class extends Component
         <p class="text-[14px] text-ink-muted mt-1">Stok depo seviyesinde tutulur; şube toplamı o şubedeki depoların toplamıdır.</p>
     </div>
 
-    <section class="border border-line rounded-lg bg-surface overflow-hidden mb-8">
+    <section class="border border-line rounded-lg bg-surface overflow-x-auto mb-8">
         <table class="w-full text-[14px]">
             <thead>
                 <tr class="text-left text-ink-muted text-[12px] border-b border-line">

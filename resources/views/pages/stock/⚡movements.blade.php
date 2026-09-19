@@ -148,7 +148,7 @@ new #[Layout('layouts::authenticated')] class extends Component
         </select>
     </div>
 
-    <section class="border border-line rounded-lg bg-surface overflow-hidden">
+    <section class="border border-line rounded-lg bg-surface overflow-x-auto">
         <table class="w-full text-[14px]">
             <thead>
                 <tr class="text-left text-ink-muted text-[12px] border-b border-line">

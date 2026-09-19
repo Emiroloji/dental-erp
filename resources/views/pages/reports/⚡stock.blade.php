@@ -82,7 +82,7 @@ new #[Layout('layouts::authenticated')] class extends Component
         <input type="text" wire:model.live.debounce.300ms="search" placeholder="Ürün adı veya kodu ara" class="border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
     </x-report-filters>
 
-    <section class="border border-line rounded-lg bg-surface overflow-hidden">
+    <section class="border border-line rounded-lg bg-surface overflow-x-auto">
         <table class="w-full text-[14px]">
             <thead>
                 <tr class="text-left text-ink-muted text-[12px] border-b border-line">
