@@ -35,4 +35,12 @@ return [
         ],
     ],
 
+    // Rapor Asistanı (Aşama 25). Anahtar yalnızca .env'den okunur.
+    'gemini' => [
+        'key' => env('GEMINI_API_KEY'),
+        'model' => env('GEMINI_MODEL', 'gemini-3.6-flash'),
+        'endpoint' => env('GEMINI_ENDPOINT', 'https://generativelanguage.googleapis.com/v1beta'),
+        'timeout' => (int) env('GEMINI_TIMEOUT', 20),
+    ],
+
 ];

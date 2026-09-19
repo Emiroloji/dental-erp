@@ -155,6 +155,10 @@ Route::middleware('tenant')->group(function () {
         ->middleware(['auth', 'can:reports.viewAny'])
         ->name('reports.forecast');
 
+    Route::livewire('/raporlar/asistan', 'pages::reports.assistant')
+        ->middleware(['auth', 'can:reports.viewAny'])
+        ->name('reports.assistant');
+
     Route::get('/raporlar/indir/{export}', ReportExportDownloadController::class)
         ->whereNumber('export')
         ->middleware(['auth', 'can:reports.viewAny'])

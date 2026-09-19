@@ -4,6 +4,7 @@ use App\Domain\Reporting\Services\StockReportService;
 use App\Domain\Reporting\Support\ReportType;
 use App\Http\Livewire\Concerns\WithReportFilters;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -11,6 +12,7 @@ new #[Layout('layouts::authenticated')] class extends Component
 {
     use WithPagination, WithReportFilters;
 
+    #[Url(except: '')]
     public string $search = '';
 
     public function updatingSearch(): void

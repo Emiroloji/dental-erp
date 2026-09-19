@@ -6,6 +6,7 @@ use App\Domain\Forecasting\Support\ProductForecast;
 use App\Http\Livewire\Concerns\WithReportFilters;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -17,8 +18,10 @@ new #[Layout('layouts::authenticated')] class extends Component
 {
     use WithPagination, WithReportFilters;
 
+    #[Url(except: '')]
     public string $search = '';
 
+    #[Url(except: '')]
     public string $risk = '';
 
     public function updating(string $property): void

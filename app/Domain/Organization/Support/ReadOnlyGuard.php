@@ -2,6 +2,7 @@
 
 namespace App\Domain\Organization\Support;
 
+use App\Domain\Assistant\Models\AssistantQuery;
 use App\Domain\Organization\Exceptions\ReadOnlyOrganizationException;
 use App\Domain\Reporting\Models\ReportExport;
 use App\Models\User;
@@ -18,7 +19,7 @@ use Illuminate\Notifications\DatabaseNotification;
  * İstisnalar: bildirimi okundu işaretlemek, kullanıcının kendi oturum/şifre
  * alanları (giriş yapabilmek, geçici şifreyi değiştirebilmek için) ve rapor
  * dışa aktarım kaydı (rapor almak bir okuma işlemidir; salt-okunur modda da
- * raporlar görülebilir ve indirilebilir).
+ * raporlar görülebilir ve indirilebilir) ve rapor asistanı sorgusu (aynı gerekçe).
  */
 class ReadOnlyGuard
 {
@@ -32,7 +33,7 @@ class ReadOnlyGuard
             return;
         }
 
-        if ($model instanceof DatabaseNotification || $model instanceof ReportExport) {
+        if ($model instanceof DatabaseNotification || $model instanceof ReportExport || $model instanceof AssistantQuery) {
             return;
         }
 

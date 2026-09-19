@@ -12,6 +12,7 @@ use App\Domain\Reporting\Support\ReportFilters;
 use App\Domain\Reporting\Support\ReportType;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Gate;
+use Livewire\Attributes\Url;
 
 /**
  * Gelişmiş rapor ekranlarının ortak filtreleri (Aşama 15): tarih aralığı,
@@ -20,22 +21,40 @@ use Illuminate\Support\Facades\Gate;
  */
 trait WithReportFilters
 {
+    // Filtreler URL'de taşınır: Rapor Asistanı'nın "Raporda aç" bağlantısı ve
+    // paylaşılabilir rapor adresleri için (Aşama 25).
+    #[Url(except: '')]
     public string $from = '';
 
+    #[Url(except: '')]
     public string $to = '';
 
+    #[Url(except: '')]
     public string $branchId = '';
 
+    #[Url(except: '')]
     public string $warehouseId = '';
 
+    #[Url(except: '')]
     public string $categoryId = '';
 
+    #[Url(except: '')]
     public string $supplierId = '';
 
     public function mountWithReportFilters(): void
     {
-        $this->from = now()->startOfMonth()->toDateString();
-        $this->to = now()->toDateString();
+        if (blank($this->from) || ! $this->isDate($this->from)) {
+            $this->from = now()->startOfMonth()->toDateString();
+        }
+
+        if (blank($this->to) || ! $this->isDate($this->to)) {
+            $this->to = now()->toDateString();
+        }
+    }
+
+    private function isDate(string $value): bool
+    {
+        return (bool) preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) && strtotime($value) !== false;
     }
 
     public function updatedWithReportFilters(string $property): void
@@ -51,7 +70,7 @@ trait WithReportFilters
 
     public function clearFilters(): void
     {
-        $this->reset(['branchId', 'warehouseId', 'categoryId', 'supplierId']);
+        $this->reset(['from', 'to', 'branchId', 'warehouseId', 'categoryId', 'supplierId']);
         $this->mountWithReportFilters();
     }
 
