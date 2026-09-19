@@ -43,6 +43,10 @@
                             <span class="ml-1 min-w-[18px] h-[18px] px-1 rounded-full bg-status-warn text-white text-[11px] leading-[18px] text-center">{{ $pendingPlanRequests }}</span>
                         @endif
                     </x-nav-link>
+                    <x-nav-link :href="route('platform.accounts.index')" :active="request()->routeIs('platform.accounts.*')">
+                        <x-slot:icon><path d="M16 19v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1M9 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm13 9v-1a4 4 0 0 0-3-3.9M16 4.1a3 3 0 0 1 0 5.8" stroke-linecap="round" stroke-linejoin="round"/></x-slot:icon>
+                        Platform Hesapları
+                    </x-nav-link>
                 </nav>
 
                 <div class="px-3 pb-4 pt-2 border-t border-panel-line/60 mx-3">

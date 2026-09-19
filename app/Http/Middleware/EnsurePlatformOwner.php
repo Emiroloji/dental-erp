@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use App\Models\User;
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -17,7 +18,16 @@ class EnsurePlatformOwner
     {
         $user = $request->user();
 
-        abort_unless($user instanceof User && $user->isPlatformOwner() && $user->isActive(), 403);
+        abort_unless($user instanceof User && $user->isPlatformOwner(), 403);
+
+        // Pasife alınan Platform Sahibi'nin açık oturumu da kapanır.
+        if (! $user->isActive()) {
+            Auth::logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return redirect()->route('login')->withErrors(['email' => 'Bu kullanıcı pasif durumda, giriş yapamaz.']);
+        }
 
         if ($user->must_change_password) {
             return redirect()->route('password.change');
