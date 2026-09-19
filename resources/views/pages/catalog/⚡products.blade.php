@@ -1,13 +1,17 @@
 <?php
 
+use App\Domain\Catalog\Exceptions\ProductRuleException;
 use App\Domain\Catalog\Models\Category;
 use App\Domain\Catalog\Models\Product;
 use App\Domain\Catalog\Models\Supplier;
 use App\Domain\Catalog\Services\ProductService;
+use App\Domain\Catalog\Support\Gs1;
 use App\Domain\Catalog\Support\ProductType;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -16,6 +20,10 @@ new #[Layout('layouts::authenticated')] class extends Component
     use WithPagination;
 
     public bool $showForm = false;
+
+    /** Düzenlenen ürün; null = yeni ürün. */
+    #[Locked]
+    public ?int $editingId = null;
 
     public string $search = '';
 
@@ -43,17 +51,81 @@ new #[Layout('layouts::authenticated')] class extends Component
 
     public array $conversionRules = [];
 
+    // İlaç ve medikal ürün alanları (Aşama 26).
+    public string $gtin = '';
+
+    public string $uts_number = '';
+
+    public string $license_number = '';
+
+    public string $manufacturer = '';
+
+    public string $storage_condition = '';
+
+    public bool $cold_chain = false;
+
+    public string $storage_min_temp = '';
+
+    public string $storage_max_temp = '';
+
+    public bool $is_controlled = false;
+
+    public bool $tracks_serials = false;
+
     public function openForm(): void
     {
         Gate::authorize('product_management.create');
 
+        $this->resetForm();
+        $this->showForm = true;
+    }
+
+    public function edit(int $productId): void
+    {
+        Gate::authorize('product_management.update');
+
+        $product = $this->findProduct($productId);
+
+        $this->resetForm();
+        $this->editingId = $product->id;
+        $this->fill([
+            'name' => $product->name,
+            'code' => (string) $product->code,
+            'barcode' => (string) $product->barcode,
+            'category_id' => (string) $product->category_id,
+            'supplier_id' => (string) $product->supplier_id,
+            'base_unit' => $product->base_unit,
+            'purchase_price' => (string) $product->purchase_price,
+            'min_stock' => (string) $product->min_stock,
+            'max_stock' => (string) $product->max_stock,
+            'product_type' => $product->product_type?->value ?? 'consumable',
+            'conversionRules' => collect($product->conversion_rules ?? [])->map(fn ($rule) => ['unit' => $rule['unit'], 'factor' => (string) $rule['factor']])->all(),
+            'gtin' => (string) $product->gtin,
+            'uts_number' => (string) $product->uts_number,
+            'license_number' => (string) $product->license_number,
+            'manufacturer' => (string) $product->manufacturer,
+            'storage_condition' => (string) $product->storage_condition,
+            'cold_chain' => $product->cold_chain,
+            'storage_min_temp' => $product->storage_min_temp === null ? '' : (string) $product->storage_min_temp,
+            'storage_max_temp' => $product->storage_max_temp === null ? '' : (string) $product->storage_max_temp,
+            'is_controlled' => $product->is_controlled,
+            'tracks_serials' => $product->tracks_serials,
+        ]);
         $this->showForm = true;
     }
 
     public function closeForm(): void
     {
         $this->showForm = false;
-        $this->reset(['name', 'code', 'barcode', 'category_id', 'supplier_id', 'purchase_price', 'min_stock', 'max_stock', 'conversionRules']);
+        $this->resetForm();
+    }
+
+    private function resetForm(): void
+    {
+        $this->reset([
+            'editingId', 'name', 'code', 'barcode', 'category_id', 'supplier_id', 'purchase_price', 'min_stock', 'max_stock', 'conversionRules',
+            'gtin', 'uts_number', 'license_number', 'manufacturer', 'storage_condition', 'cold_chain', 'storage_min_temp', 'storage_max_temp', 'is_controlled', 'tracks_serials',
+        ]);
         $this->base_unit = 'Adet';
         $this->purchase_price = '0';
         $this->min_stock = '0';
@@ -84,13 +156,16 @@ new #[Layout('layouts::authenticated')] class extends Component
 
     public function save(ProductService $productService): void
     {
-        Gate::authorize('product_management.create');
+        Gate::authorize($this->editingId ? 'product_management.update' : 'product_management.create');
+
+        $organizationId = auth()->user()->organization_id;
+        $unique = fn (string $column) => Rule::unique('products', $column)->where('organization_id', $organizationId)->ignore($this->editingId);
 
         $validated = $this->validate([
             'name' => ['required', 'string', 'max:255'],
             'code' => ['nullable', 'string', 'max:255'],
-            // Barkod okutunca tek ürün bulunmalı (Aşama 20): organizasyon içinde benzersiz.
-            'barcode' => ['nullable', 'string', 'max:255', Rule::unique('products', 'barcode')->where('organization_id', auth()->user()->organization_id)],
+            // Barkod organizasyon içinde tekil: okutulan barkod tek bir ürüne çözülmeli (Aşama 20).
+            'barcode' => ['nullable', 'string', 'max:255', $unique('barcode')],
             'category_id' => ['nullable', 'exists:categories,id'],
             'supplier_id' => ['nullable', 'exists:suppliers,id'],
             'base_unit' => ['required', 'string', 'max:50'],
@@ -100,7 +175,38 @@ new #[Layout('layouts::authenticated')] class extends Component
             'product_type' => ['required', Rule::in(array_column(ProductType::cases(), 'value'))],
             'conversionRules.*.unit' => ['required_with:conversionRules.*.factor', 'nullable', 'string', 'max:50'],
             'conversionRules.*.factor' => ['required_with:conversionRules.*.unit', 'nullable', 'numeric', 'min:0.01'],
+            'gtin' => ['nullable', 'string', 'max:20'],
+            'uts_number' => ['nullable', 'string', 'max:255'],
+            'license_number' => ['nullable', 'string', 'max:255'],
+            'manufacturer' => ['nullable', 'string', 'max:255'],
+            'storage_condition' => ['nullable', 'string', 'max:255'],
+            'cold_chain' => ['boolean'],
+            'storage_min_temp' => ['nullable', 'required_if:cold_chain,true', 'numeric', 'between:-100,100'],
+            'storage_max_temp' => ['nullable', 'required_if:cold_chain,true', 'numeric', 'between:-100,100', 'gte:storage_min_temp'],
+            'is_controlled' => ['boolean'],
+            'tracks_serials' => ['boolean'],
+        ], [
+            'storage_min_temp.required_if' => 'Soğuk zincir ürününde en düşük saklama sıcaklığı girilmeli.',
+            'storage_max_temp.required_if' => 'Soğuk zincir ürününde en yüksek saklama sıcaklığı girilmeli.',
+            'storage_max_temp.gte' => 'En yüksek sıcaklık en düşükten küçük olamaz.',
         ]);
+
+        $gtin = null;
+        if (filled($validated['gtin'])) {
+            $gtin = Gs1::normalizeGtin($validated['gtin']);
+
+            if ($gtin === null) {
+                $this->addError('gtin', 'Geçerli bir GTIN değil (8, 12, 13 veya 14 hane, kontrol hanesi doğru olmalı).');
+
+                return;
+            }
+
+            if (Product::where('gtin', $gtin)->whereKeyNot($this->editingId)->exists()) {
+                $this->addError('gtin', 'Bu GTIN başka bir üründe kayıtlı.');
+
+                return;
+            }
+        }
 
         $conversionRules = collect($validated['conversionRules'] ?? [])
             ->filter(fn ($rule) => filled($rule['unit']) && filled($rule['factor']))
@@ -108,7 +214,14 @@ new #[Layout('layouts::authenticated')] class extends Component
             ->values()
             ->all();
 
-        $productService->create([
+        // Seri takipli ürün birim birim izlenir; alternatif birim (Kutu vb.) bu ürünlerde kullanılmaz.
+        if ($validated['tracks_serials'] && $conversionRules !== []) {
+            $this->addError('tracks_serials', 'Seri takipli üründe birim dönüşümü tanımlanamaz; her birim ayrı seri numarasıyla izlenir.');
+
+            return;
+        }
+
+        $attributes = [
             'name' => $validated['name'],
             'code' => $validated['code'] ?: null,
             'barcode' => $validated['barcode'] ?: null,
@@ -120,10 +233,31 @@ new #[Layout('layouts::authenticated')] class extends Component
             'min_stock' => $validated['min_stock'],
             'max_stock' => $validated['max_stock'] ?: null,
             'product_type' => $validated['product_type'],
-        ]);
+            'gtin' => $gtin,
+            'uts_number' => $validated['uts_number'] ?: null,
+            'license_number' => $validated['license_number'] ?: null,
+            'manufacturer' => $validated['manufacturer'] ?: null,
+            'storage_condition' => $validated['storage_condition'] ?: null,
+            'cold_chain' => $validated['cold_chain'],
+            'storage_min_temp' => $validated['cold_chain'] && filled($validated['storage_min_temp']) ? (float) $validated['storage_min_temp'] : null,
+            'storage_max_temp' => $validated['cold_chain'] && filled($validated['storage_max_temp']) ? (float) $validated['storage_max_temp'] : null,
+            'is_controlled' => $validated['is_controlled'],
+            'tracks_serials' => $validated['tracks_serials'],
+        ];
 
+        try {
+            $this->editingId
+                ? $productService->update($this->findProduct($this->editingId), $attributes)
+                : $productService->create($attributes);
+        } catch (ProductRuleException $e) {
+            $this->addError('tracks_serials', $e->getMessage());
+
+            return;
+        }
+
+        $message = $this->editingId ? 'Ürün güncellendi.' : 'Ürün oluşturuldu.';
         $this->closeForm();
-        session()->flash('status', 'Ürün oluşturuldu.');
+        session()->flash('status', $message);
     }
 
     public function deactivate(Product $product, ProductService $productService): void
@@ -135,6 +269,15 @@ new #[Layout('layouts::authenticated')] class extends Component
         session()->flash('status', 'Ürün pasifleştirildi.');
     }
 
+    private function findProduct(int $productId): Product
+    {
+        try {
+            return Product::findOrFail($productId);
+        } catch (ModelNotFoundException) {
+            abort(404);
+        }
+    }
+
     public function with(): array
     {
         $products = Product::query()
@@ -142,7 +285,8 @@ new #[Layout('layouts::authenticated')] class extends Component
             ->when($this->search, fn ($query) => $query->where(function ($query) {
                 $query->whereLike('name', "%{$this->search}%")
                     ->orWhereLike('code', "%{$this->search}%")
-                    ->orWhereLike('barcode', "%{$this->search}%");
+                    ->orWhereLike('barcode', "%{$this->search}%")
+                    ->orWhereLike('gtin', "%{$this->search}%");
             }))
             ->when($this->categoryFilter, fn ($query) => $query->where('category_id', $this->categoryFilter))
             ->orderBy('name')
@@ -207,7 +351,10 @@ new #[Layout('layouts::authenticated')] class extends Component
             <tbody class="divide-y divide-line">
                 @forelse ($products as $product)
                     <tr wire:key="product-{{ $product->id }}">
-                        <td class="px-5 py-3">{{ $product->name }}</td>
+                        <td class="px-5 py-3">
+                            {{ $product->name }}
+                            <x-product-flags :product="$product" />
+                        </td>
                         <td class="px-5 py-3 text-ink-muted font-mono text-[13px]">{{ $product->code }}</td>
                         <td class="px-5 py-3 text-ink-muted">{{ $product->category?->name }}</td>
                         <td class="px-5 py-3 text-ink-muted">{{ $product->supplier?->name }}</td>
@@ -222,6 +369,9 @@ new #[Layout('layouts::authenticated')] class extends Component
                             </span>
                         </td>
                         <td class="px-5 py-3 text-right whitespace-nowrap">
+                            @can('product_management.update')
+                                <button wire:click="edit({{ $product->id }})" class="text-[13px] text-ink-muted hover:text-ink hover:underline mr-3">Düzenle</button>
+                            @endcan
                             <a href="{{ route('labels.product', $product->id) }}" target="_blank" class="text-[13px] text-brand-600 hover:underline mr-3">Etiket</a>
                             @can('product_management.delete')
                                 @if ($product->status === 'active')
@@ -247,7 +397,7 @@ new #[Layout('layouts::authenticated')] class extends Component
         @endif
     </section>
 
-    <x-modal :show="$showForm" title="Yeni Ürün" on-close="closeForm">
+    <x-modal :show="$showForm" :title="$editingId ? 'Ürünü Düzenle' : 'Yeni Ürün'" on-close="closeForm">
         <form wire:submit="save" class="space-y-7">
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
@@ -324,6 +474,60 @@ new #[Layout('layouts::authenticated')] class extends Component
                         <button type="button" wire:click="removeConversionRule({{ $index }})" class="text-[13px] text-status-critical hover:underline">Kaldır</button>
                     </div>
                 @endforeach
+            </div>
+
+            <div>
+                <h3 class="text-[13px] font-medium text-ink">Mevzuat ve Takip</h3>
+                <p class="text-[12px] text-ink-muted mb-3">İlaç ve medikal ürünler için ÜTS, ruhsat, saklama koşulu, soğuk zincir, kontrollü ürün ve seri takibi.</p>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-[13px] text-ink-muted mb-1.5">GTIN (birincil barkod)</label>
+                        <input type="text" wire:model="gtin" inputmode="numeric" class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 font-mono">
+                        @error('gtin') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
+                    </div>
+                    <div>
+                        <label class="block text-[13px] text-ink-muted mb-1.5">ÜTS Ürün No</label>
+                        <input type="text" wire:model="uts_number" class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 font-mono">
+                    </div>
+                    <div>
+                        <label class="block text-[13px] text-ink-muted mb-1.5">Ruhsat No</label>
+                        <input type="text" wire:model="license_number" class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+                    </div>
+                    <div>
+                        <label class="block text-[13px] text-ink-muted mb-1.5">Üretici</label>
+                        <input type="text" wire:model="manufacturer" class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+                    </div>
+                    <div class="sm:col-span-2">
+                        <label class="block text-[13px] text-ink-muted mb-1.5">Saklama Koşulu</label>
+                        <input type="text" wire:model="storage_condition" placeholder="Ör. Kuru yerde, ışıktan uzak" class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+                    </div>
+                </div>
+
+                <div class="mt-4 space-y-3">
+                    <label class="flex items-start gap-2 text-[13px]">
+                        <input type="checkbox" wire:model.live="cold_chain" class="accent-brand-500 w-4 h-4 mt-0.5">
+                        <span><span class="text-ink">Soğuk zincir</span> <span class="text-ink-muted">— girişte ölçülen sıcaklık zorunlu, aralık dışı giriş engellenir ya da gerekçeyle kabul edilir.</span></span>
+                    </label>
+                    @if ($cold_chain)
+                        <div class="flex flex-wrap items-center gap-2 pl-6 text-[13px]">
+                            <input type="number" step="0.1" wire:model="storage_min_temp" placeholder="En düşük" class="w-28 border border-line rounded-md px-3 py-2 tabular-nums">
+                            <span class="text-ink-muted">–</span>
+                            <input type="number" step="0.1" wire:model="storage_max_temp" placeholder="En yüksek" class="w-28 border border-line rounded-md px-3 py-2 tabular-nums">
+                            <span class="text-ink-muted">°C</span>
+                        </div>
+                        @error('storage_min_temp') <span class="text-status-critical text-[12px] block pl-6">{{ $message }}</span> @enderror
+                        @error('storage_max_temp') <span class="text-status-critical text-[12px] block pl-6">{{ $message }}</span> @enderror
+                    @endif
+                    <label class="flex items-start gap-2 text-[13px]">
+                        <input type="checkbox" wire:model="is_controlled" class="accent-brand-500 w-4 h-4 mt-0.5">
+                        <span><span class="text-ink">Kontrollü ürün</span> <span class="text-ink-muted">— her çıkışta açıklama zorunlu, hareketleri Kontrollü Ürün Defteri'nde listelenir.</span></span>
+                    </label>
+                    <label class="flex items-start gap-2 text-[13px]">
+                        <input type="checkbox" wire:model="tracks_serials" class="accent-brand-500 w-4 h-4 mt-0.5">
+                        <span><span class="text-ink">Seri numarası takibi</span> <span class="text-ink-muted">— her birim ayrı seri numarasıyla girilir ve çıkar (ör. implant). Stok varken değiştirilemez.</span></span>
+                    </label>
+                    @error('tracks_serials') <span class="text-status-critical text-[12px] block">{{ $message }}</span> @enderror
+                </div>
             </div>
 
             <div class="flex items-center gap-3">

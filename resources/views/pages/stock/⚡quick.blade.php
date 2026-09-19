@@ -111,6 +111,18 @@ new #[Layout('layouts::authenticated')] class extends Component
             $this->expiry_date = (string) $lot->expiry_date?->toDateString();
             $this->unit_cost = (string) $lot->unit_cost;
         }
+
+        // GS1 DataMatrix (ÜTS): kutudaki lot ve SKT forma dolar; çıkışta seçili
+        // depoda aynı numaralı lot varsa o lot seçilir.
+        if ($gs1 = $result['gs1'] ?? null) {
+            $this->lot_no = (string) $gs1['lot_no'];
+            $this->expiry_date = (string) $gs1['expiry_date'];
+
+            if ($this->mode === 'out' && filled($gs1['lot_no'])) {
+                $matching = StockLot::where('product_id', $product->id)->where('warehouse_id', $this->warehouse_id)->where('lot_no', $gs1['lot_no'])->where('quantity', '>', 0)->first();
+                $this->lot_id = (string) ($matching?->id ?? '');
+            }
+        }
     }
 
     public function submit(StockMovementService $stock, UnitConverter $units): void
