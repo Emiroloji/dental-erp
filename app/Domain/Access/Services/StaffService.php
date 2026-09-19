@@ -4,10 +4,12 @@ namespace App\Domain\Access\Services;
 
 use App\Domain\Access\Exceptions\StaffRuleException;
 use App\Domain\Access\Models\Permission;
+use App\Domain\Access\Support\Module;
 use App\Domain\Access\Support\PermissionScope;
 use App\Domain\Organization\Models\Organization;
 use App\Domain\Platform\Services\PlanLimitService;
 use App\Models\User;
+use App\Support\Notifications\WorkflowNotification;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
@@ -101,5 +103,58 @@ class StaffService
 
             return $staff;
         });
+    }
+
+    /**
+     * Ana Klinik Sahibi devri (proje.md Bölüm 4). Sahiplik, aynı organizasyonun
+     * aktif bir personeline geçer; mevcut sahip şifresiyle onaylar. Eski sahip
+     * erişimini kaybetmez: tüm modüllerde tam yetkili, "Tüm şubeler" kapsamlı
+     * personel olur — yeni sahip bu yetkileri dilediği gibi daraltabilir.
+     * Organizasyonda her an bir aktif Admin kalır (kurallar.md Bölüm 4).
+     */
+    public function transferOwnership(User $owner, User $newOwner, string $password): User
+    {
+        if (! $owner->isAdmin()) {
+            throw new StaffRuleException('Sahipliği yalnızca Ana Klinik Sahibi devredebilir.');
+        }
+
+        if (! Hash::check($password, $owner->password)) {
+            throw new StaffRuleException('Şifre doğrulanamadı.');
+        }
+
+        if ($newOwner->is($owner) || $newOwner->organization_id !== $owner->organization_id
+            || $newOwner->role !== User::ROLE_STAFF || ! $newOwner->isActive()) {
+            throw new StaffRuleException('Sahiplik yalnızca organizasyonun aktif bir personeline devredilebilir.');
+        }
+
+        DB::transaction(function () use ($owner, $newOwner) {
+            // Admin tüm yetkileri rolüyle alır; eski kutucuklar anlamsızlaşır.
+            // Tek tek silinir ki yetki değişikliği denetim kaydına düşsün (kurallar.md Bölüm 4).
+            $newOwner->permissions()->get()->each->delete();
+            $newOwner->update(['role' => User::ROLE_ADMIN]);
+
+            $owner->update(['role' => User::ROLE_STAFF]);
+
+            foreach (Module::cases() as $module) {
+                Permission::create([
+                    'user_id' => $owner->id,
+                    'module' => $module->value,
+                    'can_read' => true,
+                    'can_write' => true,
+                    'can_delete' => true,
+                    'scope' => PermissionScope::All->value,
+                ]);
+            }
+        });
+
+        $newOwner->notify(new WorkflowNotification(
+            'ownership',
+            'Ana Klinik Sahibi oldunuz',
+            "{$owner->name} organizasyonun sahipliğini size devretti. Artık tüm modüllerde tam yetkilisiniz.",
+            route('staff.index'),
+            WorkflowNotification::LEVEL_GOOD,
+        ));
+
+        return $newOwner->refresh();
     }
 }

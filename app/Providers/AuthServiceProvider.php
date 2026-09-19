@@ -58,6 +58,10 @@ class AuthServiceProvider extends ServiceProvider
         Gate::define('branches.manage', fn (User $user) => false);
         Gate::define('warehouses.manage', fn (User $user) => false);
 
+        // Sahiplik devri yalnızca Ana Klinik Sahibi'nin (Admin) işidir; ".update"
+        // soneki sayesinde salt-okunur organizasyonda kapalıdır.
+        Gate::define('ownership.update', fn (User $user) => false);
+
         // Paket ve kullanım (Faz 3): abonelik Ana Klinik Sahibi'nin (Admin) konusudur.
         Gate::define('subscription.view', fn (User $user) => false);
 

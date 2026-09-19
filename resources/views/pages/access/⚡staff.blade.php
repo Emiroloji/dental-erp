@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 
 new #[Layout('layouts::authenticated')] class extends Component
@@ -30,6 +31,12 @@ new #[Layout('layouts::authenticated')] class extends Component
     public array $selectedBranches = [];
 
     public array $modules = [];
+
+    /** Sahiplik devri penceresi: devralacak personel ve sahibin şifresi. */
+    #[Locked]
+    public ?int $transferTargetId = null;
+
+    public string $transferPassword = '';
 
     public function mount(): void
     {
@@ -127,6 +134,39 @@ new #[Layout('layouts::authenticated')] class extends Component
         session()->flash('status', 'Personel aktifleştirildi.');
     }
 
+    public function askTransfer(int $userId): void
+    {
+        Gate::authorize('ownership.update');
+
+        $this->transferTargetId = $this->findStaff($userId)->id;
+        $this->transferPassword = '';
+        $this->resetValidation();
+    }
+
+    public function closeTransfer(): void
+    {
+        $this->reset(['transferTargetId', 'transferPassword']);
+        $this->resetValidation();
+    }
+
+    public function transferOwnership(StaffService $staffService): void
+    {
+        Gate::authorize('ownership.update');
+
+        $this->validate(['transferPassword' => ['required', 'string']], ['transferPassword.required' => 'Onay için şifrenizi girin.']);
+
+        try {
+            $newOwner = $staffService->transferOwnership(auth()->user(), $this->findStaff((int) $this->transferTargetId), $this->transferPassword);
+        } catch (StaffRuleException $e) {
+            $this->addError('transferPassword', $e->getMessage());
+
+            return;
+        }
+
+        session()->flash('status', "Sahiplik {$newOwner->name} kullanıcısına devredildi. Artık tam yetkili personelsiniz.");
+        $this->redirect(route('dashboard'));
+    }
+
     /**
      * Yalnızca bu organizasyonun ve yöneticinin kapsamındaki şubelerin
      * personeli; kapsam dışı bir kayıt 404 döner.
@@ -206,6 +246,7 @@ new #[Layout('layouts::authenticated')] class extends Component
                 ->get(),
             'moduleList' => Module::cases(),
             'scopeList' => PermissionScope::cases(),
+            'transferTarget' => $this->transferTargetId ? $this->staffQuery()->find($this->transferTargetId) : null,
         ];
     }
 };
@@ -274,6 +315,13 @@ new #[Layout('layouts::authenticated')] class extends Component
                                 @else
                                     <button wire:click="activate({{ $member->id }})" class="text-[13px] text-brand-600 hover:underline">
                                         Aktifleştir
+                                    </button>
+                                @endif
+                            @endcan
+                            @can('ownership.update')
+                                @if ($member->status === 'active')
+                                    <button wire:click="askTransfer({{ $member->id }})" class="ml-3 text-[13px] text-ink-muted hover:text-ink hover:underline">
+                                        Sahipliği Devret
                                     </button>
                                 @endif
                             @endcan
@@ -384,5 +432,29 @@ new #[Layout('layouts::authenticated')] class extends Component
                 </button>
             </div>
         </form>
+    </x-modal>
+
+    <x-modal :show="$transferTarget !== null" title="Ana Klinik Sahipliğini Devret" on-close="closeTransfer">
+        @if ($transferTarget)
+            <form wire:submit="transferOwnership" class="space-y-4">
+                <p class="text-[14px] text-ink">
+                    <span class="font-medium">{{ $transferTarget->name }}</span> organizasyonun yeni sahibi (Admin) olacak.
+                </p>
+                <ul class="text-[13px] text-ink-muted list-disc pl-5 space-y-1">
+                    <li>Yeni sahip tüm modüllerde sınırsız yetkili olur; paket, şube ve personel yönetimi ona geçer.</li>
+                    <li>Siz tüm modüllerde tam yetkili, "Tüm şubeler" kapsamlı personel olursunuz. Yeni sahip yetkilerinizi değiştirebilir.</li>
+                    <li>Bu işlem denetim kaydına işlenir ve geri almak için yeni sahibin sahipliği size devretmesi gerekir.</li>
+                </ul>
+                <div>
+                    <label class="block text-[13px] text-ink-muted mb-1.5">Onay için şifreniz</label>
+                    <input type="password" wire:model="transferPassword" autofocus class="w-full sm:w-72 border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+                    @error('transferPassword') <span class="text-status-critical text-[12px] block mt-1">{{ $message }}</span> @enderror
+                </div>
+                <div class="flex items-center gap-3 pt-2">
+                    <button type="submit" class="bg-status-critical text-white rounded-md px-4 py-2.5 text-[14px] font-medium hover:opacity-90 transition-opacity">Sahipliği Devret</button>
+                    <button type="button" wire:click="closeTransfer" class="text-[14px] text-ink-muted hover:text-ink">Vazgeç</button>
+                </div>
+            </form>
+        @endif
     </x-modal>
 </div>
