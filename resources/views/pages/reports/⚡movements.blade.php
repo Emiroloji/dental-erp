@@ -1,8 +1,8 @@
 <?php
 
 use App\Domain\Reporting\Services\MovementReportService;
-use App\Domain\Reporting\Services\ReportDownloader;
 use App\Domain\Stock\Support\StockMovementType;
+use App\Domain\Reporting\Support\ReportType;
 use App\Http\Livewire\Concerns\WithReportFilters;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -24,14 +24,9 @@ new #[Layout('layouts::authenticated')] class extends Component
         return in_array($this->type, array_column(StockMovementType::cases(), 'value'), true) ? $this->type : null;
     }
 
-    public function exportExcel(MovementReportService $report, ReportDownloader $downloader)
+    public function export(string $format): void
     {
-        return $downloader->excel('Stok Hareket Raporu', 'stok-hareket-raporu', $report->table(auth()->user()->organization_id, $this->reportFilters(), $this->accessibleBranchIds(), $this->movementType()));
-    }
-
-    public function exportPdf(MovementReportService $report, ReportDownloader $downloader)
-    {
-        return $downloader->pdf('Stok Hareket Raporu', 'stok-hareket-raporu', $report->table(auth()->user()->organization_id, $this->reportFilters(), $this->accessibleBranchIds(), $this->movementType()), $this->reportFilters());
+        $this->queueReportExport(ReportType::Movements, $format, ['type' => $this->movementType()]);
     }
 
     public function with(MovementReportService $report): array
@@ -56,8 +51,8 @@ new #[Layout('layouts::authenticated')] class extends Component
             <p class="text-[14px] text-ink-muted mt-1">Seçilen dönemdeki tüm stok hareketleri: giriş, çıkış, transfer, sayım, iade ve iptaller.</p>
         </div>
         <div class="flex gap-2 shrink-0">
-            <button wire:click="exportExcel" class="text-[13px] border border-line rounded-md px-3 py-2 hover:bg-canvas transition-colors">Excel'e Aktar</button>
-            <button wire:click="exportPdf" class="text-[13px] border border-line rounded-md px-3 py-2 hover:bg-canvas transition-colors">PDF'e Aktar</button>
+            <button wire:click="export('xlsx')" class="text-[13px] border border-line rounded-md px-3 py-2 hover:bg-canvas transition-colors">Excel'e Aktar</button>
+            <button wire:click="export('pdf')" class="text-[13px] border border-line rounded-md px-3 py-2 hover:bg-canvas transition-colors">PDF'e Aktar</button>
         </div>
     </div>
 

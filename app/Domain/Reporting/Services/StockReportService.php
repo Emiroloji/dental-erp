@@ -10,9 +10,8 @@ use App\Domain\Stock\Support\StockLevel;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
+use Maatwebsite\Excel\Excel as ExcelFormat;
 use Maatwebsite\Excel\Facades\Excel;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * fazlar-adimlar.md Aşama 7: "Basit rapor ekranı" — ürün, stok ve maliyet
@@ -81,27 +80,33 @@ class StockReportService
     }
 
     /**
+     * Dışa aktarım içeriği (kuyruktaki ReportExportService kullanır): filtrelenmiş
+     * ürünlerin tamamı, sayfalama olmadan.
+     *
      * @param  array{category_id?: int|string|null, supplier_id?: int|string|null, warehouse_id?: int|string|null, search?: ?string}  $filters
      * @param  array<int, int>|null  $branchIds
      */
-    public function exportExcel(array $filters, ?array $branchIds = null): BinaryFileResponse
+    public function excelContent(array $filters, ?array $branchIds = null): string
     {
-        $rows = $this->rows($this->query($filters)->get(), $filters['warehouse_id'] ?? null, $branchIds);
-
-        return Excel::download(new StockReportExport($rows), 'stok-raporu.xlsx');
+        return Excel::raw(new StockReportExport($this->exportRows($filters, $branchIds)), ExcelFormat::XLSX);
     }
 
     /**
      * @param  array{category_id?: int|string|null, supplier_id?: int|string|null, warehouse_id?: int|string|null, search?: ?string}  $filters
      * @param  array<int, int>|null  $branchIds
      */
-    public function exportPdf(array $filters, ?array $branchIds = null): StreamedResponse
+    public function pdfContent(array $filters, ?array $branchIds = null): string
     {
-        $rows = $this->rows($this->query($filters)->get(), $filters['warehouse_id'] ?? null, $branchIds);
+        return Pdf::loadView('reports.stock-pdf', ['rows' => $this->exportRows($filters, $branchIds)])->setPaper('a4', 'landscape')->output();
+    }
 
-        $pdf = Pdf::loadView('reports.stock-pdf', ['rows' => $rows])->setPaper('a4', 'landscape');
-
-        // Livewire düz Response'u indirme olarak gönderemez (bkz. ReportDownloader::pdf).
-        return ReportDownloader::streamPdf($pdf->output(), 'stok-raporu.pdf');
+    /**
+     * @param  array{category_id?: int|string|null, supplier_id?: int|string|null, warehouse_id?: int|string|null, search?: ?string}  $filters
+     * @param  array<int, int>|null  $branchIds
+     * @return Collection<int, array{product: Product, quantity: float, value: float, level: StockLevel}>
+     */
+    private function exportRows(array $filters, ?array $branchIds): Collection
+    {
+        return $this->rows($this->query($filters)->get(), $filters['warehouse_id'] ?? null, $branchIds);
     }
 }

@@ -1,7 +1,7 @@
 <?php
 
-use App\Domain\Reporting\Services\ReportDownloader;
 use App\Domain\Reporting\Services\UsageReportService;
+use App\Domain\Reporting\Support\ReportType;
 use App\Http\Livewire\Concerns\WithReportFilters;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -11,14 +11,9 @@ new #[Layout('layouts::authenticated')] class extends Component
 {
     use WithPagination, WithReportFilters;
 
-    public function exportExcel(UsageReportService $report, ReportDownloader $downloader)
+    public function export(string $format): void
     {
-        return $downloader->excel('Kullanım ve Maliyet Raporu', 'kullanim-maliyet-raporu', $report->table(auth()->user()->organization_id, $this->reportFilters(), $this->accessibleBranchIds()));
-    }
-
-    public function exportPdf(UsageReportService $report, ReportDownloader $downloader)
-    {
-        return $downloader->pdf('Kullanım ve Maliyet Raporu', 'kullanim-maliyet-raporu', $report->table(auth()->user()->organization_id, $this->reportFilters(), $this->accessibleBranchIds()), $this->reportFilters());
+        $this->queueReportExport(ReportType::Usage, $format);
     }
 
     public function with(UsageReportService $report): array
@@ -45,8 +40,8 @@ new #[Layout('layouts::authenticated')] class extends Component
             <p class="text-[14px] text-ink-muted mt-1">Ürün bazında dönem içi giriş, kullanım ve maliyeti; hasar, SKT ve iade gibi diğer çıkışlar kullanımdan ayrı tutulur.</p>
         </div>
         <div class="flex gap-2 shrink-0">
-            <button wire:click="exportExcel" class="text-[13px] border border-line rounded-md px-3 py-2 hover:bg-canvas transition-colors">Excel'e Aktar</button>
-            <button wire:click="exportPdf" class="text-[13px] border border-line rounded-md px-3 py-2 hover:bg-canvas transition-colors">PDF'e Aktar</button>
+            <button wire:click="export('xlsx')" class="text-[13px] border border-line rounded-md px-3 py-2 hover:bg-canvas transition-colors">Excel'e Aktar</button>
+            <button wire:click="export('pdf')" class="text-[13px] border border-line rounded-md px-3 py-2 hover:bg-canvas transition-colors">PDF'e Aktar</button>
         </div>
     </div>
 

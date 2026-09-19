@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Purchasing\PurchaseReceiptDocumentController;
+use App\Http\Controllers\Reporting\ReportExportDownloadController;
 use App\Http\Controllers\Stock\LabelController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
@@ -148,6 +149,11 @@ Route::middleware('tenant')->group(function () {
     Route::livewire('/raporlar/satin-alma', 'pages::reports.purchasing')
         ->middleware(['auth', 'can:reports.viewAny'])
         ->name('reports.purchasing');
+
+    Route::get('/raporlar/indir/{export}', ReportExportDownloadController::class)
+        ->whereNumber('export')
+        ->middleware(['auth', 'can:reports.viewAny'])
+        ->name('reports.exports.download');
 
     Route::livewire('/depo-stoklari', 'pages::reports.warehouse-stock')
         ->middleware(['auth', 'can:warehouse_stock.viewAny'])

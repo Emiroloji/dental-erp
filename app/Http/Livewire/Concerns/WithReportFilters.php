@@ -7,8 +7,11 @@ use App\Domain\Catalog\Models\Category;
 use App\Domain\Catalog\Models\Supplier;
 use App\Domain\Organization\Models\Branch;
 use App\Domain\Organization\Models\Warehouse;
+use App\Domain\Reporting\Services\ReportExportService;
 use App\Domain\Reporting\Support\ReportFilters;
+use App\Domain\Reporting\Support\ReportType;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Gate;
 
 /**
  * Gelişmiş rapor ekranlarının ortak filtreleri (Aşama 15): tarih aralığı,
@@ -54,14 +57,42 @@ trait WithReportFilters
 
     protected function reportFilters(): ReportFilters
     {
-        return ReportFilters::fromArray([
+        return ReportFilters::fromArray($this->reportFilterInput());
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    protected function reportFilterInput(): array
+    {
+        return [
             'from' => $this->from,
             'to' => $this->to,
             'branch_id' => $this->branchId,
             'warehouse_id' => $this->warehouseId,
             'category_id' => $this->categoryId,
             'supplier_id' => $this->supplierId,
-        ]);
+        ];
+    }
+
+    /**
+     * Excel/PDF dışa aktarımı kuyruğa alınır (mimari.md Bölüm 6); dosya hazır
+     * olunca bildirim gelir ve "Dışa Aktarımlar" listesinde görünür.
+     *
+     * @param  array<string, mixed>  $extra  Rapora özel parametreler (arama, hareket tipi)
+     */
+    protected function queueReportExport(ReportType $type, string $format, array $extra = []): void
+    {
+        Gate::authorize('reports.viewAny');
+
+        if (! in_array($format, ReportExportService::FORMATS, true)) {
+            return;
+        }
+
+        app(ReportExportService::class)->request(auth()->user(), $type, $format, ['filters' => $this->reportFilterInput(), ...$extra]);
+
+        $this->dispatch('report-export-queued');
+        session()->flash('export-status', 'Rapor hazırlanıyor. Hazır olduğunda bildirim alacaksınız; "Dışa Aktarımlar" listesinden indirebilirsiniz.');
     }
 
     /**

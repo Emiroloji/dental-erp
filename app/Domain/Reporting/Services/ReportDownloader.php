@@ -6,6 +6,7 @@ use App\Domain\Reporting\Exports\TableExport;
 use App\Domain\Reporting\Support\ReportFilters;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Collection;
+use Maatwebsite\Excel\Excel as ExcelFormat;
 use Maatwebsite\Excel\Facades\Excel;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -49,6 +50,36 @@ class ReportDownloader
         ])->setPaper('a4', 'landscape');
 
         return self::streamPdf($pdf->output(), "{$fileName}.pdf");
+    }
+
+    /**
+     * Kuyruktaki dışa aktarım için dosya içeriği (ReportExportService).
+     *
+     * @param  array{headings: array<int, string>, rows: Collection<int, array<int, mixed>>, totals?: array<int, mixed>}  $table
+     */
+    public function excelContent(string $title, array $table): string
+    {
+        $rows = $table['rows'];
+
+        if (! empty($table['totals'])) {
+            $rows = $rows->push($table['totals']);
+        }
+
+        return Excel::raw(new TableExport($title, $table['headings'], $rows), ExcelFormat::XLSX);
+    }
+
+    /**
+     * @param  array{headings: array<int, string>, rows: Collection<int, array<int, mixed>>, totals?: array<int, mixed>}  $table
+     */
+    public function pdfContent(string $title, array $table, ReportFilters $filters): string
+    {
+        return Pdf::loadView('reports.table-pdf', [
+            'title' => $title,
+            'filters' => $filters->describe(),
+            'headings' => $table['headings'],
+            'rows' => $table['rows'],
+            'totals' => $table['totals'] ?? [],
+        ])->setPaper('a4', 'landscape')->output();
     }
 
     public static function streamPdf(string $content, string $fileName): StreamedResponse

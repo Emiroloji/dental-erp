@@ -16,6 +16,7 @@ use App\Domain\Reporting\Services\StockReportService;
 use App\Domain\Stock\Models\StockLot;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 use Maatwebsite\Excel\Facades\Excel;
 use Tests\TestCase;
@@ -132,6 +133,7 @@ class StockReportScreenTest extends TestCase
 
     public function test_excel_export_downloads_the_filtered_rows(): void
     {
+        Storage::fake('local');
         Excel::fake();
 
         $this->productWithStock('Kompozit A', 100, $this->category->id);
@@ -141,24 +143,21 @@ class StockReportScreenTest extends TestCase
 
         Livewire::test('pages::reports.stock')
             ->set('categoryId', (string) $this->category->id)
-            ->call('exportExcel');
+            ->call('export', 'xlsx');
 
-        Excel::assertDownloaded('stok-raporu.xlsx', function (StockReportExport $export) {
+        Excel::assertExportedInRaw(StockReportExport::class, function (StockReportExport $export) {
             return $export->collection()->count() === 1
                 && $export->collection()->first()['product']->name === 'Kompozit A';
         });
     }
 
-    public function test_pdf_export_returns_a_pdf_response_for_the_filtered_rows(): void
+    public function test_pdf_export_content_is_a_pdf_for_the_filtered_rows(): void
     {
         $this->productWithStock('Kompozit A', 100);
 
         $this->actingAs($this->admin);
 
-        $response = app(StockReportService::class)->exportPdf(['search' => 'Kompozit']);
-
-        $this->assertSame(200, $response->getStatusCode());
-        $this->assertSame('application/pdf', $response->headers->get('Content-Type'));
+        $this->assertStringStartsWith('%PDF', app(StockReportService::class)->pdfContent(['search' => 'Kompozit']));
     }
 
     public function test_stock_report_screen_shows_staff_with_read_only_stock_permission(): void

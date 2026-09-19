@@ -12,10 +12,13 @@ use App\Domain\Organization\Models\Organization;
 use App\Domain\Organization\Models\Warehouse;
 use App\Domain\Purchasing\Services\PurchaseOrderService;
 use App\Domain\Reporting\Exports\TableExport;
+use App\Domain\Reporting\Models\ReportExport;
+use App\Domain\Reporting\Support\ReportExportStatus;
 use App\Domain\Stock\Services\StockMovementService;
 use App\Domain\Stock\Support\StockOutReason;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 use Maatwebsite\Excel\Facades\Excel;
 use Tests\TestCase;
@@ -130,21 +133,30 @@ class AdvancedReportScreenTest extends TestCase
 
     public function test_reports_export_to_excel_and_pdf(): void
     {
+        // Dışa aktarım kuyruğa alınır (testte kuyruk senkron çalışır) ve dosya depolanır.
+        Storage::fake('local');
         Excel::fake();
 
-        Livewire::test('pages::reports.movements')->call('exportExcel');
-        Excel::assertDownloaded('stok-hareket-raporu.xlsx', fn (TableExport $export) => $export->collection()->count() === 5 && $export->headings()[0] === 'Tarih');
+        Livewire::test('pages::reports.movements')->call('export', 'xlsx')->assertSee('Rapor hazırlanıyor');
+        Excel::assertExportedInRaw(TableExport::class, fn (TableExport $export) => $export->collection()->count() === 5 && $export->headings()[0] === 'Tarih');
 
-        Livewire::test('pages::reports.usage')->set('categoryId', (string) $this->category->id)->call('exportExcel');
-        Excel::assertDownloaded('kullanim-maliyet-raporu.xlsx', fn (TableExport $export) => $export->collection()->first()[0] === 'Kompozit A' && $export->collection()->last()[0] === 'Toplam');
+        Livewire::test('pages::reports.usage')->set('categoryId', (string) $this->category->id)->call('export', 'xlsx');
+        Excel::assertExportedInRaw(TableExport::class, fn (TableExport $export) => $export->collection()->first()[0] === 'Kompozit A' && $export->collection()->last()[0] === 'Toplam');
 
-        Livewire::test('pages::reports.purchasing')->call('exportExcel');
-        Excel::assertDownloaded('satin-alma-iade-raporu.xlsx', fn (TableExport $export) => $export->collection()->first()[0] === 'Dental Tedarik');
+        Livewire::test('pages::reports.purchasing')->call('export', 'xlsx');
+        Excel::assertExportedInRaw(TableExport::class, fn (TableExport $export) => $export->collection()->first()[0] === 'Dental Tedarik');
 
-        Livewire::test('pages::reports.usage')->call('exportPdf')->assertFileDownloaded('kullanim-maliyet-raporu.pdf', contentType: 'application/pdf');
+        Livewire::test('pages::reports.usage')->call('export', 'pdf');
+        Livewire::test('pages::reports.stock')->call('export', 'pdf');
 
-        // Aşama 7'deki stok raporu PDF butonu da ekrandan indirilebilir (önceden düz Response dönüyordu).
-        Livewire::test('pages::reports.stock')->call('exportPdf')->assertFileDownloaded('stok-raporu.pdf', contentType: 'application/pdf');
+        $exports = ReportExport::orderBy('id')->get();
+        $this->assertCount(5, $exports);
+        $this->assertTrue($exports->every(fn (ReportExport $export) => $export->status === ReportExportStatus::Completed));
+        $this->assertSame(['stok-hareket-raporu', 'kullanim-maliyet-raporu', 'satin-alma-iade-raporu', 'kullanim-maliyet-raporu', 'stok-raporu'], $exports->map(fn ($export) => $export->report->fileBaseName())->all());
+
+        foreach ($exports->where('format', 'pdf') as $pdf) {
+            $this->assertStringStartsWith('%PDF', Storage::disk('local')->get($pdf->file_path));
+        }
     }
 
     public function test_branch_scoped_viewer_only_sees_own_branch_and_a_crafted_branch_filter_returns_nothing(): void

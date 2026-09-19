@@ -15,3 +15,9 @@
         </a>
     @endforeach
 </nav>
+
+@if (session('export-status'))
+    <div class="mb-4 rounded-md bg-brand-100 border border-brand-500/20 text-brand-600 text-[13px] px-4 py-3">{{ session('export-status') }}</div>
+@endif
+
+<livewire:report-exports />

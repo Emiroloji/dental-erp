@@ -1,6 +1,7 @@
 <?php
 
 use App\Domain\Reporting\Services\StockReportService;
+use App\Domain\Reporting\Support\ReportType;
 use App\Http\Livewire\Concerns\WithReportFilters;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -40,14 +41,9 @@ new #[Layout('layouts::authenticated')] class extends Component
         return $this->reportFilters()->branchScope($this->accessibleBranchIds());
     }
 
-    public function exportExcel(StockReportService $reports)
+    public function export(string $format): void
     {
-        return $reports->exportExcel($this->filters(), $this->branchIds());
-    }
-
-    public function exportPdf(StockReportService $reports)
-    {
-        return $reports->exportPdf($this->filters(), $this->branchIds());
+        $this->queueReportExport(ReportType::Stock, $format, ['search' => $this->search]);
     }
 
     public function with(StockReportService $reports): array
@@ -71,8 +67,8 @@ new #[Layout('layouts::authenticated')] class extends Component
             <p class="text-[14px] text-ink-muted mt-1">Ürün, kategori, tedarikçi, şube ve depo bazlı güncel stok özeti.</p>
         </div>
         <div class="flex gap-2 shrink-0">
-            <button wire:click="exportExcel" class="text-[13px] border border-line rounded-md px-3 py-2 hover:bg-canvas transition-colors">Excel'e Aktar</button>
-            <button wire:click="exportPdf" class="text-[13px] border border-line rounded-md px-3 py-2 hover:bg-canvas transition-colors">PDF'e Aktar</button>
+            <button wire:click="export('xlsx')" class="text-[13px] border border-line rounded-md px-3 py-2 hover:bg-canvas transition-colors">Excel'e Aktar</button>
+            <button wire:click="export('pdf')" class="text-[13px] border border-line rounded-md px-3 py-2 hover:bg-canvas transition-colors">PDF'e Aktar</button>
         </div>
     </div>
 

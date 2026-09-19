@@ -1,5 +1,6 @@
 <?php
 
+use App\Domain\Reporting\Models\ReportExport;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
@@ -11,3 +12,6 @@ Artisan::command('inspire', function () {
 // Aşama 6: kritik stok / SKT taraması. Saatlik yeterlidir — uyarı sistemi
 // gerçek zamanlı değil, "son 1 saat içinde fark edilir" hedefiyle tasarlandı.
 Schedule::command('stock:scan-levels')->hourly();
+
+// Aşama 23: kuyrukta üretilen rapor dosyaları 7 gün saklanır (ReportExport::RETENTION_DAYS).
+Schedule::command('model:prune', ['--model' => [ReportExport::class]])->daily();

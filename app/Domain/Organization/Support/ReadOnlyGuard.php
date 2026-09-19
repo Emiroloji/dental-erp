@@ -3,6 +3,7 @@
 namespace App\Domain\Organization\Support;
 
 use App\Domain\Organization\Exceptions\ReadOnlyOrganizationException;
+use App\Domain\Reporting\Models\ReportExport;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Notifications\DatabaseNotification;
@@ -14,8 +15,10 @@ use Illuminate\Notifications\DatabaseNotification;
  * (stok hareketi, sayım, sipariş, personel...). Ekranlar ayrıca yazma
  * butonlarını gizler (Gate), bu sınıf son savunma hattıdır.
  *
- * İstisnalar: bildirimi okundu işaretlemek ve kullanıcının kendi oturum/şifre
- * alanları (giriş yapabilmek, geçici şifreyi değiştirebilmek için).
+ * İstisnalar: bildirimi okundu işaretlemek, kullanıcının kendi oturum/şifre
+ * alanları (giriş yapabilmek, geçici şifreyi değiştirebilmek için) ve rapor
+ * dışa aktarım kaydı (rapor almak bir okuma işlemidir; salt-okunur modda da
+ * raporlar görülebilir ve indirilebilir).
  */
 class ReadOnlyGuard
 {
@@ -29,7 +32,7 @@ class ReadOnlyGuard
             return;
         }
 
-        if ($model instanceof DatabaseNotification) {
+        if ($model instanceof DatabaseNotification || $model instanceof ReportExport) {
             return;
         }
 
