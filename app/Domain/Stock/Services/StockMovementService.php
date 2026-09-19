@@ -8,6 +8,7 @@ use App\Domain\Organization\Models\Warehouse;
 use App\Domain\Organization\Support\ExpiredLotPolicy;
 use App\Domain\Reporting\Services\DashboardMetricsService;
 use App\Domain\Stock\Exceptions\ColdChainException;
+use App\Domain\Stock\Exceptions\ControlledProductException;
 use App\Domain\Stock\Exceptions\ExpiredLotBlockedException;
 use App\Domain\Stock\Exceptions\InactiveLocationException;
 use App\Domain\Stock\Exceptions\InsufficientStockException;
@@ -104,6 +105,7 @@ class StockMovementService
     }
 
     /**
+     * @param  array{note?: ?string}  $tracking  İlaç/medikal takip bilgisi (Aşama 26): kontrollü üründe çıkış açıklaması
      * @return Collection<int, StockMovement>
      */
     public function out(
@@ -114,9 +116,21 @@ class StockMovementService
         ?User $actor = null,
         ?string $reason = null,
         ?StockOutReason $reasonCode = null,
+        array $tracking = [],
     ): Collection {
         if ($quantity <= 0) {
             throw new InvalidArgumentException('Çıkış miktarı sıfırdan büyük olmalıdır.');
+        }
+
+        // Kontrollü ürün (Aşama 26): her çıkış bir açıklamayla kayda geçer.
+        if ($product->is_controlled && blank(trim((string) ($tracking['note'] ?? '')))) {
+            throw new ControlledProductException("{$product->name} kontrollü bir ürün; çıkışta açıklama zorunludur.");
+        }
+
+        // Açıklama her zaman hareket kaydına geçer (çağıran nedene eklememişse eklenir).
+        $note = trim((string) ($tracking['note'] ?? ''));
+        if ($note !== '' && ! str_contains((string) $reason, $note)) {
+            $reason = filled($reason) ? "{$reason} — {$note}" : $note;
         }
 
         $this->ensureOperational($warehouse);

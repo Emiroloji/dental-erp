@@ -5,6 +5,7 @@
         'reports.usage' => 'Kullanım ve Maliyet',
         'reports.purchasing' => 'Satın Alma ve İade',
         'reports.forecast' => 'Tüketim Tahmini',
+        'reports.controlled' => 'Kontrollü Ürün Defteri',
         'reports.assistant' => 'Rapor Asistanı',
     ];
 @endphp

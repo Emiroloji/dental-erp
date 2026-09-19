@@ -3,6 +3,7 @@
 use App\Domain\Access\Support\Module;
 use App\Domain\Catalog\Models\Product;
 use App\Domain\Organization\Models\Warehouse;
+use App\Domain\Stock\Exceptions\ControlledProductException;
 use App\Domain\Stock\Exceptions\InactiveLocationException;
 use App\Domain\Stock\Exceptions\InsufficientStockException;
 use App\Domain\Stock\Models\StockLot;
@@ -123,13 +124,17 @@ new #[Layout('layouts::authenticated')] class extends Component
         }
 
         try {
-            $movements = $service->out($product, $warehouse, $units->toBaseUnit($product, (float) $validated['quantity'], $unit), $lot, auth()->user(), $reason, $reasonCode);
+            $movements = $service->out($product, $warehouse, $units->toBaseUnit($product, (float) $validated['quantity'], $unit), $lot, auth()->user(), $reason, $reasonCode, tracking: ['note' => $validated['reasonNote']]);
         } catch (InsufficientStockException $e) {
             $this->addError('quantity', $e->getMessage());
 
             return;
         } catch (InactiveLocationException $e) {
             $this->addError('warehouse_id', $e->getMessage());
+
+            return;
+        } catch (ControlledProductException $e) {
+            $this->addError('reasonNote', $e->getMessage());
 
             return;
         }
@@ -312,8 +317,9 @@ new #[Layout('layouts::authenticated')] class extends Component
                     @error('reasonCategory') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
                 </div>
                 <div>
-                    <label class="block text-[13px] text-ink-muted mb-1.5">Açıklama</label>
+                    <label class="block text-[13px] text-ink-muted mb-1.5">Açıklama @if ($selectedProduct?->is_controlled)<span class="text-status-critical">(kontrollü ürün — zorunlu)</span>@endif</label>
                     <input type="text" wire:model="reasonNote" class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+                    @error('reasonNote') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
                 </div>
             </div>
 

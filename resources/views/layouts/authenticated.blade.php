@@ -100,7 +100,7 @@
                         </x-nav-link>
                     @endcan
                     @can('reports.viewAny')
-                        <x-nav-link :href="route('reports.stock')" :active="request()->routeIs('reports.stock', 'reports.movements', 'reports.usage', 'reports.purchasing', 'reports.forecast', 'reports.assistant')">
+                        <x-nav-link :href="route('reports.stock')" :active="request()->routeIs('reports.stock', 'reports.movements', 'reports.usage', 'reports.purchasing', 'reports.forecast', 'reports.controlled', 'reports.assistant')">
                             <x-slot:icon><path d="M4 19V9m6 10V5m6 14v-7" stroke-linecap="round" stroke-linejoin="round"/></x-slot:icon>
                             Raporlar
                         </x-nav-link>

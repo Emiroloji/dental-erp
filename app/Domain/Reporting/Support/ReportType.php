@@ -11,6 +11,7 @@ enum ReportType: string
     case Movements = 'movements';
     case Usage = 'usage';
     case Purchasing = 'purchasing';
+    case Controlled = 'controlled';
 
     public function label(): string
     {
@@ -19,6 +20,7 @@ enum ReportType: string
             self::Movements => 'Stok Hareket Raporu',
             self::Usage => 'Kullanım ve Maliyet Raporu',
             self::Purchasing => 'Satın Alma ve İade Raporu',
+            self::Controlled => 'Kontrollü Ürün Defteri',
         };
     }
 
@@ -29,6 +31,7 @@ enum ReportType: string
             self::Movements => 'stok-hareket-raporu',
             self::Usage => 'kullanim-maliyet-raporu',
             self::Purchasing => 'satin-alma-iade-raporu',
+            self::Controlled => 'kontrollu-urun-defteri',
         };
     }
 }

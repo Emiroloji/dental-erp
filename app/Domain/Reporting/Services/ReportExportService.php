@@ -36,11 +36,12 @@ class ReportExportService
         private readonly MovementReportService $movements,
         private readonly UsageReportService $usage,
         private readonly PurchaseReportService $purchasing,
+        private readonly ControlledLedgerService $controlled,
         private readonly ReportDownloader $downloader,
     ) {}
 
     /**
-     * @param  array{filters?: array<string, mixed>, search?: ?string, type?: ?string}  $parameters
+     * @param  array{filters?: array<string, mixed>, search?: ?string, type?: ?string, product?: ?string}  $parameters
      */
     public function request(User $user, ReportType $type, string $format, array $parameters): ReportExport
     {
@@ -161,6 +162,7 @@ class ReportExportService
             ReportType::Movements => $this->movements->table($organizationId, $filters, $accessible, $movementType),
             ReportType::Usage => $this->usage->table($organizationId, $filters, $accessible),
             ReportType::Purchasing => $this->purchasing->table($organizationId, $filters, $accessible),
+            ReportType::Controlled => $this->controlled->table($organizationId, $filters, $accessible, is_numeric($parameters['product'] ?? null) ? (int) $parameters['product'] : null),
         };
 
         return $pdf

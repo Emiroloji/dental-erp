@@ -4,6 +4,7 @@ use App\Domain\Access\Support\Module;
 use App\Domain\Catalog\Models\Product;
 use App\Domain\Organization\Models\Warehouse;
 use App\Domain\Stock\Exceptions\ColdChainException;
+use App\Domain\Stock\Exceptions\ControlledProductException;
 use App\Domain\Stock\Exceptions\InactiveLocationException;
 use App\Domain\Stock\Exceptions\InsufficientStockException;
 use App\Domain\Stock\Exceptions\ScanException;
@@ -45,6 +46,9 @@ new #[Layout('layouts::authenticated')] class extends Component
     public string $quantity = '1';
 
     public string $reasonCategory = 'clinical_use';
+
+    /** Kontrollü ürün çıkışında zorunlu açıklama (Aşama 26). */
+    public string $note = '';
 
     public string $lot_no = '';
 
@@ -153,6 +157,7 @@ new #[Layout('layouts::authenticated')] class extends Component
             'unit_cost' => ['nullable', 'numeric', 'min:0'],
             'temperature' => ['nullable', 'numeric', 'between:-100,100'],
             'temperature_note' => ['nullable', 'string', 'max:500'],
+            'note' => ['nullable', 'string', 'max:255'],
         ], [
             'warehouse_id.in' => 'Yalnızca kendi kapsamındaki işleme açık bir depoda işlem yapabilirsin.',
             'quantity.gt' => 'Miktar sıfırdan büyük olmalı.',
@@ -182,7 +187,7 @@ new #[Layout('layouts::authenticated')] class extends Component
                 }
 
                 $warning = ExpiredUsageWarning::for(
-                    $stock->out($product, $warehouse, $baseQuantity, $lot, auth()->user(), "{$reason->label()} — hızlı çıkış (barkod){$unitNote}", $reason),
+                    $stock->out($product, $warehouse, $baseQuantity, $lot, auth()->user(), "{$reason->label()} — hızlı çıkış (barkod){$unitNote}".(filled($validated['note']) ? ": {$validated['note']}" : ''), $reason, tracking: ['note' => $validated['note']]),
                     $reason,
                 );
             }
@@ -196,6 +201,10 @@ new #[Layout('layouts::authenticated')] class extends Component
             return;
         } catch (ColdChainException $e) {
             $this->addError(blank($validated['temperature']) ? 'temperature' : 'temperature_note', $e->getMessage());
+
+            return;
+        } catch (ControlledProductException $e) {
+            $this->addError('note', $e->getMessage());
 
             return;
         }
@@ -219,7 +228,7 @@ new #[Layout('layouts::authenticated')] class extends Component
 
     public function clearProduct(): void
     {
-        $this->reset(['productId', 'lot_id', 'unit', 'quantity', 'lot_no', 'expiry_date', 'unit_cost', 'temperature', 'temperature_note']);
+        $this->reset(['productId', 'lot_id', 'unit', 'quantity', 'lot_no', 'expiry_date', 'unit_cost', 'temperature', 'temperature_note', 'note']);
         $this->resetValidation();
     }
 
@@ -364,6 +373,13 @@ new #[Layout('layouts::authenticated')] class extends Component
                             @error('lot_id') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
                         </div>
                     </div>
+                    @if ($product->is_controlled)
+                        <div>
+                            <label class="block text-[13px] text-ink-muted mb-1">Açıklama <span class="text-status-critical">(kontrollü ürün — zorunlu)</span></label>
+                            <input type="text" wire:model="note" class="w-full border border-line rounded-md px-3 py-3 text-[15px]">
+                            @error('note') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
+                        </div>
+                    @endif
                 @else
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div>
