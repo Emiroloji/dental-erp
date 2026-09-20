@@ -19,3 +19,7 @@ Schedule::command('model:prune', ['--model' => [ReportExport::class]])->daily();
 // Aşama 28: günlük veritabanı yedeği. Gece trafiğin en düşük olduğu saatte
 // alınır; komut ayrıca saklama süresi dolmuş yedekleri siler.
 Schedule::command('backup:run')->dailyAt('02:30')->withoutOverlapping();
+
+// Aşama 28: kuyruk worker'ı düşerse işler sessizce birikir; saatlik kontrol
+// bekleyen ve başarısız işleri log'a uyarı olarak yazar.
+Schedule::command('queue:health-check')->hourly();
