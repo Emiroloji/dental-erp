@@ -6,9 +6,14 @@ use App\Domain\Assistant\Contracts\QueryInterpreter;
 use App\Domain\Assistant\Interpreters\GeminiQueryInterpreter;
 use App\Domain\Assistant\Interpreters\UnconfiguredQueryInterpreter;
 use App\Domain\Organization\Support\ReadOnlyGuard;
+use App\Domain\Platform\Contracts\ErrorReporter;
+use App\Domain\Platform\Reporting\LogErrorReporter;
+use App\Domain\Platform\Reporting\NullErrorReporter;
+use App\Domain\Platform\Reporting\SentryErrorReporter;
 use App\Domain\Platform\Services\DatabaseBackupService;
 use App\Http\Middleware\EnsurePlatformOwner;
 use App\Http\Middleware\EnsureTenantAccess;
+use Illuminate\Http\Client\Factory as HttpClient;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Number;
 use Illuminate\Support\ServiceProvider;
@@ -31,6 +36,26 @@ class AppServiceProvider extends ServiceProvider
                     ? new GeminiQueryInterpreter($gemini['key'], $gemini['model'], $gemini['endpoint'], (int) $gemini['timeout'])
                     : new UnconfiguredQueryInterpreter,
                 default => new UnconfiguredQueryInterpreter,
+            };
+        });
+
+        // Aşama 28: hata izleme sağlayıcısı arayüz arkasında. SENTRY_DSN
+        // tanımlıysa olaylar Sentry'ye gider, tanımlı değilse log'a yazılır.
+        $this->app->bind(ErrorReporter::class, function () {
+            $sentry = config('errors.sentry');
+
+            return match (config('errors.driver')) {
+                'sentry' => filled($sentry['dsn'] ?? null)
+                    ? new SentryErrorReporter(
+                        $this->app->make(HttpClient::class),
+                        $sentry['dsn'],
+                        (string) $sentry['environment'],
+                        $sentry['release'] ?: null,
+                        (int) $sentry['timeout'],
+                    )
+                    : new LogErrorReporter(config('errors.log_channel')),
+                'none' => new NullErrorReporter,
+                default => new LogErrorReporter(config('errors.log_channel')),
             };
         });
 
