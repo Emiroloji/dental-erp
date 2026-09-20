@@ -23,6 +23,15 @@ Route::livewire('/login', 'pages::access.login')
     ->middleware('guest')
     ->name('login');
 
+// Aşama 28: şifremi unuttum akışı — e-posta ile tek seferlik, süreli bağlantı.
+Route::livewire('/sifremi-unuttum', 'pages::access.forgot-password')
+    ->middleware('guest')
+    ->name('password.request');
+
+Route::livewire('/sifre-sifirla/{token}', 'pages::access.reset-password')
+    ->middleware('guest')
+    ->name('password.reset');
+
 // Geçici şifreyle açılan hesaplar ilk girişte şifresini değiştirir (proje.md Bölüm 2).
 Route::livewire('/sifre-degistir', 'pages::access.change-password')
     ->middleware('auth')

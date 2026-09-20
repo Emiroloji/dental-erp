@@ -4,6 +4,7 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Domain\Access\Models\Permission;
+use App\Domain\Access\Notifications\ResetPasswordNotification;
 use App\Domain\Access\Support\Module;
 use App\Domain\Access\Support\PermissionScope;
 use App\Domain\Audit\Concerns\Auditable;
@@ -45,6 +46,24 @@ class User extends Authenticatable
             'password' => 'hashed',
             'must_change_password' => 'boolean',
         ];
+    }
+
+    /**
+     * Aşama 28: şifre sıfırlama e-postası Türkçe ve kendi şablonumuzla gider.
+     */
+    public function sendPasswordResetNotification(#[\SensitiveParameter] $token): void
+    {
+        $this->notify(new ResetPasswordNotification($token));
+    }
+
+    /**
+     * Şifre sıfırlama bağlantısı yalnızca aktif kullanıcıya ve girişe izin veren
+     * bir organizasyona gönderilir — pasif hesap zaten giriş yapamaz.
+     */
+    public function canResetPassword(): bool
+    {
+        return $this->isActive()
+            && ($this->organization === null || $this->organization->status->allowsLogin());
     }
 
     public function isAdmin(): bool

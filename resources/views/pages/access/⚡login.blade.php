@@ -92,6 +92,10 @@ new class extends Component
             <h1 class="text-[20px] font-medium tracking-tight text-ink">Giriş yap</h1>
             <p class="text-[14px] text-ink-muted mt-1.5 mb-8">Kliniğinizin stok panelini görüntülemek için oturum açın.</p>
 
+            @if (session('status'))
+                <p class="mb-6 rounded-md bg-status-good-bg text-status-good text-[13px] px-3 py-2.5">{{ session('status') }}</p>
+            @endif
+
             <div class="space-y-4">
                 <div>
                     <label class="block text-[13px] text-ink-muted mb-1.5">E-posta</label>
@@ -105,6 +109,7 @@ new class extends Component
                     <input type="password" wire:model="password"
                         class="w-full border border-line rounded-md px-3 py-2.5 text-[14px] bg-surface focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
                     @error('password') <p class="text-status-critical text-[12px] mt-1.5">{{ $message }}</p> @enderror
+                    <a href="{{ route('password.request') }}" class="inline-block mt-2 text-[13px] text-ink-muted hover:text-ink">Şifremi unuttum</a>
                 </div>
             </div>
 
