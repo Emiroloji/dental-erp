@@ -1,0 +1,74 @@
+# Aşama 28: her push ve PR'da testler, kod biçimi ve frontend derlemesi
+# otomatik çalışır. Bu iş akışı kırmızıysa PR birleştirilmez.
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: Testler ve kod biçimi
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Kodu çek
+        uses: actions/checkout@v4
+
+      - name: PHP kur
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, gd, intl, mbstring, pdo_pgsql, pdo_sqlite, redis, zip
+          coverage: none
+
+      - name: Composer bağımlılıkları (önbellek)
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: composer-${{ runner.os }}-php8.4-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-${{ runner.os }}-php8.4-
+
+      - name: composer install
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: .env hazırla
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Kod biçimi (Pint)
+        run: ./vendor/bin/pint --test
+
+      - name: Testler
+        # Testler phpunit.xml'deki bellek içi SQLite ile koşar; ayrı bir
+        # veritabanı servisi gerekmez.
+        run: php artisan test
+
+  build:
+    name: Frontend derlemesi
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Kodu çek
+        uses: actions/checkout@v4
+
+      - name: Node kur
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: npm install
+        run: npm ci
+
+      - name: npm run build
+        run: npm run build
