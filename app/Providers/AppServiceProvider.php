@@ -6,6 +6,7 @@ use App\Domain\Assistant\Contracts\QueryInterpreter;
 use App\Domain\Assistant\Interpreters\GeminiQueryInterpreter;
 use App\Domain\Assistant\Interpreters\UnconfiguredQueryInterpreter;
 use App\Domain\Organization\Support\ReadOnlyGuard;
+use App\Domain\Platform\Services\DatabaseBackupService;
 use App\Http\Middleware\EnsurePlatformOwner;
 use App\Http\Middleware\EnsureTenantAccess;
 use Illuminate\Support\Facades\Event;
@@ -32,6 +33,13 @@ class AppServiceProvider extends ServiceProvider
                 default => new UnconfiguredQueryInterpreter,
             };
         });
+
+        // Aşama 28: yedekleme servisi aktif veritabanı bağlantısını ve
+        // config/backup.php ayarlarını kullanır.
+        $this->app->bind(DatabaseBackupService::class, fn () => new DatabaseBackupService(
+            config('database.connections.'.config('database.default')),
+            config('backup'),
+        ));
     }
 
     /**
