@@ -113,16 +113,17 @@ class ProductManagementTest extends TestCase
             ->set('name', 'Anestezik')
             ->set('base_unit', 'Adet')
             ->set('alert_mode', AlertMode::Days->value)
-            ->set('alert_low_threshold', '50')
-            ->set('alert_critical_threshold', '30')
+            ->set('alert_expiry_low_days', '50')
+            ->set('alert_expiry_critical_days', '30')
             ->call('save')
             ->assertHasNoErrors();
 
         $product = Product::where('name', 'Anestezik')->firstOrFail();
 
         $this->assertSame(AlertMode::Days, $product->alert_mode);
-        $this->assertSame(50.0, $product->alert_low_threshold);
-        $this->assertSame(30.0, $product->alert_critical_threshold);
+        $this->assertSame(50, $product->alert_expiry_low_days);
+        $this->assertSame(30, $product->alert_expiry_critical_days);
+        $this->assertNull($product->alert_quantity_low);
     }
 
     public function test_alert_threshold_requires_the_red_value_to_be_stricter_than_the_yellow_one(): void
@@ -136,10 +137,10 @@ class ProductManagementTest extends TestCase
             ->set('name', 'Eldiven')
             ->set('base_unit', 'Adet')
             ->set('alert_mode', AlertMode::Quantity->value)
-            ->set('alert_low_threshold', '30')
-            ->set('alert_critical_threshold', '60')
+            ->set('alert_quantity_low', '30')
+            ->set('alert_quantity_critical', '60')
             ->call('save')
-            ->assertHasErrors('alert_critical_threshold');
+            ->assertHasErrors('alert_quantity_critical');
 
         $this->assertDatabaseMissing('products', ['name' => 'Eldiven']);
     }
@@ -156,7 +157,70 @@ class ProductManagementTest extends TestCase
             ->set('base_unit', 'Adet')
             ->set('alert_mode', AlertMode::Quantity->value)
             ->call('save')
-            ->assertHasErrors(['alert_low_threshold', 'alert_critical_threshold']);
+            ->assertHasErrors(['alert_quantity_low', 'alert_quantity_critical']);
+    }
+
+    public function test_both_mode_asks_for_the_thresholds_of_both_axes_and_stores_them(): void
+    {
+        $organization = Organization::create(['name' => 'Klinik', 'status' => 'active', 'plan' => 'starter']);
+        $admin = User::factory()->create(['organization_id' => $organization->id, 'role' => User::ROLE_ADMIN, 'status' => 'active']);
+
+        $this->actingAs($admin);
+
+        Livewire::test('pages::catalog.products')
+            ->set('name', 'Lokal Anestezik')
+            ->set('base_unit', 'Adet')
+            ->set('alert_mode', AlertMode::Both->value)
+            ->call('save')
+            ->assertHasErrors(['alert_quantity_low', 'alert_quantity_critical', 'alert_expiry_low_days', 'alert_expiry_critical_days'])
+            ->set('alert_quantity_low', '60')
+            ->set('alert_quantity_critical', '30')
+            ->set('alert_expiry_low_days', '50')
+            ->set('alert_expiry_critical_days', '30')
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $product = Product::where('name', 'Lokal Anestezik')->firstOrFail();
+
+        $this->assertSame(AlertMode::Both, $product->alert_mode);
+        $this->assertSame(60.0, $product->alert_quantity_low);
+        $this->assertSame(30.0, $product->alert_quantity_critical);
+        $this->assertSame(50, $product->alert_expiry_low_days);
+        $this->assertSame(30, $product->alert_expiry_critical_days);
+        $this->assertStringContainsString('SKT', $product->alertRuleLabel());
+        $this->assertStringContainsString('Adet altında sarı', $product->alertRuleLabel());
+    }
+
+    public function test_switching_a_product_back_to_the_default_clears_every_threshold(): void
+    {
+        $organization = Organization::create(['name' => 'Klinik', 'status' => 'active', 'plan' => 'starter']);
+        $admin = User::factory()->create(['organization_id' => $organization->id, 'role' => User::ROLE_ADMIN, 'status' => 'active']);
+        $product = Product::create([
+            'organization_id' => $organization->id,
+            'name' => 'Sütur',
+            'base_unit' => 'Adet',
+            'status' => 'active',
+            'alert_mode' => AlertMode::Both,
+            'alert_quantity_low' => 60,
+            'alert_quantity_critical' => 30,
+            'alert_expiry_low_days' => 50,
+            'alert_expiry_critical_days' => 30,
+        ]);
+
+        $this->actingAs($admin);
+
+        Livewire::test('pages::catalog.products')
+            ->call('edit', $product->id)
+            ->assertSet('alert_mode', AlertMode::Both->value)
+            ->set('alert_mode', '')
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $product->refresh();
+
+        $this->assertNull($product->alert_mode);
+        $this->assertNull($product->alert_quantity_low);
+        $this->assertNull($product->alert_expiry_low_days);
     }
 
     public function test_a_product_saved_without_an_alert_mode_keeps_the_default_thresholds(): void

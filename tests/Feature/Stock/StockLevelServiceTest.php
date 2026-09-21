@@ -153,8 +153,8 @@ class StockLevelServiceTest extends TestCase
         $product = $this->product([
             'min_stock' => 0,
             'alert_mode' => AlertMode::Quantity,
-            'alert_low_threshold' => 60,
-            'alert_critical_threshold' => 30,
+            'alert_quantity_low' => 60,
+            'alert_quantity_critical' => 30,
         ]);
         $this->lot($product, 45);
 
@@ -170,8 +170,8 @@ class StockLevelServiceTest extends TestCase
         $product = $this->product([
             'min_stock' => 0,
             'alert_mode' => AlertMode::Quantity,
-            'alert_low_threshold' => 60,
-            'alert_critical_threshold' => 30,
+            'alert_quantity_low' => 60,
+            'alert_quantity_critical' => 30,
         ]);
         $this->lot($product, 28);
 
@@ -185,8 +185,8 @@ class StockLevelServiceTest extends TestCase
         $product = $this->product([
             'min_stock' => 0,
             'alert_mode' => AlertMode::Quantity,
-            'alert_low_threshold' => 60,
-            'alert_critical_threshold' => 30,
+            'alert_quantity_low' => 60,
+            'alert_quantity_critical' => 30,
         ]);
         $this->lot($product, 120);
 
@@ -200,8 +200,8 @@ class StockLevelServiceTest extends TestCase
         $product = $this->product([
             'min_stock' => 0,
             'alert_mode' => AlertMode::Days,
-            'alert_low_threshold' => 50,
-            'alert_critical_threshold' => 30,
+            'alert_expiry_low_days' => 50,
+            'alert_expiry_critical_days' => 30,
         ]);
         // 40 gün kalmış lot: varsayılan 30 günlük pencerede Normal olurdu.
         $this->lot($product, 500, now()->addDays(40)->toDateString());
@@ -217,8 +217,8 @@ class StockLevelServiceTest extends TestCase
         $product = $this->product([
             'min_stock' => 0,
             'alert_mode' => AlertMode::Days,
-            'alert_low_threshold' => 50,
-            'alert_critical_threshold' => 30,
+            'alert_expiry_low_days' => 50,
+            'alert_expiry_critical_days' => 30,
         ]);
         $this->lot($product, 500, now()->addDays(20)->toDateString());
 
@@ -232,8 +232,8 @@ class StockLevelServiceTest extends TestCase
         $product = $this->product([
             'min_stock' => 0,
             'alert_mode' => AlertMode::Days,
-            'alert_low_threshold' => 50,
-            'alert_critical_threshold' => 30,
+            'alert_expiry_low_days' => 50,
+            'alert_expiry_critical_days' => 30,
         ]);
         // 3 adet: miktar bazlı varsayılanda (5) Kritik olurdu; gün bazlı üründe
         // SKT uzak olduğu için Normal.
@@ -249,8 +249,8 @@ class StockLevelServiceTest extends TestCase
         $product = $this->product([
             'min_stock' => 10,
             'alert_mode' => AlertMode::Days,
-            'alert_low_threshold' => 50,
-            'alert_critical_threshold' => 30,
+            'alert_expiry_low_days' => 50,
+            'alert_expiry_critical_days' => 30,
         ]);
         $this->lot($product, 8, now()->addDays(400)->toDateString());
 
@@ -264,16 +264,16 @@ class StockLevelServiceTest extends TestCase
         $depleted = $this->product([
             'min_stock' => 0,
             'alert_mode' => AlertMode::Days,
-            'alert_low_threshold' => 50,
-            'alert_critical_threshold' => 30,
+            'alert_expiry_low_days' => 50,
+            'alert_expiry_critical_days' => 30,
         ]);
         $this->lot($depleted, 0, now()->addDays(400)->toDateString());
 
         $expired = $this->product([
             'min_stock' => 0,
             'alert_mode' => AlertMode::Days,
-            'alert_low_threshold' => 50,
-            'alert_critical_threshold' => 30,
+            'alert_expiry_low_days' => 50,
+            'alert_expiry_critical_days' => 30,
         ]);
         $this->lot($expired, 500, now()->subDay()->toDateString());
 
@@ -281,5 +281,53 @@ class StockLevelServiceTest extends TestCase
 
         $this->assertSame(StockLevel::Critical, $levels->assess($depleted)['level']);
         $this->assertSame(StockLevel::Critical, $levels->assess($expired)['level']);
+    }
+
+    public function test_both_mode_warns_on_whichever_axis_reaches_its_threshold_first(): void
+    {
+        $attributes = [
+            'min_stock' => 0,
+            'alert_mode' => AlertMode::Both,
+            'alert_quantity_low' => 60,
+            'alert_quantity_critical' => 30,
+            'alert_expiry_low_days' => 50,
+            'alert_expiry_critical_days' => 30,
+        ];
+
+        // Miktar bol, SKT yaklaşıyor: SKT ekseni sarıya düşürür.
+        $byExpiry = $this->product($attributes);
+        $this->lot($byExpiry, 500, now()->addDays(40)->toDateString());
+
+        // SKT uzak, miktar azalmış: miktar ekseni kırmızıya düşürür.
+        $byQuantity = $this->product($attributes);
+        $this->lot($byQuantity, 25, now()->addDays(400)->toDateString());
+
+        // İkisi de rahat: Normal.
+        $healthy = $this->product($attributes);
+        $this->lot($healthy, 500, now()->addDays(400)->toDateString());
+
+        $levels = app(StockLevelService::class);
+
+        $this->assertSame(StockLevel::Low, $levels->assess($byExpiry)['level']);
+        $this->assertSame(StockLevel::Critical, $levels->assess($byQuantity)['level']);
+        $this->assertSame(StockLevel::Normal, $levels->assess($healthy)['level']);
+    }
+
+    public function test_both_mode_takes_the_worse_of_the_two_axes(): void
+    {
+        $product = $this->product([
+            'min_stock' => 0,
+            'alert_mode' => AlertMode::Both,
+            'alert_quantity_low' => 60,
+            'alert_quantity_critical' => 30,
+            'alert_expiry_low_days' => 50,
+            'alert_expiry_critical_days' => 30,
+        ]);
+        // Miktar sarı bölgede (45), SKT kırmızı bölgede (20 gün): sonuç kırmızı.
+        $this->lot($product, 45, now()->addDays(20)->toDateString());
+
+        $result = app(StockLevelService::class)->assess($product);
+
+        $this->assertSame(StockLevel::Critical, $result['level']);
     }
 }

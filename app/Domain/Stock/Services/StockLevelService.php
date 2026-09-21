@@ -4,7 +4,6 @@ namespace App\Domain\Stock\Services;
 
 use App\Domain\Catalog\Models\Product;
 use App\Domain\Stock\Models\StockLot;
-use App\Domain\Stock\Support\AlertMode;
 use App\Domain\Stock\Support\StockLevel;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -14,10 +13,12 @@ use Illuminate\Support\Collection;
  * Dashboard, raporlar ve bildirimler hep buradan geçer — ayrı bir hesaplama
  * yolu açılmaz.
  *
- * Aşama 29.1'den beri eşik ürün bazlıdır: ürün kartında "miktar bazlı" veya
- * "gün bazlı" bir mod ve ona ait sarı/kırmızı eşikler tanımlanabilir. Eşik
- * girilmemiş üründe eski sabit varsayılan (config/stock.php) uygulanır, yani
- * geriye dönük uyumluluk korunur.
+ * Aşama 29.1'den beri eşik ürün bazlıdır ve iki bağımsız eksende ölçülür:
+ * kalan miktar (adet) ve son kullanma tarihine kalan süre (gün). Ürün kartında
+ * seçilen mod bu eksenlerden hangilerinin ürünün kendi eşikleriyle
+ * değerlendirileceğini belirler; "İkisi birden" modunda hangi eksen önce eşiğe
+ * ulaşırsa ürün o seviyeye geçer. Mod seçilmemiş üründe eski sabit varsayılan
+ * (config/stock.php) uygulanır, yani geriye dönük uyumluluk korunur.
  */
 class StockLevelService
 {
@@ -35,11 +36,21 @@ class StockLevelService
 
         $quantity = (float) $lots->sum('quantity');
         $hasExpiredLot = $lots->contains(fn (StockLot $lot) => $lot->isExpired());
-        $nearestExpiryDays = $this->nearestExpiryDays($lots);
+        $expiryDays = $this->nearestExpiryDays($lots);
 
-        $mode = $product->alertMode();
-        $criticalThreshold = $this->criticalThreshold($product, $mode);
-        $lowThreshold = $this->lowThreshold($product, $mode);
+        $mode = $product->alert_mode;
+
+        // Miktar ekseni: ürün yalnızca SKT'ye göre izleniyorsa kapanır; kapalıyken
+        // bile ürünün kendi min_stock alanı sarı uyarı vermeye devam eder.
+        $tracksQuantity = $mode === null || $mode->tracksQuantity();
+        $quantityLow = $product->alert_quantity_low ?? (float) config('stock.levels.low_quantity_threshold');
+        $quantityCritical = $product->alert_quantity_critical ?? (float) config('stock.levels.critical_quantity_threshold');
+
+        // SKT ekseni: ürün kendi gün eşiğini tanımladıysa onun değerleri, aksi
+        // hâlde yalnızca sabit sarı uyarı penceresi (kırmızı gün eşiği olmaz).
+        $tracksExpiry = $mode !== null && $mode->tracksExpiry();
+        $expiryLowDays = $tracksExpiry ? $product->alert_expiry_low_days : (int) config('stock.levels.expiry_warning_days');
+        $expiryCriticalDays = $tracksExpiry ? $product->alert_expiry_critical_days : null;
 
         $reasons = [];
 
@@ -55,82 +66,39 @@ class StockLevelService
 
         $isCritical = $quantity <= 0 || $hasExpiredLot;
 
-        if ($mode === AlertMode::Days) {
-            // Gün bazlı: ürünün kendi gün eşikleri SKT'ye kalan güne bakar.
-            if ($nearestExpiryDays !== null && $nearestExpiryDays <= $criticalThreshold) {
-                $reasons[] = "Son kullanma tarihine {$nearestExpiryDays} gün kaldı (kırmızı eşik: ".$this->formatQuantity($criticalThreshold).' gün).';
-                $isCritical = true;
-            }
-        } elseif ($quantity > 0 && $quantity <= $criticalThreshold) {
-            $reasons[] = "Kalan miktar kritik seviyede: {$this->formatQuantity($quantity)} {$product->base_unit}.";
+        if ($tracksQuantity && $quantity > 0 && $quantity <= $quantityCritical) {
+            $reasons[] = "Kalan miktar kritik seviyede: {$this->format($quantity)} {$product->base_unit}.";
+            $isCritical = true;
+        }
+
+        if ($expiryCriticalDays !== null && $expiryDays !== null && $expiryDays <= $expiryCriticalDays) {
+            $reasons[] = "Son kullanma tarihine {$expiryDays} gün kaldı (kırmızı eşik: {$expiryCriticalDays} gün).";
             $isCritical = true;
         }
 
         if ($isCritical) {
-            return [
-                'level' => StockLevel::Critical,
-                'quantity' => $quantity,
-                'reasons' => $reasons,
-            ];
+            return ['level' => StockLevel::Critical, 'quantity' => $quantity, 'reasons' => $reasons];
         }
 
         $belowMinStock = $product->min_stock > 0 && $quantity <= $product->min_stock;
+        $belowQuantityLow = $tracksQuantity && $quantity <= $quantityLow;
+        $expiringSoon = $expiryLowDays !== null && $expiryDays !== null && $expiryDays <= $expiryLowDays;
 
-        if ($mode === AlertMode::Days) {
-            // Gün bazlı modda miktar eşiği ürünün kendi min_stock alanıdır;
-            // sabit miktar varsayılanı bu ürünler için devreye girmez.
-            $expiringSoon = $nearestExpiryDays !== null && $nearestExpiryDays <= $lowThreshold;
-            $belowLowThreshold = false;
-        } else {
-            $expiringSoon = $nearestExpiryDays !== null && $nearestExpiryDays <= (int) config('stock.levels.expiry_warning_days');
-            $belowLowThreshold = $quantity <= $lowThreshold;
-        }
-
-        if ($belowMinStock || $belowLowThreshold || $expiringSoon) {
+        if ($belowMinStock || $belowQuantityLow || $expiringSoon) {
             if ($belowMinStock) {
-                $reasons[] = "Stok, tanımlı minimum seviyenin ({$product->min_stock} {$product->base_unit}) altına düştü: {$this->formatQuantity($quantity)} {$product->base_unit}.";
-            } elseif ($belowLowThreshold) {
-                $reasons[] = "Kalan miktar azaldı: {$this->formatQuantity($quantity)} {$product->base_unit}.";
+                $reasons[] = "Stok, tanımlı minimum seviyenin ({$product->min_stock} {$product->base_unit}) altına düştü: {$this->format($quantity)} {$product->base_unit}.";
+            } elseif ($belowQuantityLow) {
+                $reasons[] = "Kalan miktar azaldı: {$this->format($quantity)} {$product->base_unit}.";
             }
 
             if ($expiringSoon) {
-                $reasons[] = "Son kullanma tarihine {$nearestExpiryDays} gün kaldı.";
+                $reasons[] = "Son kullanma tarihine {$expiryDays} gün kaldı.";
             }
 
-            return [
-                'level' => StockLevel::Low,
-                'quantity' => $quantity,
-                'reasons' => $reasons,
-            ];
+            return ['level' => StockLevel::Low, 'quantity' => $quantity, 'reasons' => $reasons];
         }
 
-        return [
-            'level' => StockLevel::Normal,
-            'quantity' => $quantity,
-            'reasons' => [],
-        ];
-    }
-
-    /**
-     * Ürünün kendi kırmızı eşiği; girilmemişse moda göre sabit varsayılan.
-     */
-    private function criticalThreshold(Product $product, AlertMode $mode): float
-    {
-        return $product->alert_critical_threshold ?? (float) match ($mode) {
-            AlertMode::Days => config('stock.levels.expiry_critical_days'),
-            AlertMode::Quantity => config('stock.levels.critical_quantity_threshold'),
-        };
-    }
-
-    /**
-     * Ürünün kendi sarı eşiği; girilmemişse moda göre sabit varsayılan.
-     */
-    private function lowThreshold(Product $product, AlertMode $mode): float
-    {
-        return $product->alert_low_threshold ?? (float) match ($mode) {
-            AlertMode::Days => config('stock.levels.expiry_warning_days'),
-            AlertMode::Quantity => config('stock.levels.low_quantity_threshold'),
-        };
+        return ['level' => StockLevel::Normal, 'quantity' => $quantity, 'reasons' => []];
     }
 
     /**
@@ -146,7 +114,7 @@ class StockLevelService
         return $days === null ? null : (int) $days;
     }
 
-    private function formatQuantity(float $quantity): string
+    private function format(float $quantity): string
     {
         return rtrim(rtrim(number_format($quantity, 2, '.', ''), '0'), '.');
     }

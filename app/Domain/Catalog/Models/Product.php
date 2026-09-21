@@ -36,8 +36,10 @@ class Product extends Model
         'min_stock',
         'max_stock',
         'alert_mode',
-        'alert_low_threshold',
-        'alert_critical_threshold',
+        'alert_quantity_low',
+        'alert_quantity_critical',
+        'alert_expiry_low_days',
+        'alert_expiry_critical_days',
         'product_type',
         'status',
     ];
@@ -48,8 +50,10 @@ class Product extends Model
         'min_stock' => 'integer',
         'max_stock' => 'integer',
         'alert_mode' => AlertMode::class,
-        'alert_low_threshold' => 'float',
-        'alert_critical_threshold' => 'float',
+        'alert_quantity_low' => 'float',
+        'alert_quantity_critical' => 'float',
+        'alert_expiry_low_days' => 'integer',
+        'alert_expiry_critical_days' => 'integer',
         'product_type' => ProductType::class,
         'cold_chain' => 'boolean',
         'storage_min_temp' => 'float',
@@ -70,13 +74,13 @@ class Product extends Model
     /** Ürün kartında kendi eşiği tanımlı mı, yoksa organizasyon varsayılanı mı kullanılıyor. */
     public function hasCustomAlertRule(): bool
     {
-        return $this->alert_mode !== null
-            && ($this->alert_low_threshold !== null || $this->alert_critical_threshold !== null);
+        return $this->alert_mode !== null;
     }
 
     /**
      * Uyarı kuralının insan okunur özeti — ürün listesinde ve stok ekranlarında
-     * hangi eşiğin geçerli olduğunu göstermek için.
+     * hangi eşiğin geçerli olduğunu göstermek için. "İkisi birden" modunda iki
+     * eksen de tek satırda görünür.
      */
     public function alertRuleLabel(): string
     {
@@ -87,9 +91,17 @@ class Product extends Model
         $mode = $this->alertMode();
         $format = fn (?float $value) => $value === null ? '—' : rtrim(rtrim(number_format($value, 2, ',', ''), '0'), ',');
 
-        return $mode === AlertMode::Days
-            ? "SKT'ye {$format($this->alert_low_threshold)} gün kala sarı, {$format($this->alert_critical_threshold)} gün kala kırmızı"
-            : "{$format($this->alert_low_threshold)} {$this->base_unit} altında sarı, {$format($this->alert_critical_threshold)} {$this->base_unit} altında kırmızı";
+        $parts = [];
+
+        if ($mode->tracksQuantity()) {
+            $parts[] = "{$format($this->alert_quantity_low)} {$this->base_unit} altında sarı, {$format($this->alert_quantity_critical)} {$this->base_unit} altında kırmızı";
+        }
+
+        if ($mode->tracksExpiry()) {
+            $parts[] = "SKT'ye {$this->alert_expiry_low_days} gün kala sarı, {$this->alert_expiry_critical_days} gün kala kırmızı";
+        }
+
+        return implode(' · ', $parts);
     }
 
     /**
