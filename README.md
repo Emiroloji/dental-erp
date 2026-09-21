@@ -18,14 +18,19 @@ kapıdan geçer.
 - **Stok:** lot ve son kullanma tarihi (FEFO), giriş/çıkış/iptal, çoklu depo,
   şubeler arası transfer, satın alma/sipariş ve kısmi teslimat, stok sayımı,
   iade yönetimi.
-- **Uyarılar ve raporlar:** kritik stok / SKT taraması, bildirimler, filtreli
-  raporlar, Excel/PDF dışa aktarım, denetim kaydı (audit log).
+- **Uyarılar ve raporlar:** ürün bazlı sarı/kırmızı eşik (miktar veya SKT'ye
+  kalan gün), kritik stok / SKT taraması, bildirimler, filtreli raporlar,
+  Excel/PDF dışa aktarım, denetim kaydı (audit log).
 - **Platform paneli:** organizasyon yönetimi, paket limitleri ve manuel
   talep → onay akışı (ödeme entegrasyonu bilinçli olarak yoktur).
 - **Barkod/QR ve PWA:** kamera veya el terminaliyle hızlı stok giriş/çıkışı,
   telefona kurulabilen arayüz.
 - **Faz 4:** istatistiksel stok tüketim tahmini, doğal dille rapor sorgulama,
   ilaç/medikal genişletmesi (ÜTS, seri no takibi, soğuk zincir, kontrollü ürün).
+- **Tanıtım sitesi:** aynı repo içinde girişsiz sayfalar (`/`, `/neler-yapiyor`,
+  `/talep`). Talep formu yalnızca bir `Lead` kaydı oluşturur — otomatik hesap
+  veya organizasyon açılmaz; Platform Sahibi "Gelen Talepler" ekranından elle
+  yürütür.
 
 ## Teknoloji
 

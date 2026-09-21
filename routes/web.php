@@ -6,9 +6,14 @@ use App\Http\Controllers\Stock\LabelController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', function () {
-    return redirect()->to(auth()->check() ? '/dashboard' : '/login');
-});
+/*
+ * Tanıtım sitesi (fazlar-adimlar.md Aşama 29.2): girişsiz, tenant/auth
+ * middleware'lerinin dışında yaşayan birkaç sayfa. Oturumu açık kullanıcı
+ * ana sayfadan kendi paneline yönlendirilir (bileşenlerin mount'unda).
+ */
+Route::livewire('/', 'pages::marketing.home')->name('marketing.home');
+Route::livewire('/neler-yapiyor', 'pages::marketing.features')->name('marketing.features');
+Route::livewire('/talep', 'pages::marketing.contact')->name('marketing.contact');
 
 Route::post('/logout', function () {
     Auth::logout();
@@ -46,6 +51,7 @@ Route::middleware(['auth', 'platform'])->prefix('platform')->name('platform.')->
     Route::livewire('/organizasyonlar', 'pages::platform.organizations')->name('organizations.index');
     Route::livewire('/organizasyonlar/{organization}', 'pages::platform.organization')->name('organizations.show');
     Route::livewire('/paket-talepleri', 'pages::platform.plan-requests')->name('plan-requests.index');
+    Route::livewire('/gelen-talepler', 'pages::platform.leads')->name('leads.index');
     Route::livewire('/hesaplar', 'pages::platform.accounts')->name('accounts.index');
 });
 
