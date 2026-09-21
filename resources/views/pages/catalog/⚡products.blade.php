@@ -7,6 +7,7 @@ use App\Domain\Catalog\Models\Supplier;
 use App\Domain\Catalog\Services\ProductService;
 use App\Domain\Catalog\Support\Gs1;
 use App\Domain\Catalog\Support\ProductType;
+use App\Domain\Stock\Support\AlertMode;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
@@ -48,6 +49,13 @@ new #[Layout('layouts::authenticated')] class extends Component
     public string $max_stock = '';
 
     public string $product_type = 'consumable';
+
+    // Ürün bazlı uyarı eşiği (Aşama 29.1). Boş mod = organizasyon varsayılanı.
+    public string $alert_mode = '';
+
+    public string $alert_low_threshold = '';
+
+    public string $alert_critical_threshold = '';
 
     public array $conversionRules = [];
 
@@ -99,6 +107,9 @@ new #[Layout('layouts::authenticated')] class extends Component
             'min_stock' => (string) $product->min_stock,
             'max_stock' => (string) $product->max_stock,
             'product_type' => $product->product_type?->value ?? 'consumable',
+            'alert_mode' => $product->alert_mode?->value ?? '',
+            'alert_low_threshold' => $product->alert_low_threshold === null ? '' : (string) $product->alert_low_threshold,
+            'alert_critical_threshold' => $product->alert_critical_threshold === null ? '' : (string) $product->alert_critical_threshold,
             'conversionRules' => collect($product->conversion_rules ?? [])->map(fn ($rule) => ['unit' => $rule['unit'], 'factor' => (string) $rule['factor']])->all(),
             'gtin' => (string) $product->gtin,
             'uts_number' => (string) $product->uts_number,
@@ -124,6 +135,7 @@ new #[Layout('layouts::authenticated')] class extends Component
     {
         $this->reset([
             'editingId', 'name', 'code', 'barcode', 'category_id', 'supplier_id', 'purchase_price', 'min_stock', 'max_stock', 'conversionRules',
+            'alert_mode', 'alert_low_threshold', 'alert_critical_threshold',
             'gtin', 'uts_number', 'license_number', 'manufacturer', 'storage_condition', 'cold_chain', 'storage_min_temp', 'storage_max_temp', 'is_controlled', 'tracks_serials',
         ]);
         $this->base_unit = 'Adet';
@@ -173,6 +185,9 @@ new #[Layout('layouts::authenticated')] class extends Component
             'min_stock' => ['required', 'integer', 'min:0'],
             'max_stock' => ['nullable', 'integer', 'min:0'],
             'product_type' => ['required', Rule::in(array_column(ProductType::cases(), 'value'))],
+            'alert_mode' => ['nullable', Rule::in(array_column(AlertMode::cases(), 'value'))],
+            'alert_low_threshold' => ['nullable', 'required_with:alert_mode', 'numeric', 'min:0'],
+            'alert_critical_threshold' => ['nullable', 'required_with:alert_mode', 'numeric', 'min:0', 'lt:alert_low_threshold'],
             'conversionRules.*.unit' => ['required_with:conversionRules.*.factor', 'nullable', 'string', 'max:50'],
             'conversionRules.*.factor' => ['required_with:conversionRules.*.unit', 'nullable', 'numeric', 'min:0.01'],
             'gtin' => ['nullable', 'string', 'max:20'],
@@ -186,6 +201,9 @@ new #[Layout('layouts::authenticated')] class extends Component
             'is_controlled' => ['boolean'],
             'tracks_serials' => ['boolean'],
         ], [
+            'alert_low_threshold.required_with' => 'Uyarı modu seçildiğinde sarı eşik girilmeli.',
+            'alert_critical_threshold.required_with' => 'Uyarı modu seçildiğinde kırmızı eşik girilmeli.',
+            'alert_critical_threshold.lt' => 'Kırmızı eşik sarı eşikten küçük olmalı (daha az miktar/gün = daha kritik).',
             'storage_min_temp.required_if' => 'Soğuk zincir ürününde en düşük saklama sıcaklığı girilmeli.',
             'storage_max_temp.required_if' => 'Soğuk zincir ürününde en yüksek saklama sıcaklığı girilmeli.',
             'storage_max_temp.gte' => 'En yüksek sıcaklık en düşükten küçük olamaz.',
@@ -233,6 +251,10 @@ new #[Layout('layouts::authenticated')] class extends Component
             'min_stock' => $validated['min_stock'],
             'max_stock' => $validated['max_stock'] ?: null,
             'product_type' => $validated['product_type'],
+            // Mod seçilmezse üç alan da boşalır: ürün varsayılan eşiğe döner.
+            'alert_mode' => $validated['alert_mode'] ?: null,
+            'alert_low_threshold' => $validated['alert_mode'] ? (float) $validated['alert_low_threshold'] : null,
+            'alert_critical_threshold' => $validated['alert_mode'] ? (float) $validated['alert_critical_threshold'] : null,
             'gtin' => $gtin,
             'uts_number' => $validated['uts_number'] ?: null,
             'license_number' => $validated['license_number'] ?: null,
@@ -297,6 +319,7 @@ new #[Layout('layouts::authenticated')] class extends Component
             'categories' => Category::where('status', 'active')->orderBy('name')->get(),
             'suppliers' => Supplier::where('status', 'active')->orderBy('name')->get(),
             'productTypes' => ProductType::cases(),
+            'alertModes' => AlertMode::cases(),
         ];
     }
 };
@@ -354,6 +377,7 @@ new #[Layout('layouts::authenticated')] class extends Component
                         <td class="px-5 py-3">
                             {{ $product->name }}
                             <x-product-flags :product="$product" />
+                            <div class="text-[12px] text-ink-muted mt-0.5">{{ $product->alertRuleLabel() }}</div>
                         </td>
                         <td class="px-5 py-3 text-ink-muted font-mono text-[13px]">{{ $product->code }}</td>
                         <td class="px-5 py-3 text-ink-muted">{{ $product->category?->name }}</td>
@@ -456,6 +480,46 @@ new #[Layout('layouts::authenticated')] class extends Component
                     <label class="block text-[13px] text-ink-muted mb-1.5">Maks. Stok</label>
                     <input type="number" wire:model="max_stock" class="w-full border border-line rounded-md px-3 py-2 text-[14px] tabular-nums focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
                 </div>
+            </div>
+
+            <div>
+                <h3 class="text-[13px] font-medium text-ink">Uyarı Eşiği</h3>
+                <p class="text-[12px] text-ink-muted mb-3">Bu ürün ne zaman sarıya, ne zaman kırmızıya düşsün. Boş bırakılırsa varsayılan eşik (son {{ (int) config('stock.levels.low_quantity_threshold') }} {{ $base_unit ?: 'Adet' }} sarı / son {{ (int) config('stock.levels.critical_quantity_threshold') }} {{ $base_unit ?: 'Adet' }} kırmızı) geçerli olur.</p>
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-[13px] text-ink-muted mb-1.5">Uyarı Modu</label>
+                        <select wire:model.live="alert_mode" class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+                            <option value="">Varsayılan eşik</option>
+                            @foreach ($alertModes as $mode)
+                                <option value="{{ $mode->value }}">{{ $mode->label() }}</option>
+                            @endforeach
+                        </select>
+                        @error('alert_mode') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
+                    </div>
+
+                    @if ($alert_mode)
+                        @php($selectedMode = \App\Domain\Stock\Support\AlertMode::from($alert_mode))
+                        <div>
+                            <label class="block text-[13px] text-ink-muted mb-1.5">Sarı Eşik ({{ $selectedMode->unitLabel() }})</label>
+                            <input type="number" step="0.01" min="0" wire:model="alert_low_threshold" class="w-full border border-line rounded-md px-3 py-2 text-[14px] tabular-nums focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+                            @error('alert_low_threshold') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
+                        </div>
+                        <div>
+                            <label class="block text-[13px] text-ink-muted mb-1.5">Kırmızı Eşik ({{ $selectedMode->unitLabel() }})</label>
+                            <input type="number" step="0.01" min="0" wire:model="alert_critical_threshold" class="w-full border border-line rounded-md px-3 py-2 text-[14px] tabular-nums focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+                            @error('alert_critical_threshold') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
+                        </div>
+                    @endif
+                </div>
+
+                @if ($alert_mode)
+                    <p class="text-[12px] text-ink-muted mt-2">
+                        {{ \App\Domain\Stock\Support\AlertMode::from($alert_mode)->description() }}
+                        {{ $alert_mode === 'days' ? 'Örn. SKT\'ye 50 gün kala sarı, 30 gün kala kırmızı.' : 'Örn. 60 '.($base_unit ?: 'Adet').' altına inince sarı, 30 '.($base_unit ?: 'Adet').' altına inince kırmızı.' }}
+                        Stoğun tükenmesi ve SKT'si geçmiş lot her modda kırmızıdır.
+                    </p>
+                @endif
             </div>
 
             <div>

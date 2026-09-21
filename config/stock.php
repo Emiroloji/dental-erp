@@ -8,10 +8,12 @@ return [
     |--------------------------------------------------------------------------
     |
     | proje.md Bölüm 7'deki Yeşil/Sarı/Kırmızı uyarı tablosunun "yapılandırılabilir"
-    | olarak işaretlenmiş sabit değerleri burada tutulur. Bir ürünün kendi
-    | min_stock alanı tanımlıysa (ürün kartında girildiyse) o öncelikli "düşük
-    | stok" eşiği olarak kullanılır; aşağıdaki sabitler min_stock tanımlı
-    | olmayan/geniş olan ürünler için de bir taban güvenlik ağı sağlar.
+    | olarak işaretlenmiş sabit değerleri burada tutulur. Aşama 29.1'den beri
+    | her ürün kendi sarı/kırmızı eşiğini taşıyabilir (alert_mode +
+    | alert_low_threshold / alert_critical_threshold); aşağıdaki değerler
+    | yalnızca ürün kartında eşik girilmemişse devreye giren varsayılandır.
+    | Bir ürünün kendi min_stock alanı tanımlıysa o da "düşük stok" eşiği
+    | olarak kullanılmaya devam eder.
     |
     */
 
@@ -24,6 +26,9 @@ return [
 
         // Son kullanma tarihine bu kadar gün veya daha az kalan lotu olan ürünler "Düşük / Sarı" sayılır.
         'expiry_warning_days' => (int) env('STOCK_EXPIRY_WARNING_DAYS', 30),
+
+        // Gün bazlı uyarı modu seçilip eşik girilmemişse kullanılan kırmızı gün eşiği.
+        'expiry_critical_days' => (int) env('STOCK_EXPIRY_CRITICAL_DAYS', 7),
     ],
 
 ];

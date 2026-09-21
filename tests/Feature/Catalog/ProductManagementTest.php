@@ -5,6 +5,7 @@ namespace Tests\Feature\Catalog;
 use App\Domain\Catalog\Models\Category;
 use App\Domain\Catalog\Models\Product;
 use App\Domain\Organization\Models\Organization;
+use App\Domain\Stock\Support\AlertMode;
 use App\Models\User;
 use App\Support\UnitConverter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -99,5 +100,82 @@ class ProductManagementTest extends TestCase
         $staff = User::factory()->create(['organization_id' => $organization->id, 'role' => User::ROLE_STAFF, 'status' => 'active']);
 
         $this->actingAs($staff)->get('/urunler')->assertForbidden();
+    }
+
+    public function test_admin_can_set_a_product_specific_alert_threshold(): void
+    {
+        $organization = Organization::create(['name' => 'Klinik', 'status' => 'active', 'plan' => 'starter']);
+        $admin = User::factory()->create(['organization_id' => $organization->id, 'role' => User::ROLE_ADMIN, 'status' => 'active']);
+
+        $this->actingAs($admin);
+
+        Livewire::test('pages::catalog.products')
+            ->set('name', 'Anestezik')
+            ->set('base_unit', 'Adet')
+            ->set('alert_mode', AlertMode::Days->value)
+            ->set('alert_low_threshold', '50')
+            ->set('alert_critical_threshold', '30')
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $product = Product::where('name', 'Anestezik')->firstOrFail();
+
+        $this->assertSame(AlertMode::Days, $product->alert_mode);
+        $this->assertSame(50.0, $product->alert_low_threshold);
+        $this->assertSame(30.0, $product->alert_critical_threshold);
+    }
+
+    public function test_alert_threshold_requires_the_red_value_to_be_stricter_than_the_yellow_one(): void
+    {
+        $organization = Organization::create(['name' => 'Klinik', 'status' => 'active', 'plan' => 'starter']);
+        $admin = User::factory()->create(['organization_id' => $organization->id, 'role' => User::ROLE_ADMIN, 'status' => 'active']);
+
+        $this->actingAs($admin);
+
+        Livewire::test('pages::catalog.products')
+            ->set('name', 'Eldiven')
+            ->set('base_unit', 'Adet')
+            ->set('alert_mode', AlertMode::Quantity->value)
+            ->set('alert_low_threshold', '30')
+            ->set('alert_critical_threshold', '60')
+            ->call('save')
+            ->assertHasErrors('alert_critical_threshold');
+
+        $this->assertDatabaseMissing('products', ['name' => 'Eldiven']);
+    }
+
+    public function test_alert_mode_requires_both_thresholds(): void
+    {
+        $organization = Organization::create(['name' => 'Klinik', 'status' => 'active', 'plan' => 'starter']);
+        $admin = User::factory()->create(['organization_id' => $organization->id, 'role' => User::ROLE_ADMIN, 'status' => 'active']);
+
+        $this->actingAs($admin);
+
+        Livewire::test('pages::catalog.products')
+            ->set('name', 'Maske')
+            ->set('base_unit', 'Adet')
+            ->set('alert_mode', AlertMode::Quantity->value)
+            ->call('save')
+            ->assertHasErrors(['alert_low_threshold', 'alert_critical_threshold']);
+    }
+
+    public function test_a_product_saved_without_an_alert_mode_keeps_the_default_thresholds(): void
+    {
+        $organization = Organization::create(['name' => 'Klinik', 'status' => 'active', 'plan' => 'starter']);
+        $admin = User::factory()->create(['organization_id' => $organization->id, 'role' => User::ROLE_ADMIN, 'status' => 'active']);
+
+        $this->actingAs($admin);
+
+        Livewire::test('pages::catalog.products')
+            ->set('name', 'Gazlı Bez')
+            ->set('base_unit', 'Adet')
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $product = Product::where('name', 'Gazlı Bez')->firstOrFail();
+
+        $this->assertNull($product->alert_mode);
+        $this->assertFalse($product->hasCustomAlertRule());
+        $this->assertStringContainsString('Varsayılan eşik', $product->alertRuleLabel());
     }
 }
