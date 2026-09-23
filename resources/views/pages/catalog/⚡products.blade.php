@@ -63,6 +63,27 @@ new #[Layout('layouts::authenticated')] class extends Component
 
     public array $conversionRules = [];
 
+    // Toplu uyarı eşiği atama (Aşama 30). Eşik ürün ürün girildiğinde ürün
+    // sayısı arttıkça pratikte hiç girilmiyordu.
+    public bool $showBulkAlert = false;
+
+    /** Hedef kategori; boş = tüm aktif ürünler. */
+    public string $bulkCategoryId = '';
+
+    /** Boş mod = ürünlerin kendi eşiğini temizle, varsayılana döndür. */
+    public string $bulkMode = '';
+
+    public string $bulkQuantityLow = '';
+
+    public string $bulkQuantityCritical = '';
+
+    public string $bulkExpiryLowDays = '';
+
+    public string $bulkExpiryCriticalDays = '';
+
+    /** Kendi eşiği olan ürünlerin üzerine yazılsın mı. */
+    public bool $bulkOverwrite = false;
+
     // İlaç ve medikal ürün alanları (Aşama 26).
     public string $gtin = '';
 
@@ -90,6 +111,65 @@ new #[Layout('layouts::authenticated')] class extends Component
 
         $this->resetForm();
         $this->showForm = true;
+    }
+
+    public function openBulkAlert(): void
+    {
+        Gate::authorize('product_management.update');
+
+        $this->reset(['bulkMode', 'bulkQuantityLow', 'bulkQuantityCritical', 'bulkExpiryLowDays', 'bulkExpiryCriticalDays', 'bulkOverwrite']);
+        $this->bulkCategoryId = $this->categoryFilter;
+        $this->resetValidation();
+        $this->showBulkAlert = true;
+    }
+
+    public function closeBulkAlert(): void
+    {
+        $this->showBulkAlert = false;
+        $this->resetValidation();
+    }
+
+    public function applyBulkAlert(ProductService $productService): void
+    {
+        Gate::authorize('product_management.update');
+
+        $mode = $this->bulkMode ? AlertMode::tryFrom($this->bulkMode) : null;
+        $tracksQuantity = $mode?->tracksQuantity() ?? false;
+        $tracksExpiry = $mode?->tracksExpiry() ?? false;
+
+        $this->validate([
+            'bulkCategoryId' => ['nullable', 'exists:categories,id'],
+            'bulkMode' => ['nullable', Rule::in(array_column(AlertMode::cases(), 'value'))],
+            'bulkQuantityLow' => ['nullable', Rule::requiredIf($tracksQuantity), 'numeric', 'min:0'],
+            'bulkQuantityCritical' => ['nullable', Rule::requiredIf($tracksQuantity), 'numeric', 'min:0', 'lt:bulkQuantityLow'],
+            'bulkExpiryLowDays' => ['nullable', Rule::requiredIf($tracksExpiry), 'integer', 'min:0', 'max:3650'],
+            'bulkExpiryCriticalDays' => ['nullable', Rule::requiredIf($tracksExpiry), 'integer', 'min:0', 'max:3650', 'lt:bulkExpiryLowDays'],
+        ], [
+            'bulkQuantityLow.required' => 'Miktar eşiği seçildiğinde sarı miktar girilmeli.',
+            'bulkQuantityCritical.required' => 'Miktar eşiği seçildiğinde kırmızı miktar girilmeli.',
+            'bulkQuantityCritical.lt' => 'Kırmızı miktar sarı miktardan küçük olmalı.',
+            'bulkExpiryLowDays.required' => 'SKT eşiği seçildiğinde sarı gün sayısı girilmeli.',
+            'bulkExpiryCriticalDays.required' => 'SKT eşiği seçildiğinde kırmızı gün sayısı girilmeli.',
+            'bulkExpiryCriticalDays.lt' => 'Kırmızı gün sayısı sarı gün sayısından küçük olmalı (daha az gün = daha kritik).',
+        ]);
+
+        $updated = $productService->applyAlertRule(
+            $this->bulkCategoryId === '' ? null : (int) $this->bulkCategoryId,
+            [
+                'alert_mode' => $mode?->value,
+                'alert_quantity_low' => $this->bulkQuantityLow,
+                'alert_quantity_critical' => $this->bulkQuantityCritical,
+                'alert_expiry_low_days' => $this->bulkExpiryLowDays,
+                'alert_expiry_critical_days' => $this->bulkExpiryCriticalDays,
+            ],
+            $this->bulkOverwrite,
+        );
+
+        $this->closeBulkAlert();
+
+        session()->flash('status', $mode === null
+            ? ($updated === 0 ? 'Eşiği temizlenecek ürün bulunamadı.' : "{$updated} ürünün kendi eşiği temizlendi; varsayılan eşiğe döndüler.")
+            : ($updated === 0 ? 'Bu seçimle güncellenecek ürün bulunamadı.' : "{$updated} ürüne uyarı eşiği uygulandı."));
     }
 
     public function edit(int $productId): void
@@ -339,7 +419,18 @@ new #[Layout('layouts::authenticated')] class extends Component
             'suppliers' => Supplier::where('status', 'active')->orderBy('name')->get(),
             'productTypes' => ProductType::cases(),
             'alertModes' => AlertMode::cases(),
+            // Toplu atamanın kaç ürünü etkileyeceği panel açıkken canlı gösterilir.
+            'bulkTargetCount' => $this->showBulkAlert ? $this->bulkTargetCount() : 0,
         ];
+    }
+
+    private function bulkTargetCount(): int
+    {
+        return app(ProductService::class)->alertRuleTargetCount(
+            $this->bulkCategoryId === '' ? null : (int) $this->bulkCategoryId,
+            $this->bulkMode ? AlertMode::tryFrom($this->bulkMode) : null,
+            $this->bulkOverwrite,
+        );
     }
 };
 ?>
@@ -350,12 +441,20 @@ new #[Layout('layouts::authenticated')] class extends Component
             <h1 class="text-[22px] font-medium tracking-tight text-ink">Ürünler</h1>
             <p class="text-[14px] text-ink-muted mt-1">Stok kartlarını, birim dönüşümlerini ve tedarikçi eşleşmelerini yönet.</p>
         </div>
-        @can('product_management.create')
-            <button wire:click="openForm" class="mt-4 sm:mt-0 inline-flex items-center gap-1.5 bg-panel-900 text-white rounded-md px-4 py-2 text-[14px] font-medium hover:bg-panel-800 transition-colors">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-                Yeni Ürün
-            </button>
-        @endcan
+        <div class="mt-4 sm:mt-0 flex items-center gap-3">
+            @can('product_management.update')
+                <button wire:click="openBulkAlert" class="inline-flex items-center gap-1.5 border border-line rounded-md px-4 py-2 text-[14px] text-ink hover:bg-line/40 transition-colors">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+                    Toplu Eşik Ata
+                </button>
+            @endcan
+            @can('product_management.create')
+                <button wire:click="openForm" class="inline-flex items-center gap-1.5 bg-panel-900 text-white rounded-md px-4 py-2 text-[14px] font-medium hover:bg-panel-800 transition-colors">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                    Yeni Ürün
+                </button>
+            @endcan
+        </div>
     </div>
 
     @if (session('status'))
@@ -636,6 +735,109 @@ new #[Layout('layouts::authenticated')] class extends Component
                     Ürünü Kaydet
                 </button>
                 <button type="button" wire:click="closeForm" class="text-[14px] text-ink-muted hover:text-ink">
+                    Vazgeç
+                </button>
+            </div>
+        </form>
+    </x-modal>
+
+    {{-- Toplu uyarı eşiği atama (Aşama 30) --}}
+    <x-modal :show="$showBulkAlert" title="Toplu Eşik Ata" on-close="closeBulkAlert">
+        @php($bulkSelectedMode = $bulkMode ? \App\Domain\Stock\Support\AlertMode::tryFrom($bulkMode) : null)
+
+        <form wire:submit="applyBulkAlert" class="space-y-5">
+            <p class="text-[13px] text-ink-muted">
+                Aynı uyarı eşiğini bir kategorinin tüm aktif ürünlerine uygular. Eşiği ürün ürün girmek yerine
+                kategori bazında bir kez tanımlayıp sonra tek tek istisna yapabilirsiniz.
+            </p>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-[13px] text-ink-muted mb-1.5">Kategori</label>
+                    <select wire:model.live="bulkCategoryId" class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+                        <option value="">Tüm aktif ürünler</option>
+                        @foreach ($categories as $category)
+                            <option value="{{ $category->id }}">{{ $category->name }}</option>
+                        @endforeach
+                    </select>
+                    @error('bulkCategoryId') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
+                </div>
+                <div>
+                    <label class="block text-[13px] text-ink-muted mb-1.5">Uyarı Modu</label>
+                    <select wire:model.live="bulkMode" class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+                        <option value="">Eşiği temizle (varsayılana döndür)</option>
+                        @foreach ($alertModes as $mode)
+                            <option value="{{ $mode->value }}">{{ $mode->label() }}</option>
+                        @endforeach
+                    </select>
+                    @error('bulkMode') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
+                </div>
+            </div>
+
+            @if ($bulkSelectedMode)
+                <p class="text-[12px] text-ink-muted">{{ $bulkSelectedMode->description() }} Stoğun tükenmesi ve SKT'si geçmiş lot her modda kırmızıdır.</p>
+
+                @if ($bulkSelectedMode->tracksQuantity())
+                    <div class="rounded-md border border-line px-4 py-3">
+                        <p class="text-[13px] text-ink mb-2.5">Miktar eşiği <span class="text-ink-muted">— her ürünün kendi ana biriminde</span></p>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-[13px] text-ink-muted mb-1.5">Sarı: altına inince</label>
+                                <input type="number" step="0.01" min="0" wire:model="bulkQuantityLow" placeholder="ör. 60" class="w-full border border-line rounded-md px-3 py-2 text-[14px] tabular-nums focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+                                @error('bulkQuantityLow') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
+                            </div>
+                            <div>
+                                <label class="block text-[13px] text-ink-muted mb-1.5">Kırmızı: altına inince</label>
+                                <input type="number" step="0.01" min="0" wire:model="bulkQuantityCritical" placeholder="ör. 30" class="w-full border border-line rounded-md px-3 py-2 text-[14px] tabular-nums focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+                                @error('bulkQuantityCritical') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
+                            </div>
+                        </div>
+                        <p class="text-[12px] text-ink-muted mt-2">Aynı sayı her ürüne uygulanır; birimleri farklı ürünler aynı kategoride ise eşik anlamını yitirebilir.</p>
+                    </div>
+                @endif
+
+                @if ($bulkSelectedMode->tracksExpiry())
+                    <div class="rounded-md border border-line px-4 py-3">
+                        <p class="text-[13px] text-ink mb-2.5">SKT eşiği <span class="text-ink-muted">— son kullanma tarihine kalan gün</span></p>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-[13px] text-ink-muted mb-1.5">Sarı: kaç gün kala</label>
+                                <input type="number" min="0" wire:model="bulkExpiryLowDays" placeholder="ör. 50" class="w-full border border-line rounded-md px-3 py-2 text-[14px] tabular-nums focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+                                @error('bulkExpiryLowDays') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
+                            </div>
+                            <div>
+                                <label class="block text-[13px] text-ink-muted mb-1.5">Kırmızı: kaç gün kala</label>
+                                <input type="number" min="0" wire:model="bulkExpiryCriticalDays" placeholder="ör. 30" class="w-full border border-line rounded-md px-3 py-2 text-[14px] tabular-nums focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+                                @error('bulkExpiryCriticalDays') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
+                            </div>
+                        </div>
+                    </div>
+                @endif
+
+                <label class="flex items-start gap-2 text-[13px]">
+                    <input type="checkbox" wire:model.live="bulkOverwrite" class="accent-brand-500 w-4 h-4 mt-0.5">
+                    <span>
+                        <span class="text-ink">Kendi eşiği olan ürünlerin üzerine de yaz</span>
+                        <span class="text-ink-muted">— kapalıyken yalnızca eşiği tanımlanmamış ürünler değişir, tek tek yaptığınız istisnalar korunur.</span>
+                    </span>
+                </label>
+            @else
+                <p class="text-[12px] text-ink-muted">Seçilen ürünlerin kendi eşikleri silinir ve varsayılan eşiğe dönerler.</p>
+            @endif
+
+            <div class="rounded-md bg-status-warn-bg border border-status-warn/20 px-4 py-3 text-[13px] text-status-warn">
+                @if ($bulkTargetCount === 0)
+                    Bu seçimle değişecek ürün yok.
+                @else
+                    <span class="font-medium">{{ $bulkTargetCount }} ürün</span> değişecek. Bu işlem geri alınamaz; her ürün için denetim kaydı yazılır.
+                @endif
+            </div>
+
+            <div class="flex items-center gap-3">
+                <button type="submit" @disabled($bulkTargetCount === 0) class="bg-panel-900 text-white rounded-md px-4 py-2.5 text-[14px] font-medium hover:bg-panel-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                    Eşiği Uygula
+                </button>
+                <button type="button" wire:click="closeBulkAlert" class="text-[14px] text-ink-muted hover:text-ink">
                     Vazgeç
                 </button>
             </div>
