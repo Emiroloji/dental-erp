@@ -74,3 +74,38 @@ Eşikler `config/health.php` içindedir:
 | Bekleyen iş eşiği | `HEALTH_QUEUE_PENDING_THRESHOLD` | 100 |
 | Başarısız iş penceresi (saat) | `HEALTH_QUEUE_FAILED_WINDOW_HOURS` | 24 |
 | Başarısız iş eşiği | `HEALTH_QUEUE_FAILED_THRESHOLD` | 1 |
+
+## Log dosyaları
+
+Canlıda `LOG_STACK=daily` kullanılır.
+
+Varsayılan `single`, her şeyi tek bir `storage/logs/laravel.log` dosyasına yazar
+ve bu dosya **yalnızca büyür, hiç küçülmez**. Aylar içinde gigabaytlara çıkabilir;
+disk dolduğunda PostgreSQL de yazamaz hâle gelir ve sistem durur — sebebi
+anlaşılması zor, hoş olmayan bir çöküş biçimi.
+
+`daily` her gün yeni bir dosya açar (`laravel-2026-09-23.log`) ve
+`LOG_DAILY_DAYS` (varsayılan 14) gününden eskileri kendisi siler.
+
+```dotenv
+LOG_STACK=daily
+# LOG_DAILY_DAYS=14
+```
+
+Sunucuda ayrıca `logrotate` yapılandırmasına **gerek yoktur**: bu iş uygulama
+seviyesinde çözülür, ayar repoda durur ve yeni bir sunucu kurulduğunda
+kendiliğinden aynı şekilde çalışır.
+
+Tek sınırı: bölme güne göredir, boyuta göre değil. Tek gün içinde bir hata
+döngüsü diski hâlâ doldurabilir; bunun gerçek çözümü log döndürme değil disk
+izlemesidir.
+
+## Kurulu izleme
+
+| Ne | Nasıl | Uyarı nereye |
+| --- | --- | --- |
+| Sunucu/uygulama ayakta mı | Dış uptime servisi → `GET /health` | E-posta |
+| Yedek dışarı çıkıyor mu | `backup:check-offsite`, her gün 06:00 | E-posta (`BACKUP_ALERT_EMAIL`) |
+| Kuyruk birikiyor mu | `queue:health-check`, saatlik | Log (`[kuyruk]`) + hata kodu |
+| Sertifika yenileniyor mu | `certbot.timer` | Let's Encrypt e-postası |
+| 500 hataları | `ErrorReporter` | Log (Sentry kurulmadı) |
