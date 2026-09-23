@@ -46,4 +46,45 @@ return [
 
     'timeout' => (int) env('BACKUP_TIMEOUT', 900),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Sunucu Dışı Kopya (Aşama 30)
+    |--------------------------------------------------------------------------
+    |
+    | Yedek sunucunun kendi diskinde durduğu sürece gerçek bir yedek değildir:
+    | disk giderse yedek de gider. "rclone" sürücüsü yerel yedek klasörünü
+    | uzak bir hedefe (Google Drive, S3, Backblaze...) kopyalar.
+    |
+    | Neden Flysystem diski değil de rclone: yedekleme cron'la, gözetimsiz
+    | çalışır. Google Drive gibi OAuth kullanan hedeflerde token yenileme
+    | PHP tarafında kırılgandır; rclone bu işi yıllardır güvenilir yapıyor ve
+    | hedef değiştirmek uygulama kodunu hiç ilgilendirmez.
+    |
+    | "remote" rclone'daki hedef adı ve klasörüdür: "drive:dental-erp-yedek".
+    | "config" cron'un farklı bir HOME ile çalıştığı durumlar için rclone.conf
+    | dosyasının tam yoludur — boş bırakılırsa rclone kendi varsayılanına bakar.
+    |
+    | max_age_hours: uzaktaki en yeni yedek bu kadar saatten eskiyse
+    | "backup:check-offsite" uyarı verir. Günlük yedekte 48 saat, bir günün
+    | kaçmasını tolere eder ama iki günü etmez.
+    |
+    | Desteklenen sürücüler: "rclone", "none"
+    |
+    */
+
+    'offsite' => [
+
+        'driver' => env('BACKUP_OFFSITE_DRIVER', 'none'),
+
+        'rclone' => [
+            'binary' => env('BACKUP_RCLONE_BINARY', 'rclone'),
+            'remote' => env('BACKUP_RCLONE_REMOTE'),
+            'config' => env('BACKUP_RCLONE_CONFIG'),
+            'timeout' => (int) env('BACKUP_RCLONE_TIMEOUT', 900),
+        ],
+
+        'max_age_hours' => (int) env('BACKUP_OFFSITE_MAX_AGE_HOURS', 48),
+
+    ],
+
 ];

@@ -76,8 +76,9 @@ Her push ve PR'da GitHub Actions aynı üç adımı çalıştırır
 
 | Konu | Belge |
 | --- | --- |
+| Sıfırdan VPS kurulumu: paketler, nginx, HTTPS, e-posta, güvenlik duvarı | [`docs/sunucu-kurulumu.md`](docs/sunucu-kurulumu.md) |
 | Zamanlayıcı, Supervisor ile kuyruk worker'ı, dağıtım adımları | [`docs/production.md`](docs/production.md) |
-| Günlük yedek, saklama süresi, geri yükleme prosedürü ve provası | [`docs/yedekleme.md`](docs/yedekleme.md) |
+| Günlük yedek, sunucu dışı kopya (rclone), geri yükleme prosedürü ve provası | [`docs/yedekleme.md`](docs/yedekleme.md) |
 | Hata takibi (Sentry/log) ve `/health` uç noktası | [`docs/izleme.md`](docs/izleme.md) |
 
 ## Şartname belgeleri

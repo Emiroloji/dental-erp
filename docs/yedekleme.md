@@ -21,7 +21,7 @@ Dosya adı `{veritabani}-YYYY-AA-GG-SSDDss.sql.gz` biçimindedir.
 
 | Ayar | .env anahtarı | Varsayılan | Açıklama |
 | --- | --- | --- | --- |
-| Disk | `BACKUP_DISK` | `local` | `config/filesystems.php`'deki disk adı. Canlıda yedeğin sunucudan **farklı** bir yerde durması için s3 benzeri bir disk tanımlayın. |
+| Disk | `BACKUP_DISK` | `local` | `config/filesystems.php`'deki disk adı. Yerel kalır; sunucu dışına çıkarma işini rclone yapar (aşağıya bakın). |
 | Klasör | `BACKUP_PATH` | `backups` | Disk içindeki klasör. |
 | Saklama | `BACKUP_RETENTION_DAYS` | `14` | Bu günden eski yedekler her çalışmada silinir (kabul aralığı 7–30 gün). |
 | pg_dump | `BACKUP_PG_DUMP` | `pg_dump` | PATH üzerinde değilse tam yol veya sarmalayıcı komut. |
@@ -31,6 +31,99 @@ Dosya adı `{veritabani}-YYYY-AA-GG-SSDDss.sql.gz` biçimindedir.
 Döküm `--clean --if-exists --no-owner --no-privileges` ile alınır: geri yükleme
 var olan şemanın üzerine güvenle yazar ve yedek, farklı bir veritabanı
 kullanıcısıyla da açılabilir.
+
+## Sunucu dışı kopya (rclone)
+
+Yedek sunucunun kendi diskinde durduğu sürece **gerçek bir yedek değildir**:
+disk giderse yedek de gider. Aşama 30'da `backup:run` komutuna, yedek
+alındıktan sonra yerel klasörü uzak bir hedefe kopyalayan bir adım eklendi.
+
+### Neden Flysystem diski değil de rclone
+
+Yedekleme cron'la, kimse bakmadan çalışır. Google Drive gibi OAuth kullanan
+hedeflerde token yenileme PHP tarafında kırılgandır ve bozulduğunda **sessizce**
+bozulur. rclone bu işi güvenilir yapıyor, hedefi değiştirmek uygulama kodunu
+hiç ilgilendirmiyor. Uygulama tarafında yalnızca `OffsiteBackupSync` arayüzü
+var (`app/Domain/Platform/Contracts`); bugünkü tek uygulaması rclone, hedef
+S3'e taşınırsa yeni bir sınıf yazılır.
+
+`copy` kullanılır, `sync` değil: `sync` yereli birebir yansıtır ve saklama
+süresi dolan bir yedek yerelden silindiğinde hedeften de silerdi. `copy`
+yalnızca ekler — hedefte yerelden **daha uzun** bir geçmiş birikir. Yedekler
+sıkıştırılmış SQL dökümü olduğu için (onlarca KB) bu birikim yıllarca sorun
+çıkarmaz; yine de hedef yılda bir gözden geçirilip çok eskiler elle silinebilir.
+
+### Kurulum (Google Drive örneği)
+
+```sh
+sudo -v ; curl https://rclone.org/install.sh | sudo bash
+```
+
+Hedefi tanımlayın. Sunucuda tarayıcı olmadığı için yetkilendirme
+**kendi bilgisayarınızda** yapılır — `rclone config` sırasında
+"Use web browser to automatically authenticate?" sorusuna **n** deyin, komut
+size kendi bilgisayarınızda çalıştırmanız için bir `rclone authorize` satırı
+verir, oradaki çıktıyı sunucuya yapıştırırsınız.
+
+```sh
+rclone config
+#   n) New remote
+#   name> drive
+#   Storage> drive
+#   client_id / client_secret> (boş bırakılabilir)
+#   scope> 1 (full access)  veya  3 (yalnızca rclone'un oluşturduğu dosyalar)
+#   Use web browser...> n
+```
+
+Klasörü oluşturup bağlantıyı doğrulayın:
+
+```sh
+rclone mkdir drive:dental-erp-yedek
+rclone lsd drive:
+```
+
+`.env`:
+
+```
+BACKUP_OFFSITE_DRIVER=rclone
+BACKUP_RCLONE_REMOTE=drive:dental-erp-yedek
+BACKUP_RCLONE_CONFIG=/root/.config/rclone/rclone.conf
+BACKUP_OFFSITE_MAX_AGE_HOURS=48
+```
+
+> `BACKUP_RCLONE_CONFIG` **yazılmalıdır**. Cron ve queue worker farklı bir
+> kullanıcı ve farklı bir `HOME` ile çalışır; yol verilmezse rclone
+> yapılandırmayı bulamaz ve yedekleme yalnızca cron'da, sessizce başarısız olur.
+> Dosyanın komutu çalıştıran kullanıcı (`www-data`) tarafından okunabildiğinden
+> emin olun.
+
+Elle deneyin:
+
+```sh
+php artisan backup:run
+php artisan backup:check-offsite
+rclone ls drive:dental-erp-yedek
+```
+
+### "Yedek gerçekten gitti mi" kontrolü
+
+`backup:check-offsite` hedefteki **en yeni** yedeğin yaşını ölçer.
+`BACKUP_OFFSITE_MAX_AGE_HOURS` (varsayılan 48) değerinden eskiyse veya hedefte
+hiç yedek yoksa:
+
+- log'a `[yedek]` etiketli bir hata yazar,
+- `ErrorReporter` üzerinden hata izlemeye bildirir — `SENTRY_DSN` tanımlıysa
+  Sentry bunu e-posta olarak gönderir, yani haberdar olma yolu budur,
+- hata koduyla çıkar (cron çıktısı izleniyorsa oradan da görünür).
+
+Zamanlaması `routes/console.php` içinde her gün 06:00 — gece 02:30'da alınan
+yedeğin hedefte görünmesi için birkaç saat bırakılmıştır.
+
+`backup:run` de sunucu dışı kopya başarısız olursa **hata koduyla çıkar**,
+yedek yerelde alınmış olsa bile. Bu bilinçlidir: bir günün kaçtığını o gün
+bilmek gerekir.
+
+Sunucu dışı kopyayı geçici olarak atlamak için: `php artisan backup:run --sunucu-disi-atla`.
 
 ## Geri yükleme prosedürü
 

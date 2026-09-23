@@ -6,7 +6,11 @@ use App\Domain\Assistant\Contracts\QueryInterpreter;
 use App\Domain\Assistant\Interpreters\GeminiQueryInterpreter;
 use App\Domain\Assistant\Interpreters\UnconfiguredQueryInterpreter;
 use App\Domain\Organization\Support\ReadOnlyGuard;
+use App\Domain\Platform\Backup\NullOffsiteBackupSync;
+use App\Domain\Platform\Backup\RcloneOffsiteBackupSync;
 use App\Domain\Platform\Contracts\ErrorReporter;
+use App\Domain\Platform\Contracts\OffsiteBackupSync;
+use App\Domain\Platform\Exceptions\BackupException;
 use App\Domain\Platform\Reporting\LogErrorReporter;
 use App\Domain\Platform\Reporting\NullErrorReporter;
 use App\Domain\Platform\Reporting\SentryErrorReporter;
@@ -15,8 +19,10 @@ use App\Http\Middleware\EnsurePlatformOwner;
 use App\Http\Middleware\EnsureTenantAccess;
 use Illuminate\Http\Client\Factory as HttpClient;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Number;
 use Illuminate\Support\ServiceProvider;
+use League\Flysystem\Local\LocalFilesystemAdapter;
 use Livewire\Livewire;
 
 class AppServiceProvider extends ServiceProvider
@@ -65,6 +71,45 @@ class AppServiceProvider extends ServiceProvider
             config('database.connections.'.config('database.default')),
             config('backup'),
         ));
+
+        // Aşama 30: yedeğin sunucu dışına kopyalanması da arayüz arkasında.
+        // Yerelde ve testlerde kapalıdır; sunucuda BACKUP_OFFSITE_DRIVER=rclone
+        // ile açılır.
+        $this->app->bind(OffsiteBackupSync::class, function () {
+            $offsite = config('backup.offsite');
+
+            return match ($offsite['driver'] ?? 'none') {
+                'rclone' => new RcloneOffsiteBackupSync(
+                    $this->localBackupDirectory(),
+                    $offsite['rclone']['remote'] ?? null,
+                    (string) ($offsite['rclone']['binary'] ?? 'rclone'),
+                    $offsite['rclone']['config'] ?? null,
+                    (int) ($offsite['rclone']['timeout'] ?? 900),
+                ),
+                default => new NullOffsiteBackupSync,
+            };
+        });
+    }
+
+    /**
+     * rclone dosya sistemi üzerinden çalışır, Flysystem üzerinden değil; bu
+     * yüzden yedek diskinin yerel olması gerekir. Zaten tasarım da bu:
+     * uygulama yedeği yerele yazar, rclone onu dışarı taşır.
+     */
+    private function localBackupDirectory(): string
+    {
+        $disk = (string) config('backup.disk');
+        $path = trim((string) config('backup.path'), '/');
+
+        $filesystem = Storage::disk($disk);
+
+        if (! $filesystem->getAdapter() instanceof LocalFilesystemAdapter) {
+            throw new BackupException(
+                "Sunucu dışı kopya için BACKUP_DISK yerel bir disk olmalı, \"{$disk}\" değil."
+            );
+        }
+
+        return $filesystem->path($path);
     }
 
     /**

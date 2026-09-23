@@ -20,6 +20,10 @@ Schedule::command('model:prune', ['--model' => [ReportExport::class]])->daily();
 // alınır; komut ayrıca saklama süresi dolmuş yedekleri siler.
 Schedule::command('backup:run')->dailyAt('02:30')->withoutOverlapping();
 
+// Aşama 30: yedeğin sunucu dışına gerçekten kopyalandığını doğrular. Yedekten
+// birkaç saat sonra çalışır ki gece alınan yedek hedefte görünsün.
+Schedule::command('backup:check-offsite')->dailyAt('06:00');
+
 // Aşama 28: kuyruk worker'ı düşerse işler sessizce birikir; saatlik kontrol
 // bekleyen ve başarısız işleri log'a uyarı olarak yazar.
 Schedule::command('queue:health-check')->hourly();

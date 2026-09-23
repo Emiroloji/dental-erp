@@ -1,5 +1,9 @@
 # Production Kurulumu
 
+> Sıfırdan bir VPS'e kurulum (paketler, veritabanı, nginx, HTTPS, e-posta,
+> güvenlik duvarı) için önce **`docs/sunucu-kurulumu.md`** okunmalıdır. Bu belge
+> uygulamanın kurulduktan sonra çalışır kalmasını anlatır.
+
 Aşama 28 kapsamında yazıldı. Sunucuda uygulamanın çalışır durumda kalması için
 gereken üç şey: **zamanlayıcı (cron)**, **kuyruk worker'ı (Supervisor)** ve
 **izleme (health check + hata takibi)**.
@@ -20,6 +24,7 @@ Buna bağlı işler (`routes/console.php`):
 | `model:prune` | günlük | 7 günü geçen rapor dosyalarını siler |
 | `backup:run` | her gün 02:30 | Veritabanı yedeği + eski yedek temizliği |
 | `queue:health-check` | saatlik | Biriken ve başarısız kuyruk işlerini log'a uyarı olarak yazar |
+| `backup:check-offsite` | her gün 06:00 | Yedeğin sunucu dışına gerçekten kopyalandığını doğrular |
 
 ## 2. Kuyruk worker'ı (Supervisor)
 
@@ -80,4 +85,5 @@ php artisan up
 
 ## 5. Yedekleme
 
-Günlük otomatik yedek ve geri yükleme prosedürü için `docs/yedekleme.md`.
+Günlük otomatik yedek, sunucu dışı kopya (rclone) ve geri yükleme prosedürü
+için `docs/yedekleme.md`.
