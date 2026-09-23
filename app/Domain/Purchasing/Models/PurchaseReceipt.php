@@ -25,11 +25,24 @@ class PurchaseReceipt extends Model
         'document_name',
         'document_size',
         'received_by',
+        'cancelled_at',
+        'cancelled_by',
+        'cancellation_reason',
     ];
 
     protected $casts = [
         'created_at' => 'datetime',
+        'cancelled_at' => 'datetime',
     ];
+
+    /**
+     * İptal edilen teslim alma kaydı silinmez; stok hareketleri ters kayıtla
+     * geri alınır ve kayıt geçmişte "iptal edildi" olarak görünür.
+     */
+    public function isCancelled(): bool
+    {
+        return $this->cancelled_at !== null;
+    }
 
     public function order(): BelongsTo
     {
@@ -44,6 +57,11 @@ class PurchaseReceipt extends Model
     public function receiver(): BelongsTo
     {
         return $this->belongsTo(User::class, 'received_by');
+    }
+
+    public function canceller(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'cancelled_by');
     }
 
     public function lines(): HasMany

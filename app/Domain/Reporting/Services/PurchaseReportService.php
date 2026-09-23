@@ -53,7 +53,10 @@ class PurchaseReportService
             ->join('purchase_orders', 'purchase_receipts.purchase_order_id', '=', 'purchase_orders.id')
             ->join('purchase_order_lines', 'purchase_receipt_lines.purchase_order_line_id', '=', 'purchase_order_lines.id')
             ->join('products', 'purchase_order_lines.product_id', '=', 'products.id')
-            ->where('purchase_orders.organization_id', $organizationId), 'purchase_receipts', $filters, $branchIds, supplierColumn: 'purchase_orders.supplier_id')
+            ->where('purchase_orders.organization_id', $organizationId)
+            // Aşama 30: iptal edilen teslim almalar sayılmaz; stok hareketleri
+            // ters kayıtla geri alındığı için raporda da görünmemeleri gerekir.
+            ->whereNull('purchase_receipts.cancelled_at'), 'purchase_receipts', $filters, $branchIds, supplierColumn: 'purchase_orders.supplier_id')
             ->groupBy('purchase_orders.supplier_id')
             ->selectRaw('purchase_orders.supplier_id as supplier_id')
             ->selectRaw('SUM(purchase_receipt_lines.quantity) as received_quantity')

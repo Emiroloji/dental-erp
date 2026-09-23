@@ -3,6 +3,7 @@
 use App\Domain\Access\Support\Module;
 use App\Domain\Purchasing\Exceptions\PurchasingException;
 use App\Domain\Purchasing\Models\PurchaseOrder;
+use App\Domain\Purchasing\Models\PurchaseReceipt;
 use App\Domain\Purchasing\Services\PurchaseOrderService;
 use App\Domain\Purchasing\Support\PurchaseOrderStatus;
 use App\Domain\Purchasing\Support\PurchasingPermissions;
@@ -24,6 +25,11 @@ new #[Layout('layouts::authenticated')] class extends Component
 
     /** Red, iptal veya kalanı kapatma gerekçesi. */
     public string $actionNote = '';
+
+    /** Gerekçesi girilmeyi bekleyen teslim alma kaydı (Aşama 30). */
+    public ?int $cancellingReceiptId = null;
+
+    public string $receiptCancelReason = '';
 
     public function mount(int $order): void
     {
@@ -58,6 +64,40 @@ new #[Layout('layouts::authenticated')] class extends Component
     public function closeRemaining(PurchaseOrderService $orders): void
     {
         $this->attempt(fn () => $orders->closeRemaining($this->order(), auth()->user(), $this->note()), 'Kalan miktar kapatıldı; sipariş tamamlandı.');
+    }
+
+    public function startReceiptCancel(int $receiptId): void
+    {
+        $this->cancellingReceiptId = $receiptId;
+        $this->reset('receiptCancelReason');
+        $this->resetValidation();
+    }
+
+    public function abortReceiptCancel(): void
+    {
+        $this->reset(['cancellingReceiptId', 'receiptCancelReason']);
+        $this->resetValidation();
+    }
+
+    /**
+     * Teslim alma iptali gerekçe olmadan yapılamaz: kayıt denetim izinde
+     * kalıyor ve sonradan bakan biri neden geri alındığını görebilmeli.
+     */
+    public function confirmReceiptCancel(PurchaseOrderService $orders): void
+    {
+        $this->validate([
+            'receiptCancelReason' => ['required', 'string', 'min:3', 'max:255'],
+        ], attributes: ['receiptCancelReason' => 'gerekçe']);
+
+        $receipt = PurchaseReceipt::where('purchase_order_id', $this->orderId)
+            ->findOrFail($this->cancellingReceiptId);
+
+        $this->attempt(
+            fn () => $orders->cancelReceipt($receipt, auth()->user(), $this->receiptCancelReason),
+            'Teslim alma iptal edildi; stok geri alındı.',
+        );
+
+        $this->reset(['cancellingReceiptId', 'receiptCancelReason']);
     }
 
     private function note(): ?string
@@ -100,7 +140,7 @@ new #[Layout('layouts::authenticated')] class extends Component
 
     public function with(PurchasingPermissions $permissions): array
     {
-        $order = $this->order()->load(['events.actor', 'receipts.lines.orderLine.product', 'receipts.receiver']);
+        $order = $this->order()->load(['events.actor', 'receipts.lines.orderLine.product', 'receipts.receiver', 'receipts.canceller']);
         $user = auth()->user();
         $status = $order->status;
         $canManage = $permissions->canManage($user, $order->warehouse);
@@ -114,6 +154,7 @@ new #[Layout('layouts::authenticated')] class extends Component
             'canReceive' => $status->canReceive() && $canManage,
             'canCloseRemaining' => $status === PurchaseOrderStatus::PartiallyReceived && $canManage,
             'canCancel' => $status->canTransitionTo(PurchaseOrderStatus::Cancelled) && $canManage,
+            'canCancelReceipts' => $canManage,
         ];
     }
 };
@@ -221,9 +262,14 @@ new #[Layout('layouts::authenticated')] class extends Component
             <h2 class="text-[15px] font-medium text-ink mb-3">Teslim Almalar</h2>
             <div class="space-y-3">
                 @foreach ($order->receipts->sortBy('id') as $receipt)
-                    <div class="border border-line rounded-lg bg-surface p-4 text-[13px]">
+                    <div class="border border-line rounded-lg bg-surface p-4 text-[13px] {{ $receipt->isCancelled() ? 'opacity-60' : '' }}">
                         <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
-                            <span>{{ $receipt->created_at->format('d.m.Y H:i') }} · {{ $receipt->receiver?->name ?? '—' }}</span>
+                            <span class="flex items-center gap-2">
+                                {{ $receipt->created_at->format('d.m.Y H:i') }} · {{ $receipt->receiver?->name ?? '—' }}
+                                @if ($receipt->isCancelled())
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-[12px] bg-line text-ink-muted">İptal edildi</span>
+                                @endif
+                            </span>
                             <span class="text-ink-muted">
                                 Fatura: {{ $receipt->invoice_number ?? '—' }} · İrsaliye: {{ $receipt->delivery_note_number ?? '—' }}
                                 @if ($receipt->document_path)
@@ -231,11 +277,42 @@ new #[Layout('layouts::authenticated')] class extends Component
                                 @endif
                             </span>
                         </div>
-                        <ul class="space-y-0.5 text-ink-muted">
+                        <ul class="space-y-0.5 text-ink-muted {{ $receipt->isCancelled() ? 'line-through' : '' }}">
                             @foreach ($receipt->lines as $receiptLine)
                                 <li>{{ $receiptLine->orderLine->product->name }}: {{ Number::format((float) $receiptLine->quantity, precision: 2) }} · Lot {{ $receiptLine->lot_no ?? '—' }} · SKT {{ $receiptLine->expiry_date?->format('d.m.Y') ?? '—' }} · {{ Number::format((float) $receiptLine->unit_cost, precision: 2) }} ₺</li>
                             @endforeach
                         </ul>
+
+                        @if ($receipt->isCancelled())
+                            <p class="mt-2 pt-2 border-t border-line text-[12px] text-ink-muted">
+                                {{ $receipt->cancelled_at->format('d.m.Y H:i') }} · {{ $receipt->canceller?->name ?? '—' }} tarafından iptal edildi — {{ $receipt->cancellation_reason }}
+                            </p>
+                        @elseif ($canCancelReceipts)
+                            @if ($cancellingReceiptId === $receipt->id)
+                                <div class="mt-3 pt-3 border-t border-line">
+                                    <label for="teslim-iptal-gerekce-{{ $receipt->id }}" class="block text-[13px] text-ink-muted mb-1.5">
+                                        İptal gerekçesi — bu teslimatla giren stok geri alınacak.
+                                    </label>
+                                    <div class="flex flex-wrap items-start gap-2">
+                                        <input type="text" id="teslim-iptal-gerekce-{{ $receipt->id }}" wire:model="receiptCancelReason"
+                                               class="flex-1 min-w-[16rem] border border-line rounded-md px-3 py-2 text-[14px]"
+                                               placeholder="ör. Fatura yanlış kaleme girildi">
+                                        <button wire:click="confirmReceiptCancel"
+                                                class="bg-status-critical text-white rounded-md px-4 py-2 text-[14px] font-medium hover:opacity-90 transition-opacity">
+                                            Teslimi İptal Et
+                                        </button>
+                                        <button wire:click="abortReceiptCancel" class="text-[14px] text-ink-muted hover:underline px-2 py-2">Vazgeç</button>
+                                    </div>
+                                    @error('receiptCancelReason') <span class="block mt-1 text-status-critical text-[12px]">{{ $message }}</span> @enderror
+                                </div>
+                            @else
+                                <div class="mt-3 pt-3 border-t border-line">
+                                    <button wire:click="startReceiptCancel({{ $receipt->id }})" class="text-[13px] text-ink-muted hover:text-status-critical hover:underline">
+                                        Teslim Alımını İptal Et
+                                    </button>
+                                </div>
+                            @endif
+                        @endif
                     </div>
                 @endforeach
             </div>

@@ -12,6 +12,7 @@ use App\Domain\Purchasing\Models\PurchaseReceipt;
 use App\Domain\Purchasing\Notifications\PurchaseNotifier;
 use App\Domain\Purchasing\Support\PurchaseOrderStatus;
 use App\Domain\Purchasing\Support\PurchasingPermissions;
+use App\Domain\Stock\Exceptions\InsufficientStockException;
 use App\Domain\Stock\Services\SerialRegistry;
 use App\Domain\Stock\Services\StockMovementService;
 use App\Models\User;
@@ -227,6 +228,100 @@ class PurchaseOrderService
 
             return $receipt;
         });
+    }
+
+    /**
+     * Aşama 30 — teslim alma düzeltmesi.
+     *
+     * Yanlış girilen bir teslim alma kaydı silinmez, iptal edilir: her satırın
+     * stok hareketi ters kayıtla geri alınır (StockMovementService::cancel),
+     * sipariş satırının "gelen" miktarı düşer ve siparişin durumu yeniden
+     * hesaplanır. Fatura/irsaliye kaydı ile stok hareketleri denetim izinde
+     * kalır; geri alma da ayrı bir hareket olarak görünür.
+     *
+     * Teslim alınan stok kullanıldıysa iptal edilemez — o durumda gerçek dünya
+     * ile kayıt arasındaki fark stok sayımıyla düzeltilir.
+     */
+    public function cancelReceipt(PurchaseReceipt $receipt, User $actor, string $reason): PurchaseReceipt
+    {
+        $receipt->loadMissing(['order.warehouse', 'lines.orderLine.product', 'lines.stockMovement']);
+        $order = $receipt->order;
+
+        $this->ensureCanManage($actor, $order->warehouse);
+
+        if ($receipt->isCancelled()) {
+            throw new PurchasingException('Bu teslim alma kaydı zaten iptal edilmiş.');
+        }
+
+        if (trim($reason) === '') {
+            throw new PurchasingException('Teslim alma iptalinde gerekçe zorunludur.');
+        }
+
+        DB::transaction(function () use ($receipt, $order, $actor, $reason) {
+            $locked = PurchaseOrder::whereKey($order->id)->lockForUpdate()->firstOrFail();
+
+            foreach ($receipt->lines as $receiptLine) {
+                $line = PurchaseOrderLine::whereKey($receiptLine->purchase_order_line_id)->lockForUpdate()->firstOrFail();
+
+                if ($receiptLine->stockMovement) {
+                    try {
+                        $this->stock->cancel($receiptLine->stockMovement, $actor);
+                    } catch (InsufficientStockException) {
+                        // Girilen stok kullanılmış: geri alınırsa lot negatife
+                        // düşerdi. Hangi üründe takıldığını söylemek önemli,
+                        // yoksa kullanıcı nereyi düzelteceğini bilemez.
+                        throw new PurchasingException(
+                            "{$line->product->name}: bu teslimatla giren stok kullanılmış, teslim alma iptal edilemez. "
+                            .'Farkı stok sayımıyla düzeltin.'
+                        );
+                    }
+                }
+
+                $line->update([
+                    'received_quantity' => max(0, (float) $line->received_quantity - (float) $receiptLine->quantity),
+                ]);
+            }
+
+            $receipt->update([
+                'cancelled_at' => now(),
+                'cancelled_by' => $actor->id,
+                'cancellation_reason' => $reason,
+            ]);
+
+            $next = $this->statusAfterReceiptChange($locked);
+
+            $locked->update(['status' => $next]);
+            $locked->events()->create([
+                'status' => $next,
+                'actor_id' => $actor->id,
+                'note' => 'Teslim alma iptal edildi: '.$reason,
+            ]);
+        });
+
+        $order->refresh();
+        $this->notifier->statusChanged($order, $order->status, $actor, 'Teslim alma iptal edildi: '.$reason);
+
+        return $receipt->refresh();
+    }
+
+    /**
+     * Teslim iptalinden sonraki durum, kalan miktarlardan yeniden türetilir:
+     * hiçbir şey gelmediyse sipariş yeniden "Sipariş Verildi", bir kısmı hâlâ
+     * duruyorsa "Kısmi Teslim", her şey duruyorsa "Tamamlandı". Durum makinesi
+     * (canTransitionTo) geriye dönüşe izin vermez; burada bilinçli olarak
+     * doğrudan yazılır, çünkü bu bir düzeltmedir, ileri yönde bir geçiş değil.
+     */
+    private function statusAfterReceiptChange(PurchaseOrder $order): PurchaseOrderStatus
+    {
+        $lines = $order->lines()->get();
+
+        if ($lines->every(fn (PurchaseOrderLine $line) => $line->remaining() <= self::EPSILON)) {
+            return PurchaseOrderStatus::Completed;
+        }
+
+        $anyReceived = $lines->contains(fn (PurchaseOrderLine $line) => (float) $line->received_quantity > self::EPSILON);
+
+        return $anyReceived ? PurchaseOrderStatus::PartiallyReceived : PurchaseOrderStatus::Ordered;
     }
 
     private function transition(PurchaseOrder $order, PurchaseOrderStatus $next, User $actor, ?string $note = null, ?Closure $effect = null): PurchaseOrder
