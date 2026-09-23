@@ -17,7 +17,11 @@
         <div class="min-h-screen lg:flex" x-data="{ menuOpen: false }" x-on:keydown.escape.window="menuOpen = false">
             <div x-show="menuOpen" x-transition.opacity x-on:click="menuOpen = false" class="fixed inset-0 z-30 bg-black/40 lg:hidden" style="display: none"></div>
             <aside class="bg-panel-900 text-white fixed inset-y-0 left-0 z-40 w-72 overflow-y-auto flex flex-col -translate-x-full transition-transform duration-200 lg:static lg:z-auto lg:w-64 lg:shrink-0 lg:translate-x-0 lg:overflow-visible"
-                x-bind:style="menuOpen ? 'transform: translateX(0)' : ''">
+                {{-- Tailwind v4 kapalı konumu "translate" özelliğiyle kuruyor
+                     (-translate-x-full → translate:-100%). Buraya "transform"
+                     yazılırsa farklı bir özellik olduğu için o kural ezilmez ve
+                     panel kımıldamaz; satır içi "translate" ise kuralı ezer. --}}
+                x-bind:style="menuOpen ? 'translate: 0' : ''">
                 <div class="flex items-center gap-2.5 px-6 py-6">
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" class="text-brand-400 shrink-0">
                         <path d="M12 3c-2.2 0-3.4 1.1-4.4 1.1-1.3 0-2.4-.9-3.6-.6C2.4 4 2 5.6 2 7.2c0 3 1.4 6.9 2.5 9.3.8 1.7 1.5 3.5 2.8 3.5 1.2 0 1.4-.8 1.9-2.4.4-1.3.7-2.9 1.8-2.9s1.4 1.6 1.8 2.9c.5 1.6.7 2.4 1.9 2.4 1.3 0 2-1.8 2.8-3.5C18.6 14.1 20 10.2 20 7.2c0-1.6-.4-3.2-2-3.7-1.2-.3-2.3.6-3.6.6-1 0-2.2-1.1-4.4-1.1Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
