@@ -72,16 +72,45 @@ izleniyorsa doğrudan haber verir). Eşikler `config/health.php` içindedir.
 
 ## 4. Dağıtım adımları
 
+**GitHub'a push etmek canlıyı güncellemez.** Sunucu kodu `git pull` ile alır ve
+bunu tetikleyen bir şey yoktur; her dağıtım bilinçli olarak başlatılır.
+
+Yerel bilgisayardan tek komut:
+
+```sh
+ssh root@<sunucu> /var/www/dental-erp/deploy/deploy.sh
+```
+
+Betik (`deploy/deploy.sh`) sırayla şunları yapar: bakım moduna alır, kodu
+`origin/main`'e sabitler, `composer install --no-dev`, `npm ci && npm run build`,
+`migrate --force`, `optimize`, dosya izinleri, `queue:restart`, bakım modundan
+çıkar ve son olarak `/health` adresini kontrol eder. Herhangi bir adım
+başarısız olursa orada durur ve uygulamayı bakım modunda bırakmaz.
+
+Elle yapmak gerekirse aynı adımlar:
+
 ```sh
 php artisan down
-git pull
+git fetch origin && git reset --hard origin/main
 composer install --no-dev --optimize-autoloader
 npm ci && npm run build
 php artisan migrate --force
 php artisan optimize          # config/route/view cache
+chown root:www-data .env && chmod 640 .env
 php artisan queue:restart
 php artisan up
 ```
+
+> `.env` dosyasının `www-data` tarafından okunabilir olması şarttır. Okunamazsa
+> Laravel ayarları alamaz ve **sessizce** varsayılanlara (SQLite) düşer: site
+> açılır ama yanlış veritabanıyla çalışır. `/health` bunu yakalar.
+
+### Otomatik dağıtım (isteğe bağlı)
+
+Her push'ta canlının kendiliğinden güncellenmesi istenirse GitHub Actions'tan
+SSH ile bu betik çağrılabilir. Pilot sürecinde **bilinçli olarak
+kurulmamıştır**: tek klinikle çalışırken dağıtımın ne zaman olacağını kontrol
+etmek, yanlışlıkla yarım bir değişikliği canlıya göndermekten daha değerlidir.
 
 ## 5. Yedekleme
 

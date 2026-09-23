@@ -5,6 +5,9 @@ namespace Tests\Feature\Platform;
 use App\Domain\Platform\Backup\NullOffsiteBackupSync;
 use App\Domain\Platform\Backup\RcloneOffsiteBackupSync;
 use App\Domain\Platform\Contracts\OffsiteBackupSync;
+use App\Domain\Platform\Notifications\OffsiteBackupAlert;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
@@ -48,6 +51,8 @@ class OffsiteBackupTest extends TestCase
                     'timeout' => 900,
                 ],
                 'max_age_hours' => 48,
+                'alert_email' => 'sorumlu@klinik.test',
+                'alert_throttle_hours' => 24,
             ],
         ]);
     }
@@ -162,6 +167,107 @@ class OffsiteBackupTest extends TestCase
         $this->artisan('backup:check-offsite')
             ->expectsOutputToContain('Sunucu dışı yedek hedefi okunamadı: directory not found')
             ->assertFailed();
+    }
+
+    public function test_a_failing_check_emails_the_person_responsible(): void
+    {
+        Notification::fake();
+        $this->fakeRemoteListing([]);
+
+        $this->artisan('backup:check-offsite')
+            ->expectsOutputToContain('Uyarı maili gönderildi: sorumlu@klinik.test')
+            ->assertFailed();
+
+        Notification::assertSentOnDemand(
+            OffsiteBackupAlert::class,
+            function (OffsiteBackupAlert $notification, array $channels, object $notifiable) {
+                $this->assertSame('sorumlu@klinik.test', $notifiable->routes['mail']);
+                $this->assertFalse($notification->resolved);
+                $this->assertStringContainsString('hiç yedek yok', (string) $notification->problem);
+
+                return true;
+            },
+        );
+    }
+
+    public function test_no_email_is_sent_when_no_address_is_configured(): void
+    {
+        Notification::fake();
+        config()->set('backup.offsite.alert_email', null);
+        $this->fakeRemoteListing([]);
+
+        // Adres yoksa eski davranış sürer: log + hata kodu, sessiz değil.
+        $this->artisan('backup:check-offsite')->assertFailed();
+
+        Notification::assertNothingSent();
+    }
+
+    public function test_the_same_problem_does_not_email_again_within_the_throttle_window(): void
+    {
+        Notification::fake();
+        $this->fakeRemoteListing([]);
+
+        $this->artisan('backup:check-offsite')->assertFailed();
+        $this->artisan('backup:check-offsite')
+            ->expectsOutputToContain('Uyarı maili yakın zamanda gönderildi, tekrarlanmıyor.')
+            ->assertFailed();
+
+        // Uyarı gürültüye dönüşürse okunmaz olur: sorun sürerken tek mail.
+        Notification::assertSentOnDemandTimes(OffsiteBackupAlert::class, 1);
+    }
+
+    public function test_the_throttle_expires_so_a_lasting_problem_is_repeated(): void
+    {
+        Notification::fake();
+        $this->fakeRemoteListing([]);
+
+        $this->artisan('backup:check-offsite')->assertFailed();
+
+        $this->travel(25)->hours();
+        $this->fakeRemoteListing([]);
+        $this->artisan('backup:check-offsite')->assertFailed();
+
+        Notification::assertSentOnDemandTimes(OffsiteBackupAlert::class, 2);
+    }
+
+    public function test_recovery_is_reported_once_after_a_problem(): void
+    {
+        Notification::fake();
+
+        $this->fakeRemoteListing([]);
+        $this->artisan('backup:check-offsite')->assertFailed();
+
+        $this->travelTo('2026-09-23 06:00:00');
+        $this->fakeRemoteListing([
+            ['Name' => 'dental_erp-2026-09-23-023000.sql.gz', 'ModTime' => '2026-09-23T02:30:05Z'],
+        ]);
+
+        $this->artisan('backup:check-offsite')
+            ->expectsOutputToContain('Düzelme maili gönderildi: sorumlu@klinik.test')
+            ->assertSuccessful();
+
+        Notification::assertSentOnDemand(
+            OffsiteBackupAlert::class,
+            fn (OffsiteBackupAlert $notification) => $notification->resolved === true,
+        );
+
+        // İkinci başarılı çalışmada tekrar "düzeldi" maili atılmaz.
+        $this->artisan('backup:check-offsite')->assertSuccessful();
+        Notification::assertSentOnDemandTimes(OffsiteBackupAlert::class, 2);
+    }
+
+    public function test_a_healthy_check_never_emails_when_there_was_no_problem(): void
+    {
+        Notification::fake();
+        Cache::flush();
+        $this->travelTo('2026-09-23 06:00:00');
+        $this->fakeRemoteListing([
+            ['Name' => 'dental_erp-2026-09-23-023000.sql.gz', 'ModTime' => '2026-09-23T02:30:05Z'],
+        ]);
+
+        $this->artisan('backup:check-offsite')->assertSuccessful();
+
+        Notification::assertNothingSent();
     }
 
     /**

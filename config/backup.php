@@ -85,6 +85,21 @@ return [
 
         'max_age_hours' => (int) env('BACKUP_OFFSITE_MAX_AGE_HOURS', 48),
 
+        /*
+        | Yedek dışarı çıkmadığında haber verilecek adres (Aşama 30, ek).
+        |
+        | Yalnızca log'a yazmak yetmiyor: log dosyasına kimse bakmaz ve
+        | yedeğin gitmediği, yedeğe ihtiyaç duyulan gün fark edilir. Adres
+        | boş bırakılırsa eski davranış sürer (yalnızca log + hata kodu).
+        |
+        | throttle_hours: aynı sorun sürerken her gün tekrar tekrar mail
+        | atılmaz. Sorun düzeldiğinde tek bir "düzeldi" maili gider, böylece
+        | sessizlik "düzeldi" mi "mail de mi gitmiyor" belirsizliği kalmaz.
+        */
+        'alert_email' => env('BACKUP_ALERT_EMAIL'),
+
+        'alert_throttle_hours' => (int) env('BACKUP_ALERT_THROTTLE_HOURS', 24),
+
     ],
 
 ];

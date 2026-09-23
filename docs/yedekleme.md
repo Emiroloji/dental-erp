@@ -119,6 +119,31 @@ hiç yedek yoksa:
 Zamanlaması `routes/console.php` içinde her gün 06:00 — gece 02:30'da alınan
 yedeğin hedefte görünmesi için birkaç saat bırakılmıştır.
 
+### Uyarı maili
+
+`BACKUP_ALERT_EMAIL` doldurulursa sorun doğrudan sorumlunun gelen kutusuna
+gider. **Canlıda bu alan doldurulmalıdır**: log'a yazmak tek başına işe
+yaramaz, çünkü log dosyasına kimse bakmaz ve yedeğin gitmediği, yedeğe ihtiyaç
+duyulan gün fark edilir.
+
+```
+BACKUP_ALERT_EMAIL=sorumlu@ornek.com
+# BACKUP_ALERT_THROTTLE_HOURS=24
+```
+
+Davranış:
+
+- Sorun sürdüğü sürece **günde bir kez** mail atılır (`alert_throttle_hours`).
+  Aksi hâlde uyarı gürültüye dönüşür ve okunmaz olur.
+- Sorun düzeldiğinde **tek bir "düzeldi" maili** gider. Bu bilinçlidir:
+  yalnızca "bozuldu" maili atılsaydı, sessizliğin "düzeldi" mi yoksa "mail de
+  mi gitmiyor" mu olduğu anlaşılmazdı.
+- Hiç sorun yaşanmadıysa hiç mail gitmez; "her şey yolunda" maili yoktur.
+
+Uyarının gönderilip gönderilmediği önbellekte tutulur (`backup:offsite-alert-sent`).
+`php artisan cache:clear` bu hafızayı da siler; sorun sürüyorsa bir sonraki
+kontrolde yeniden mail gider.
+
 `backup:run` de sunucu dışı kopya başarısız olursa **hata koduyla çıkar**,
 yedek yerelde alınmış olsa bile. Bu bilinçlidir: bir günün kaçtığını o gün
 bilmek gerekir.
