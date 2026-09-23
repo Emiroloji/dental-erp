@@ -29,9 +29,27 @@ Bu belgede geçen `<SUNUCU_ADI>` yerine bunu yazın.
 
 ```sh
 apt update && apt upgrade -y
-apt install -y nginx postgresql redis-server supervisor git unzip \
-    php8.3-fpm php8.3-cli php8.3-pgsql php8.3-mbstring php8.3-xml \
-    php8.3-curl php8.3-zip php8.3-gd php8.3-bcmath php8.3-intl
+apt install -y nginx postgresql postgresql-contrib supervisor git unzip curl
+```
+
+### PHP 8.4
+
+> **Ubuntu 24.04'ün kendi deposu PHP 8.3 getirir ve bu yetmez.** `composer.json`
+> `^8.4` diyor; `composer.lock` içindeki Symfony 8 paketleri **PHP ≥ 8.4.1**
+> istiyor. 8.3 ile `composer install` reddedilir. PHP 8.4 için ondrej deposu
+> eklenir:
+
+```sh
+apt install -y software-properties-common
+add-apt-repository -y ppa:ondrej/php
+apt update
+apt install -y php8.4-fpm php8.4-cli php8.4-pgsql php8.4-mbstring php8.4-xml \
+    php8.4-curl php8.4-zip php8.4-gd php8.4-bcmath php8.4-intl
+
+# Sunucuda 8.3 kurulu kaldıysa karışıklık olmasın diye kaldırılır:
+apt purge -y 'php8.3-*' && apt autoremove -y
+
+php -v   # 8.4.x görmeli
 ```
 
 Composer:
@@ -49,7 +67,8 @@ curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt install -y node
 ### Swap
 
 4 GB RAM bu uygulama için yeterli, ama XLSX üretimi gibi işlerde ani sıçramalar
-olur. 2 GB swap güvenlik payıdır:
+olur. 2 GB swap güvenlik payıdır. Bazı sağlayıcılar hazır kurulmuş veriyor —
+önce `swapon --show` ile bakın, çıktı doluysa bu adımı atlayın:
 
 ```sh
 fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
@@ -259,5 +278,33 @@ PostgreSQL ve Redis yalnızca `127.0.0.1` dinlemeli; dışarıya açılmamalıd�
       açılıyor, Hızlı İşlem'de kamera açılıyor ve gerçek bir barkod okunuyor,
       uçak moduyla çevrimdışı sayfası geliyor
 
-Son madde hiçbir aşamada gerçek cihazda denenmedi; kurulumdan sonra gözle
-doğrulanmalıdır.
+## 12. Yapılan kurulum
+
+| | |
+| --- | --- |
+| Tarih | 23.09.2026 |
+| Sağlayıcı / lokasyon | VDS, İstanbul (VMware, 3 çekirdek / 4 GB / 40 GB NVMe) |
+| İşletim sistemi | Ubuntu 24.04, çekirdek 6.8.0-111 |
+| Adres | `https://91-151-88-152.sslip.io` (sslip.io + Let's Encrypt) |
+| Sürüm | `543c2ea` (Aşama 30) |
+
+Doğrulananlar: HTTPS ve HTTP→HTTPS yönlendirmesi, `/health` üç kontrolüyle
+birlikte `ok`, `.webmanifest` içerik türü `application/manifest+json`,
+Supervisor worker'ları `RUNNING`, cron kurulu. **Telefonda** PWA kurulumu,
+kamerayla barkod okuma ve çevrimdışı sayfası gözle denendi ve çalıştı — bu,
+Aşama 21'den beri hiç doğrulanmamış olan maddeydi.
+
+Kurulum sırasında öğrenilen iki şey belgeye işlendi:
+
+1. **PHP 8.4 zorunlu.** Ubuntu 24.04'ün 8.3'ü ile `composer install` reddediliyor
+   (Symfony 8 paketleri 8.4.1 istiyor). ondrej deposu eklenmeli.
+2. **`.env` dosyası `www-data` tarafından okunabilmeli.** `640 root:root`
+   bırakılırsa Laravel ayarları okuyamaz ve **sessizce** varsayılanlara
+   (SQLite) düşer; site açılır ama veritabanı yanlıştır. `/health` bunu yakalar.
+   Doğrusu: `chown root:www-data .env && chmod 640 .env`.
+
+Bu belgedeki adımlar bu kurulumda uygulanmış hâlleriyle günceldir.
+
+Sunucu dışı yedek (rclone), gerçek e-posta ve Sentry bu kurulumda **henüz
+açılmadı**; sırasıyla `docs/yedekleme.md` ve yukarıdaki 7. ve 9. bölümler
+izlenerek açılacaktır.
