@@ -1,5 +1,9 @@
 # Production Kurulumu
 
+> **Aşama 32 itibarıyla canlı kurulum Dokploy + Docker ile yapılır: `docs/dokploy.md`.**
+> Bu belge ve `docs/sunucu-kurulumu.md` eski elle kurulumu anlatır; zamanlanmış
+> işler, kuyruk ve izleme hakkındaki açıklamalar Docker kurulumu için de geçerlidir.
+
 > Sıfırdan bir VPS'e kurulum (paketler, veritabanı, nginx, HTTPS, e-posta,
 > güvenlik duvarı) için önce **`docs/sunucu-kurulumu.md`** okunmalıdır. Bu belge
 > uygulamanın kurulduktan sonra çalışır kalmasını anlatır.

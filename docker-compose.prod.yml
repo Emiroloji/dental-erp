@@ -1,0 +1,95 @@
+# Dental ERP — canlı ortam (Dokploy). Ayrıntı: docs/dokploy.md
+#
+# Dokploy bu dosyayı "Docker Compose" türünde bir proje olarak çalıştırır;
+# ortam değişkenleri Dokploy panelinden girilir ve .env dosyasına yazılır.
+# HTTPS ve alan adı Dokploy'un Traefik'i üzerinden verilir: burada dışarıya
+# hiçbir port açılmaz, alan adı panelde "dental-app" servisinin 8080
+# portuna bağlanır.
+#
+# Veritabanı ve Redis servis adları bilerek "dental-" ön ekli: Dokploy'daki
+# başka projelerle aynı ağı paylaştıklarında "db" gibi ortak bir ad yanlış
+# konteynere çözümlenebilir.
+
+x-app: &app
+  build:
+    context: .
+    target: runner
+  restart: unless-stopped
+  env_file: .env
+  volumes:
+    - storage:/app/storage
+  depends_on:
+    dental-db: { condition: service_healthy }
+    dental-redis: { condition: service_healthy }
+
+services:
+  dental-app:
+    <<: *app
+    environment:
+      CONTAINER_ROLE: app
+    expose: ["8080"]
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/up"]
+      interval: 15s
+      timeout: 5s
+      start_period: 60s
+      retries: 5
+
+  # Rapor dışa aktarımları ve stok taraması (eski Supervisor kurulumunun karşılığı).
+  dental-worker:
+    <<: *app
+    environment:
+      CONTAINER_ROLE: worker
+    command: ["php", "artisan", "queue:work", "--queue=default", "--sleep=3", "--tries=3", "--backoff=10", "--max-time=3600", "--max-jobs=500", "--memory=512"]
+    stop_grace_period: 60s
+    mem_limit: 768m
+    # FrankenPHP imajının kendi sağlık kontrolü web sunucusunu yoklar; bu
+    # konteynerde web sunucusu çalışmadığı için kapatılır.
+    healthcheck: { disable: true }
+    depends_on:
+      dental-app: { condition: service_healthy }
+
+  # routes/console.php'deki işler (eski cron satırının karşılığı).
+  dental-scheduler:
+    <<: *app
+    environment:
+      CONTAINER_ROLE: scheduler
+    command: ["php", "artisan", "schedule:work"]
+    mem_limit: 512m
+    healthcheck: { disable: true }
+    depends_on:
+      dental-app: { condition: service_healthy }
+
+  dental-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_DATABASE}
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      retries: 10
+
+  dental-redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # Oturumlar ve önbellek Redis'te: yeniden başlatmada kaybolmasın.
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      retries: 10
+
+volumes:
+  storage:
+  db-data:
+  redis-data:

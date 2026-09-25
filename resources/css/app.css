@@ -1,6 +1,9 @@
 @import 'tailwindcss';
 
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+/* Livewire'ın sayfalama görünümleri: yalnızca derlenmiş görünüm önbelleği üzerinden
+   bulunuyordu; önbelleğin olmadığı temiz derlemede (Docker) sınıfları eksik kalıyordu. */
+@source '../../vendor/livewire/livewire/src/Features/SupportPagination/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
 
 @theme {

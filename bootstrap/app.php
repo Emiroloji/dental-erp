@@ -28,6 +28,12 @@ return Application::configure(basePath: dirname(__DIR__))
         },
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Canlıda uygulama yalnızca Dokploy'un Traefik'i üzerinden erişilebilir
+        // (konteyner dışarıya port açmaz). Proxy'nin X-Forwarded-* başlıklarına
+        // güvenilmezse Laravel isteği HTTP sanar; yönlendirmeler ve Livewire
+        // adresleri http:// üretilir ve tarayıcı karışık içerik diye engeller.
+        $middleware->trustProxies(at: '*');
+
         $middleware->alias([
             'tenant' => EnsureTenantAccess::class,
             'platform' => EnsurePlatformOwner::class,
