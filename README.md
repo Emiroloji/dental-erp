@@ -80,6 +80,7 @@ Her push ve PR'da GitHub Actions aynı üç adımı çalıştırır
 | Zamanlayıcı, Supervisor ile kuyruk worker'ı, dağıtım adımları | [`docs/production.md`](docs/production.md) |
 | Günlük yedek, sunucu dışı kopya (rclone), geri yükleme prosedürü ve provası | [`docs/yedekleme.md`](docs/yedekleme.md) |
 | Hata takibi (Sentry/log) ve `/health` uç noktası | [`docs/izleme.md`](docs/izleme.md) |
+| ÜTS (Ürün Takip Sistemi) sorgulama: token alma, ekranlar, sorun giderme | [`docs/uts.md`](docs/uts.md) |
 
 ## Şartname belgeleri
 
