@@ -67,13 +67,13 @@ class UtsClientContractTest extends TestCase
     public function test_pending_receipt_reads_uts_json_codes(): void
     {
         $receipt = PendingReceipt::fromArray([
-            'GKK' => 7, 'UNO' => '08699999999990', 'LNO' => 'L1', 'SNO' => 'S1', 'ADT' => 3,
+            'GKK' => 7, 'UNO' => '08699999999994', 'LNO' => 'L1', 'SNO' => 'S1', 'ADT' => 3,
             'BID' => 'abc-1', 'BNO' => 'IRS-9', 'BZA' => '2026-10-01 09:30:00',
             'GKU' => 'Dental Tedarik A.Ş.', 'MME' => 'Marka Model',
         ]);
 
         $this->assertSame(7, $receipt->senderCode);
-        $this->assertSame('08699999999990', $receipt->uno);
+        $this->assertSame('08699999999994', $receipt->uno);
         $this->assertSame('L1', $receipt->lot);
         $this->assertSame('S1', $receipt->serial);
         $this->assertSame(3, $receipt->quantity);
@@ -84,7 +84,7 @@ class UtsClientContractTest extends TestCase
     public function test_item_reads_uts_json_codes(): void
     {
         $item = UtsItem::fromArray([
-            'UTP' => 'TIBBI_CIHAZ', 'UNO' => '08699999999990', 'LNO' => 'L1', 'ADT' => 5,
+            'UTP' => 'TIBBI_CIHAZ', 'UNO' => '08699999999994', 'LNO' => 'L1', 'ADT' => 5,
             'SKT' => '2028-01-31', 'UAK' => 'LOT', 'UDI' => 'UDI-1', 'MME' => 'Marka Model',
         ]);
 
@@ -511,7 +511,7 @@ class HttpUtsClientTest extends TestCase
     public function test_pending_receipts_posts_to_the_documented_endpoint_with_token_header(): void
     {
         Http::fake(['utstest.saglik.gov.tr/*' => Http::response(['SNC' => [
-            ['GKK' => 7, 'UNO' => '08699999999990', 'LNO' => 'L1', 'ADT' => 2, 'BNO' => 'IRS-1'],
+            ['GKK' => 7, 'UNO' => '08699999999994', 'LNO' => 'L1', 'ADT' => 2, 'BNO' => 'IRS-1'],
         ]])]);
 
         $page = $this->client()->pendingReceipts(7, 0);
@@ -545,16 +545,16 @@ class HttpUtsClientTest extends TestCase
     public function test_lookup_posts_uno_lot_and_serial(): void
     {
         Http::fake(['*' => Http::response(['SNC' => [
-            ['UTP' => 'TIBBI_CIHAZ', 'UNO' => '08699999999990', 'LNO' => 'L1', 'SKT' => '2028-01-31', 'UAK' => 'LOT'],
+            ['UTP' => 'TIBBI_CIHAZ', 'UNO' => '08699999999994', 'LNO' => 'L1', 'SKT' => '2028-01-31', 'UAK' => 'LOT'],
         ]])]);
 
-        $items = $this->client()->lookup('08699999999990', 'L1');
+        $items = $this->client()->lookup('08699999999994', 'L1');
 
         $this->assertCount(1, $items);
         $this->assertSame('2028-01-31', $items[0]->expiryDate);
 
         Http::assertSent(fn (Request $r) => str_ends_with($r->url(), '/UTS/uh/rest/tekilUrun/sorgula')
-            && $r['UNO'] === '08699999999990' && $r['LNO'] === 'L1' && ! isset($r['SNO']) && $r['SAN'] === 0);
+            && $r['UNO'] === '08699999999994' && $r['LNO'] === 'L1' && ! isset($r['SNO']) && $r['SAN'] === 0);
     }
 
     public function test_uts_error_message_is_shown_to_the_user(): void
@@ -1291,13 +1291,13 @@ class UtsMatcherTest extends TestCase
         $org = Organization::create(['name' => 'Klinik', 'status' => 'active', 'plan' => 'starter']);
         $branch = Branch::create(['organization_id' => $org->id, 'name' => 'Merkez', 'status' => 'active']);
         $this->warehouse = Warehouse::create(['branch_id' => $branch->id, 'name' => 'Depo', 'is_default' => true, 'status' => 'active']);
-        $this->product = Product::create(['organization_id' => $org->id, 'name' => 'Implant', 'base_unit' => 'Adet', 'status' => 'active', 'gtin' => '08699999999990', 'tracks_serials' => true]);
+        $this->product = Product::create(['organization_id' => $org->id, 'name' => 'Implant', 'base_unit' => 'Adet', 'status' => 'active', 'gtin' => '08699999999994', 'tracks_serials' => true]);
         $this->actingAs(User::factory()->create(['organization_id' => $org->id, 'role' => User::ROLE_ADMIN, 'status' => 'active']));
     }
 
     public function test_matches_product_by_gtin_even_without_leading_zero(): void
     {
-        $match = app(UtsMatcher::class)->match('8699999999990', null, null);
+        $match = app(UtsMatcher::class)->match('8699999999994', null, null);
 
         $this->assertTrue($match['product']?->is($this->product));
     }
@@ -1315,7 +1315,7 @@ class UtsMatcherTest extends TestCase
     {
         app(StockMovementService::class)->in($this->product, $this->warehouse, 1, ['lot_no' => 'L1', 'expiry_date' => '2028-01-31', 'serial_numbers' => ['S1']]);
 
-        $match = app(UtsMatcher::class)->match('08699999999990', 'L1', 'S1');
+        $match = app(UtsMatcher::class)->match('08699999999994', 'L1', 'S1');
 
         $this->assertSame('L1', $match['lot']?->lot_no);
         $this->assertSame('S1', $match['serial']?->serial_no);
@@ -1418,7 +1418,7 @@ class UtsPendingScreenTest extends TestCase
 
         $org = Organization::create(['name' => 'Klinik', 'status' => 'active', 'plan' => 'starter']);
         $this->admin = User::factory()->create(['organization_id' => $org->id, 'role' => User::ROLE_ADMIN, 'status' => 'active']);
-        Product::create(['organization_id' => $org->id, 'name' => 'Implant X', 'base_unit' => 'Adet', 'status' => 'active', 'gtin' => '08699999999990']);
+        Product::create(['organization_id' => $org->id, 'name' => 'Implant X', 'base_unit' => 'Adet', 'status' => 'active', 'gtin' => '08699999999994']);
         $this->actingAs($this->admin);
     }
 
@@ -1437,7 +1437,7 @@ class UtsPendingScreenTest extends TestCase
     public function test_lists_pending_receipts_with_match_badges(): void
     {
         $this->fake([
-            PendingReceipt::fromArray(['GKK' => 7, 'UNO' => '08699999999990', 'LNO' => 'L1', 'ADT' => 2, 'BNO' => 'IRS-1', 'GKU' => 'Tedarik A.Ş.', 'MME' => 'Marka X']),
+            PendingReceipt::fromArray(['GKK' => 7, 'UNO' => '08699999999994', 'LNO' => 'L1', 'ADT' => 2, 'BNO' => 'IRS-1', 'GKU' => 'Tedarik A.Ş.', 'MME' => 'Marka X']),
             PendingReceipt::fromArray(['GKK' => 7, 'UNO' => '09999999999994', 'LNO' => 'L9', 'ADT' => 1, 'BNO' => 'IRS-2', 'GKU' => 'Tedarik A.Ş.']),
         ]);
 
@@ -1705,7 +1705,7 @@ class UtsVerifyScreenTest extends TestCase
         $org = Organization::create(['name' => 'Klinik', 'status' => 'active', 'plan' => 'starter']);
         $branch = Branch::create(['organization_id' => $org->id, 'name' => 'Merkez', 'status' => 'active']);
         $warehouse = Warehouse::create(['branch_id' => $branch->id, 'name' => 'Depo', 'is_default' => true, 'status' => 'active']);
-        $product = Product::create(['organization_id' => $org->id, 'name' => 'Dolgu', 'base_unit' => 'Adet', 'status' => 'active', 'gtin' => '08699999999990']);
+        $product = Product::create(['organization_id' => $org->id, 'name' => 'Dolgu', 'base_unit' => 'Adet', 'status' => 'active', 'gtin' => '08699999999994']);
         $this->actingAs(User::factory()->create(['organization_id' => $org->id, 'role' => User::ROLE_ADMIN, 'status' => 'active']));
         app(StockMovementService::class)->in($product, $warehouse, 5, ['lot_no' => 'L1', 'expiry_date' => '2028-01-31']);
     }
@@ -1720,10 +1720,10 @@ class UtsVerifyScreenTest extends TestCase
 
     public function test_verifies_a_lot_and_shows_matching_expiry(): void
     {
-        $this->fake([UtsItem::fromArray(['UTP' => 'TIBBI_CIHAZ', 'UNO' => '08699999999990', 'LNO' => 'L1', 'ADT' => 5, 'SKT' => '2028-01-31', 'UAK' => 'LOT', 'MME' => 'Marka'])]);
+        $this->fake([UtsItem::fromArray(['UTP' => 'TIBBI_CIHAZ', 'UNO' => '08699999999994', 'LNO' => 'L1', 'ADT' => 5, 'SKT' => '2028-01-31', 'UAK' => 'LOT', 'MME' => 'Marka'])]);
 
         Livewire::test('pages::uts.verify')
-            ->set('uno', '08699999999990')
+            ->set('uno', '08699999999994')
             ->set('lot', 'L1')
             ->call('check')
             ->assertSee('ÜTS\'de kayıtlı')
@@ -1733,16 +1733,16 @@ class UtsVerifyScreenTest extends TestCase
 
     public function test_flags_expiry_mismatch(): void
     {
-        $this->fake([UtsItem::fromArray(['UNO' => '08699999999990', 'LNO' => 'L1', 'SKT' => '2027-06-30'])]);
+        $this->fake([UtsItem::fromArray(['UNO' => '08699999999994', 'LNO' => 'L1', 'SKT' => '2027-06-30'])]);
 
-        Livewire::test('pages::uts.verify')->set('uno', '08699999999990')->set('lot', 'L1')->call('check')->assertSee('SKT uyuşmuyor');
+        Livewire::test('pages::uts.verify')->set('uno', '08699999999994')->set('lot', 'L1')->call('check')->assertSee('SKT uyuşmuyor');
     }
 
     public function test_reports_when_uts_has_no_record(): void
     {
         $this->fake([]);
 
-        Livewire::test('pages::uts.verify')->set('uno', '08699999999990')->set('lot', 'YOK')->call('check')->assertSee('ÜTS\'de kayıt bulunamadı');
+        Livewire::test('pages::uts.verify')->set('uno', '08699999999994')->set('lot', 'YOK')->call('check')->assertSee('ÜTS\'de kayıt bulunamadı');
     }
 
     public function test_gs1_scan_fills_the_fields(): void
@@ -1750,13 +1750,13 @@ class UtsVerifyScreenTest extends TestCase
         $client = $this->fake([]);
 
         Livewire::test('pages::uts.verify')
-            ->set('scan', '(01)08699999999990(17)280131(10)L1(21)S9')
-            ->assertSet('uno', '08699999999990')
+            ->set('scan', '(01)08699999999994(17)280131(10)L1(21)S9')
+            ->assertSet('uno', '08699999999994')
             ->assertSet('lot', 'L1')
             ->assertSet('serial', 'S9')
             ->call('check');
 
-        $this->assertSame(['lookup', ['08699999999990', 'L1', 'S9']], $client->calls[0]);
+        $this->assertSame(['lookup', ['08699999999994', 'L1', 'S9']], $client->calls[0]);
     }
 
     public function test_requires_a_product_number(): void
@@ -1992,15 +1992,15 @@ class UtsInquiryAcceptanceTest extends TestCase
     {
         $org = Organization::create(['name' => 'Klinik', 'status' => 'active', 'plan' => 'starter']);
         $admin = User::factory()->create(['organization_id' => $org->id, 'role' => User::ROLE_ADMIN, 'status' => 'active']);
-        Product::create(['organization_id' => $org->id, 'name' => 'Implant X', 'base_unit' => 'Adet', 'status' => 'active', 'gtin' => '08699999999990']);
+        Product::create(['organization_id' => $org->id, 'name' => 'Implant X', 'base_unit' => 'Adet', 'status' => 'active', 'gtin' => '08699999999994']);
         $this->actingAs($admin);
 
         Http::fake([
             '*/bildirim/alma/bekleyenler/sorgula' => Http::response(['SNC' => [
-                ['GKK' => 7, 'UNO' => '08699999999990', 'LNO' => 'L1', 'ADT' => 2, 'BNO' => 'IRS-1', 'GKU' => 'Tedarik A.Ş.'],
+                ['GKK' => 7, 'UNO' => '08699999999994', 'LNO' => 'L1', 'ADT' => 2, 'BNO' => 'IRS-1', 'GKU' => 'Tedarik A.Ş.'],
             ]]),
             '*/tekilUrun/sorgula' => Http::response(['SNC' => [
-                ['UTP' => 'TIBBI_CIHAZ', 'UNO' => '08699999999990', 'LNO' => 'L1', 'ADT' => 2, 'SKT' => '2028-01-31'],
+                ['UTP' => 'TIBBI_CIHAZ', 'UNO' => '08699999999994', 'LNO' => 'L1', 'ADT' => 2, 'SKT' => '2028-01-31'],
             ]]),
         ]);
 
@@ -2008,7 +2008,7 @@ class UtsInquiryAcceptanceTest extends TestCase
 
         Livewire::test('pages::uts.pending')->assertSee('IRS-1')->assertSee('Ürün bizde var');
 
-        Livewire::test('pages::uts.verify')->set('uno', '08699999999990')->set('lot', 'L1')->call('check')->assertSee('ÜTS\'de kayıtlı');
+        Livewire::test('pages::uts.verify')->set('uno', '08699999999994')->set('lot', 'L1')->call('check')->assertSee('ÜTS\'de kayıtlı');
 
         // Bu aşama ÜTS'ye hiçbir şey yazmaz: yalnızca iki sorgu servisi çağrıldı.
         Http::assertSentCount(4);

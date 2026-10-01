@@ -113,6 +113,15 @@ Route::middleware('tenant')->group(function () {
         ->middleware(['auth', 'can:stock_movement.viewAny'])
         ->name('stock.serials');
 
+    // Aşama 33: ÜTS sorgulama (salt okunur).
+    Route::livewire('/uts/kabul-bekleyenler', 'pages::uts.pending')
+        ->middleware(['auth', 'can:stock_movement.viewAny'])
+        ->name('uts.pending');
+
+    Route::livewire('/uts/dogrula', 'pages::uts.verify')
+        ->middleware(['auth', 'can:stock_movement.viewAny'])
+        ->name('uts.verify');
+
     Route::livewire('/stok-sayimi', 'pages::inventory.index')
         ->middleware(['auth', 'can:stock_movement.viewAny'])
         ->name('inventory.index');

@@ -14,13 +14,13 @@ class UtsClientContractTest extends TestCase
     public function test_pending_receipt_reads_uts_json_codes(): void
     {
         $receipt = PendingReceipt::fromArray([
-            'GKK' => 7, 'UNO' => '08699999999990', 'LNO' => 'L1', 'SNO' => 'S1', 'ADT' => 3,
+            'GKK' => 7, 'UNO' => '08699999999994', 'LNO' => 'L1', 'SNO' => 'S1', 'ADT' => 3,
             'BID' => 'abc-1', 'BNO' => 'IRS-9', 'BZA' => '2026-10-01 09:30:00',
             'GKU' => 'Dental Tedarik A.Ş.', 'MME' => 'Marka Model',
         ]);
 
         $this->assertSame(7, $receipt->senderCode);
-        $this->assertSame('08699999999990', $receipt->uno);
+        $this->assertSame('08699999999994', $receipt->uno);
         $this->assertSame('L1', $receipt->lot);
         $this->assertSame('S1', $receipt->serial);
         $this->assertSame(3, $receipt->quantity);
@@ -31,7 +31,7 @@ class UtsClientContractTest extends TestCase
     public function test_item_reads_uts_json_codes(): void
     {
         $item = UtsItem::fromArray([
-            'UTP' => 'TIBBI_CIHAZ', 'UNO' => '08699999999990', 'LNO' => 'L1', 'ADT' => 5,
+            'UTP' => 'TIBBI_CIHAZ', 'UNO' => '08699999999994', 'LNO' => 'L1', 'ADT' => 5,
             'SKT' => '2028-01-31', 'UAK' => 'LOT', 'UDI' => 'UDI-1', 'MME' => 'Marka Model',
         ]);
 

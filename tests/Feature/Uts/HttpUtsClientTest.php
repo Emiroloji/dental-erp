@@ -20,7 +20,7 @@ class HttpUtsClientTest extends TestCase
     public function test_pending_receipts_posts_to_the_documented_endpoint_with_token_header(): void
     {
         Http::fake(['utstest.saglik.gov.tr/*' => Http::response(['SNC' => [
-            ['GKK' => 7, 'UNO' => '08699999999990', 'LNO' => 'L1', 'ADT' => 2, 'BNO' => 'IRS-1'],
+            ['GKK' => 7, 'UNO' => '08699999999994', 'LNO' => 'L1', 'ADT' => 2, 'BNO' => 'IRS-1'],
         ]])]);
 
         $page = $this->client()->pendingReceipts(7, 0);
@@ -54,16 +54,16 @@ class HttpUtsClientTest extends TestCase
     public function test_lookup_posts_uno_lot_and_serial(): void
     {
         Http::fake(['*' => Http::response(['SNC' => [
-            ['UTP' => 'TIBBI_CIHAZ', 'UNO' => '08699999999990', 'LNO' => 'L1', 'SKT' => '2028-01-31', 'UAK' => 'LOT'],
+            ['UTP' => 'TIBBI_CIHAZ', 'UNO' => '08699999999994', 'LNO' => 'L1', 'SKT' => '2028-01-31', 'UAK' => 'LOT'],
         ]])]);
 
-        $items = $this->client()->lookup('08699999999990', 'L1');
+        $items = $this->client()->lookup('08699999999994', 'L1');
 
         $this->assertCount(1, $items);
         $this->assertSame('2028-01-31', $items[0]->expiryDate);
 
         Http::assertSent(fn (Request $r) => str_ends_with($r->url(), '/UTS/uh/rest/tekilUrun/sorgula')
-            && $r['UNO'] === '08699999999990' && $r['LNO'] === 'L1' && ! isset($r['SNO']) && $r['SAN'] === 0);
+            && $r['UNO'] === '08699999999994' && $r['LNO'] === 'L1' && ! isset($r['SNO']) && $r['SAN'] === 0);
     }
 
     public function test_uts_error_message_is_shown_to_the_user(): void

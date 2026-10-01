@@ -107,6 +107,12 @@
                             İadeler
                         </x-nav-link>
                     @endcan
+                    @can('stock_movement.viewAny')
+                        <x-nav-link :href="route('uts.pending')" :active="request()->routeIs('uts.*')">
+                            <x-slot:icon><path d="M12 3 4 6v6c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V6l-8-3Z" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"/></x-slot:icon>
+                            ÜTS
+                        </x-nav-link>
+                    @endcan
                     @can('reports.viewAny')
                         <x-nav-link :href="route('reports.stock')" :active="request()->routeIs('reports.stock', 'reports.movements', 'reports.usage', 'reports.purchasing', 'reports.forecast', 'reports.controlled', 'reports.assistant')">
                             <x-slot:icon><path d="M4 19V9m6 10V5m6 14v-7" stroke-linecap="round" stroke-linejoin="round"/></x-slot:icon>
