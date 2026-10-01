@@ -83,9 +83,9 @@ new #[Layout('layouts::authenticated')] class extends Component
                 <thead class="text-left text-ink-muted border-b border-line">
                     <tr>
                         <th class="px-4 py-3 font-medium">Ürün</th>
-                        <th class="px-4 py-3 font-medium">Lot / Seri</th>
+                        <th class="px-4 py-3 font-medium whitespace-nowrap">Lot / Seri</th>
                         <th class="px-4 py-3 font-medium text-right">Adet</th>
-                        <th class="px-4 py-3 font-medium">Belge no</th>
+                        <th class="px-4 py-3 font-medium whitespace-nowrap">Belge no</th>
                         <th class="px-4 py-3 font-medium">Gönderen</th>
                         <th class="px-4 py-3 font-medium">Zaman</th>
                         <th class="px-4 py-3 font-medium">Eşleşme</th>
@@ -100,11 +100,11 @@ new #[Layout('layouts::authenticated')] class extends Component
                                 <div class="text-ink">{{ $m['product']?->name ?? $r->brand ?? '—' }}</div>
                                 <div class="text-ink-muted">{{ $r->uno }}</div>
                             </td>
-                            <td class="px-4 py-3">{{ $r->lot ?? '—' }}@if ($r->serial) <div class="text-ink-muted">{{ $r->serial }}</div>@endif</td>
+                            <td class="px-4 py-3 whitespace-nowrap">{{ $r->lot ?? '—' }}@if ($r->serial) <div class="text-ink-muted">{{ $r->serial }}</div>@endif</td>
                             <td class="px-4 py-3 text-right">{{ $r->quantity ?? '—' }}</td>
-                            <td class="px-4 py-3">{{ $r->documentNo ?? '—' }}</td>
+                            <td class="px-4 py-3 whitespace-nowrap">{{ $r->documentNo ?? '—' }}</td>
                             <td class="px-4 py-3">{{ $r->senderName ?? '—' }}@if ($r->senderCode) <div class="text-ink-muted">{{ $r->senderCode }}</div>@endif</td>
-                            <td class="px-4 py-3 whitespace-nowrap">{{ $r->notifiedAt ?? '—' }}</td>
+                            <td class="px-4 py-3 whitespace-nowrap">{{ $r->notifiedAt ? rescue(fn () => \Illuminate\Support\Carbon::parse($r->notifiedAt)->format('d.m.Y H:i'), $r->notifiedAt, false) : '—' }}</td>
                             <td class="px-4 py-3">
                                 <div class="flex flex-wrap gap-1">
                                     @if ($m['product'])
