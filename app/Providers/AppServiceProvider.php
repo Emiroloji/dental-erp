@@ -15,6 +15,10 @@ use App\Domain\Platform\Reporting\LogErrorReporter;
 use App\Domain\Platform\Reporting\NullErrorReporter;
 use App\Domain\Platform\Reporting\SentryErrorReporter;
 use App\Domain\Platform\Services\DatabaseBackupService;
+use App\Domain\Uts\Clients\HttpUtsClient;
+use App\Domain\Uts\Clients\UnconfiguredUtsClient;
+use App\Domain\Uts\Contracts\UtsClient;
+use App\Domain\Uts\Models\UtsConnection;
 use App\Http\Middleware\EnsurePlatformOwner;
 use App\Http\Middleware\EnsureTenantAccess;
 use Illuminate\Http\Client\Factory as HttpClient;
@@ -43,6 +47,20 @@ class AppServiceProvider extends ServiceProvider
                     : new UnconfiguredQueryInterpreter,
                 default => new UnconfiguredQueryInterpreter,
             };
+        });
+
+        // Aşama 33: ÜTS istemcisi arayüz arkasında; token organizasyon başına
+        // veritabanında (şifreli). Token yoksa hiçbir dış çağrı yapılmaz.
+        $this->app->bind(UtsClient::class, function () {
+            $connection = auth()->check() ? UtsConnection::first() : null;
+
+            return $connection
+                ? new HttpUtsClient(
+                    $connection->token,
+                    (string) config('uts.urls.'.$connection->environment, config('uts.urls.test')),
+                    (int) config('uts.timeout'),
+                )
+                : new UnconfiguredUtsClient;
         });
 
         // Aşama 28: hata izleme sağlayıcısı arayüz arkasında. SENTRY_DSN

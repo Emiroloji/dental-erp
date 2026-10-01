@@ -62,6 +62,10 @@ class AuthServiceProvider extends ServiceProvider
         // soneki sayesinde salt-okunur organizasyonda kapalıdır.
         Gate::define('ownership.update', fn (User $user) => false);
 
+        // ÜTS token'ı (Aşama 33) yalnızca Ana Klinik Sahibi'nin (Admin) işidir;
+        // ".update" soneki salt-okunur organizasyonda kapatır.
+        Gate::define('uts_connection.update', fn (User $user) => false);
+
         // Paket ve kullanım (Faz 3): abonelik Ana Klinik Sahibi'nin (Admin) konusudur.
         Gate::define('subscription.view', fn (User $user) => false);
 
