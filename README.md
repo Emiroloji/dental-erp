@@ -29,8 +29,10 @@ kapıdan geçer.
   ilaç/medikal genişletmesi (ÜTS, seri no takibi, soğuk zincir, kontrollü ürün).
 - **Finans (Faz 5):** kasa/banka/POS hesapları, gelir-gider kategorileri, silinmez
   finans defteri (gelir, gider, transfer, gerekçeli iptal), cari hesaplar, vadeli
-  ödeme/tahsilat (kısmi ödeme), tekrarlayan kalemler (günlük üretim) ve vade
-  bildirimleri. Tasarım:
+  ödeme/tahsilat (kısmi ödeme), tekrarlayan kalemler (günlük üretim), vade
+  bildirimleri, hesap ekstresi ve banka mutabakatı, Finans Özeti (90 günlük nakit
+  projeksiyonu) ve gelir-gider / nakit akışı / cari yaşlandırma raporları
+  (Excel/PDF). Tasarım:
   `docs/superpowers/specs/2026-10-14-finans-modulu-design.md`.
 - **Tanıtım sitesi:** aynı repo içinde girişsiz sayfalar (`/`, `/neler-yapiyor`,
   `/talep`). Talep formu yalnızca bir `Lead` kaydı oluşturur — otomatik hesap
