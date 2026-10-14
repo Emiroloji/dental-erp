@@ -25,6 +25,11 @@ new #[Layout('layouts::authenticated')] class extends Component
 {
     use WithPagination;
 
+    /** Domain hata alanı → bu formdaki özellik. */
+    private const FORM_FIELDS = ['amount' => 'amount', 'date' => 'dueOn', 'due_on' => 'dueOn', 'party' => 'partyId', 'category' => 'categoryId', 'description' => 'description', 'reason' => 'cancelReason'];
+
+    private const PAY_FIELDS = ['amount' => 'payAmount', 'date' => 'payDate', 'account' => 'payAccountId'];
+
     private const TABS = ['overdue', 'week', 'month', 'all'];
 
     #[Url]
@@ -174,14 +179,7 @@ new #[Layout('layouts::authenticated')] class extends Component
                 ? $obligations->create($data)
                 : $obligations->update($editing, $data);
         } catch (FinanceRuleException $e) {
-            $message = mb_strtolower($e->getMessage());
-            $field = match (true) {
-                str_contains($message, 'kategori') => 'categoryId',
-                str_contains($message, 'cari') => 'partyId',
-                str_contains($message, 'vade') => 'dueOn',
-                default => 'amount',
-            };
-            $this->addError($field, $e->getMessage());
+            $this->addError(self::FORM_FIELDS[$e->field] ?? 'amount', $e->getMessage());
 
             return;
         }
@@ -235,12 +233,7 @@ new #[Layout('layouts::authenticated')] class extends Component
         try {
             $entry = $ledger->pay($obligation, FinanceAccount::findOrFail($this->payAccountId), $amount, CarbonImmutable::parse($this->payDate), auth()->user(), $this->payDescription);
         } catch (FinanceRuleException $e) {
-            $field = match (true) {
-                str_contains($e->getMessage(), 'tarih') => 'payDate',
-                str_contains($e->getMessage(), 'pasif bir hesap') => 'payAccountId',
-                default => 'payAmount',
-            };
-            $this->addError($field, $e->getMessage());
+            $this->addError(self::PAY_FIELDS[$e->field] ?? 'payAmount', $e->getMessage());
 
             return;
         }

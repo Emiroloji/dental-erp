@@ -104,4 +104,18 @@ class FinancePartyServiceTest extends TestCase
 
         $this->assertSame(0, $this->balances->remaining($obligation));
     }
+
+    public function test_duplicate_and_blank_name_errors_point_to_the_name_field(): void
+    {
+        $this->parties->create(['name' => 'ABC Sigorta', 'kind' => PartyKind::Customer]);
+
+        foreach (['abc sigorta', '   '] as $name) {
+            try {
+                $this->parties->create(['name' => $name, 'kind' => PartyKind::Customer]);
+                $this->fail('Hata bekleniyordu.');
+            } catch (FinanceRuleException $e) {
+                $this->assertSame('name', $e->field);
+            }
+        }
+    }
 }

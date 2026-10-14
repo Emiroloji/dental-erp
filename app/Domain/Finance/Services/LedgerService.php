@@ -84,7 +84,7 @@ class LedgerService
         $this->ensurePositive($amount);
 
         if ($from->is($to)) {
-            throw new FinanceRuleException('Kaynak ve hedef hesap aynı olamaz.');
+            throw new FinanceRuleException('Kaynak ve hedef hesap aynı olamaz.', 'to_account');
         }
 
         $this->ensureWritable($from, $date);
@@ -92,12 +92,12 @@ class LedgerService
         $this->ensureSameOrganization($from, $to, $commissionCategory);
 
         if ($commission < 0) {
-            throw new FinanceRuleException('Komisyon eksi olamaz.');
+            throw new FinanceRuleException('Komisyon eksi olamaz.', 'commission');
         }
 
         if ($commission > 0) {
             if ($commissionCategory === null) {
-                throw new FinanceRuleException('Komisyon için bir gider kategorisi seçin.');
+                throw new FinanceRuleException('Komisyon için bir gider kategorisi seçin.', 'commission');
             }
 
             $this->ensureCategory($commissionCategory, CategoryDirection::Expense);
@@ -150,7 +150,7 @@ class LedgerService
             $remaining = $this->balances->remaining($locked);
 
             if ($amount > $remaining) {
-                throw new FinanceRuleException('Kalan tutardan ('.Money::format($remaining).') fazla ödeme yapılamaz.');
+                throw new FinanceRuleException('Kalan tutardan ('.Money::format($remaining).') fazla ödeme yapılamaz.', 'amount');
             }
 
             $entry = $this->record($account, FinanceEntryType::Payment, $locked->direction->entryDirection(), $amount, $date, $actor, [
@@ -181,11 +181,11 @@ class LedgerService
         $reason = trim($reason);
 
         if ($reason === '') {
-            throw new FinanceRuleException('İptal için bir gerekçe yazın.');
+            throw new FinanceRuleException('İptal için bir gerekçe yazın.', 'reason');
         }
 
         if ($entry->type === FinanceEntryType::Reversal) {
-            throw new FinanceRuleException('İptal kaydı iptal edilemez; gerekiyorsa yeni bir hareket girin.');
+            throw new FinanceRuleException('İptal kaydı iptal edilemez; gerekiyorsa yeni bir hareket girin.', 'reason');
         }
 
         $targets = $entry->transfer_group
@@ -193,7 +193,7 @@ class LedgerService
             : collect([$entry->loadMissing('account')]);
 
         if ($targets->contains(fn (FinanceEntry $target) => $target->reversal()->exists())) {
-            throw new FinanceRuleException('Bu hareket zaten iptal edilmiş.');
+            throw new FinanceRuleException('Bu hareket zaten iptal edilmiş.', 'reason');
         }
 
         $today = FinanceCalendar::today();
@@ -232,7 +232,7 @@ class LedgerService
                 return $reversals;
             });
         } catch (UniqueConstraintViolationException) {
-            throw new FinanceRuleException('Bu hareket zaten iptal edilmiş.');
+            throw new FinanceRuleException('Bu hareket zaten iptal edilmiş.', 'reason');
         }
     }
 
@@ -254,7 +254,7 @@ class LedgerService
         $this->ensureSameOrganization($account, $category, $branch, $party);
 
         if ($party !== null && ! $party->isActive()) {
-            throw new FinanceRuleException("{$party->name} pasif bir cari.");
+            throw new FinanceRuleException("{$party->name} pasif bir cari.", 'party');
         }
 
         return DB::transaction(fn () => $this->record($account, $type, $type->direction(), $amount, $date, $actor, [
@@ -269,33 +269,33 @@ class LedgerService
     private function ensurePositive(int $amount): void
     {
         if ($amount <= 0) {
-            throw new FinanceRuleException('Tutar sıfırdan büyük olmalıdır.');
+            throw new FinanceRuleException('Tutar sıfırdan büyük olmalıdır.', 'amount');
         }
     }
 
     private function ensureWritable(FinanceAccount $account, CarbonInterface $date): void
     {
         if (! $account->isActive()) {
-            throw new FinanceRuleException("{$account->name} pasif bir hesap; hareket yazılamaz.");
+            throw new FinanceRuleException("{$account->name} pasif bir hesap; hareket yazılamaz.", 'account');
         }
 
         if ($date->toDateString() > FinanceCalendar::today()->toDateString()) {
-            throw new FinanceRuleException('İleri tarihli hareket yazılamaz; gerçekleşmemiş ödeme hareket değildir.');
+            throw new FinanceRuleException('İleri tarihli hareket yazılamaz; gerçekleşmemiş ödeme hareket değildir.', 'date');
         }
 
         if ($date->toDateString() < $account->opening_date->toDateString()) {
-            throw new FinanceRuleException("{$account->name} hesabının açılış tarihinden önce hareket yazılamaz.");
+            throw new FinanceRuleException("{$account->name} hesabının açılış tarihinden önce hareket yazılamaz.", 'account');
         }
     }
 
     private function ensureCategory(FinanceCategory $category, CategoryDirection $direction): void
     {
         if (! $category->isActive()) {
-            throw new FinanceRuleException("{$category->name} pasif bir kategori.");
+            throw new FinanceRuleException("{$category->name} pasif bir kategori.", 'category');
         }
 
         if ($category->direction !== $direction) {
-            throw new FinanceRuleException('Bu hareket için bir '.mb_strtolower($direction->label()).' kategorisi seçin.');
+            throw new FinanceRuleException('Bu hareket için bir '.mb_strtolower($direction->label()).' kategorisi seçin.', 'category');
         }
     }
 

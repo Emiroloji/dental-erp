@@ -57,7 +57,7 @@ class FinancePartyService
         $name = trim($data['name']);
 
         if ($name === '') {
-            throw new FinanceRuleException('Cari adı boş olamaz.');
+            throw new FinanceRuleException('Cari adı boş olamaz.', 'name');
         }
 
         return [
@@ -83,7 +83,7 @@ class FinancePartyService
 
         throw new FinanceRuleException($existing->isActive()
             ? "\"{$existing->name}\" adında bir cari zaten var."
-            : "\"{$existing->name}\" adında pasif bir cari var; Cariler listesinden aktifleştirin.");
+            : "\"{$existing->name}\" adında pasif bir cari var; Cariler listesinden aktifleştirin.", 'name');
     }
 
     private function clean(?string $value): ?string

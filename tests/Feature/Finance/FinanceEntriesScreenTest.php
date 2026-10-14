@@ -214,4 +214,36 @@ class FinanceEntriesScreenTest extends TestCase
             ->assertHasErrors('partyId')
             ->assertHasNoErrors('amount');
     }
+
+    public function test_party_name_containing_category_does_not_misroute_the_error(): void
+    {
+        $party = FinanceParty::create(['name' => 'Kategori Ltd.', 'kind' => PartyKind::Customer, 'status' => 'passive']);
+
+        Livewire::test('pages::finance.entries')
+            ->call('openForm', 'income')
+            ->set('accountId', $this->cash->id)->set('amount', '100')->set('categoryId', $this->revenue->id)->set('partyId', (string) $party->id)
+            ->call('save')
+            ->assertHasErrors('partyId')
+            ->assertHasNoErrors('categoryId');
+    }
+
+    public function test_list_filters_by_party(): void
+    {
+        $depo = FinanceParty::create(['name' => 'Depo Ltd.', 'kind' => PartyKind::Supplier]);
+        $eski = FinanceParty::create(['name' => 'Eski Cari', 'kind' => PartyKind::Supplier, 'status' => 'passive']);
+        $ledger = app(LedgerService::class);
+        $ledger->expense($this->cash, 11_100, CarbonImmutable::parse('2026-10-10'), $this->rent, $this->admin, 'Depo gideri', null, null, $depo);
+        $ledger->expense($this->cash, 22_200, CarbonImmutable::parse('2026-10-10'), $this->rent, $this->admin, 'Carisiz gider');
+
+        Livewire::test('pages::finance.entries')
+            ->assertSee('Tüm cariler')
+            ->assertSee('Eski Cari (pasif)')
+            ->set('filterParty', (string) $depo->id)
+            ->assertSee('Depo gideri')
+            ->assertDontSee('Carisiz gider')
+            ->set('filterParty', (string) $eski->id)
+            ->assertDontSee('Depo gideri')
+            ->set('filterParty', '')
+            ->assertSee('Carisiz gider');
+    }
 }

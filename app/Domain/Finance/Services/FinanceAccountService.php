@@ -21,7 +21,7 @@ class FinanceAccountService
     public function create(array $data): FinanceAccount
     {
         if ($data['opening_date']->toDateString() > FinanceCalendar::today()->toDateString()) {
-            throw new FinanceRuleException('Açılış tarihi bugünden sonra olamaz.');
+            throw new FinanceRuleException('Açılış tarihi bugünden sonra olamaz.', 'opening_date');
         }
 
         $iban = strtoupper(str_replace(' ', '', (string) ($data['iban'] ?? '')));

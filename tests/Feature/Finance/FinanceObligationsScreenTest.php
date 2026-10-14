@@ -292,4 +292,17 @@ class FinanceObligationsScreenTest extends TestCase
 
         $this->assertSame(ObligationStatus::Open, $invoice->fresh()->status);
     }
+
+    public function test_party_name_containing_category_does_not_misroute_the_error(): void
+    {
+        $party = FinanceParty::create(['name' => 'Kategori Ltd.', 'kind' => PartyKind::Supplier, 'status' => 'passive']);
+
+        Livewire::test('pages::finance.obligations')
+            ->call('openForm', null, 'payable')
+            ->set('amount', '100')->set('partyId', (string) $party->id)->set('categoryId', (string) $this->material->id)
+            ->set('description', 'Fatura')->set('dueOn', '2026-10-30')
+            ->call('save')
+            ->assertHasErrors('partyId')
+            ->assertHasNoErrors('categoryId');
+    }
 }

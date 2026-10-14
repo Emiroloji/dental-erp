@@ -15,6 +15,9 @@ use Livewire\Component;
 
 new #[Layout('layouts::authenticated')] class extends Component
 {
+    /** Domain hata alanı → bu formdaki özellik. */
+    private const FORM_FIELDS = ['opening_date' => 'openingDate'];
+
     public bool $showForm = false;
 
     public string $name = '';
@@ -71,7 +74,7 @@ new #[Layout('layouts::authenticated')] class extends Component
                 'opening_date' => CarbonImmutable::parse($validated['openingDate']),
             ]);
         } catch (FinanceRuleException $e) {
-            $this->addError('openingDate', $e->getMessage());
+            $this->addError(self::FORM_FIELDS[$e->field] ?? 'openingDate', $e->getMessage());
 
             return;
         }

@@ -34,11 +34,11 @@ class FinanceCategoryService
         $existing = FinanceCategory::where('direction', $direction)->where('name', $name)->first();
 
         if ($existing && ! $existing->isActive()) {
-            throw new FinanceRuleException("\"{$name}\" adında pasif bir ".mb_strtolower($direction->label()).' kategorisi var; Kategoriler listesinden aktifleştirin.');
+            throw new FinanceRuleException("\"{$name}\" adında pasif bir ".mb_strtolower($direction->label()).' kategorisi var; Kategoriler listesinden aktifleştirin.', 'name');
         }
 
         if ($existing) {
-            throw new FinanceRuleException("\"{$name}\" adında bir ".mb_strtolower($direction->label()).' kategorisi zaten var.');
+            throw new FinanceRuleException("\"{$name}\" adında bir ".mb_strtolower($direction->label()).' kategorisi zaten var.', 'name');
         }
 
         return FinanceCategory::create(['name' => $name, 'direction' => $direction]);

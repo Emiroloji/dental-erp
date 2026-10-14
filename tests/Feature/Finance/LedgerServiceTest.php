@@ -274,4 +274,21 @@ class LedgerServiceTest extends TestCase
         sort($sorted);
         $this->assertSame($sorted, $reversed);
     }
+
+    public function test_rule_violations_carry_a_field_hint(): void
+    {
+        $hint = function (callable $call): ?string {
+            try {
+                $call();
+            } catch (FinanceRuleException $e) {
+                return $e->field;
+            }
+
+            return 'atılmadı';
+        };
+
+        $this->assertSame('date', $hint(fn () => $this->ledger->expense($this->cash, 100, $this->day('2026-10-15'), $this->rent, $this->actor)));
+        $this->assertSame('amount', $hint(fn () => $this->ledger->income($this->cash, 0, $this->day('2026-10-14'), $this->revenue, $this->actor)));
+        $this->assertSame('category', $hint(fn () => $this->ledger->income($this->cash, 100, $this->day('2026-10-14'), $this->rent, $this->actor)));
+    }
 }

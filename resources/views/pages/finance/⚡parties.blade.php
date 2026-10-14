@@ -13,6 +13,9 @@ use Livewire\Component;
 
 new #[Layout('layouts::authenticated')] class extends Component
 {
+    /** Domain hata alanı → bu formdaki özellik. */
+    private const FORM_FIELDS = ['name' => 'name'];
+
     public bool $showForm = false;
 
     public ?int $editingId = null;
@@ -92,7 +95,7 @@ new #[Layout('layouts::authenticated')] class extends Component
                 ? $parties->create($data)
                 : $parties->update(FinanceParty::findOrFail($this->editingId), $data);
         } catch (FinanceRuleException $e) {
-            $this->addError('name', $e->getMessage());
+            $this->addError(self::FORM_FIELDS[$e->field] ?? 'name', $e->getMessage());
 
             return;
         }

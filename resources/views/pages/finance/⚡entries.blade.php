@@ -22,6 +22,9 @@ new #[Layout('layouts::authenticated')] class extends Component
 {
     use WithPagination;
 
+    /** Domain hata alanı → bu formdaki özellik. */
+    private const FORM_FIELDS = ['amount' => 'amount', 'date' => 'date', 'account' => 'accountId', 'to_account' => 'toAccountId', 'category' => 'categoryId', 'party' => 'partyId', 'commission' => 'commission'];
+
     public ?string $formType = null;
 
     public string $accountId = '';
@@ -55,6 +58,8 @@ new #[Layout('layouts::authenticated')] class extends Component
     public string $filterType = '';
 
     public string $filterCategory = '';
+
+    public string $filterParty = '';
 
     public ?int $reversingId = null;
 
@@ -154,12 +159,7 @@ new #[Layout('layouts::authenticated')] class extends Component
                 $touched = [$account];
             }
         } catch (FinanceRuleException $e) {
-            $field = match (true) {
-                str_contains($e->getMessage(), 'tarih') => 'date',
-                str_contains($e->getMessage(), 'cari') => 'partyId',
-                default => 'amount',
-            };
-            $this->addError($field, $e->getMessage());
+            $this->addError(self::FORM_FIELDS[$e->field] ?? 'amount', $e->getMessage());
 
             return;
         }
@@ -217,6 +217,7 @@ new #[Layout('layouts::authenticated')] class extends Component
             ->when((int) $this->filterAccount > 0, fn ($query) => $query->where('account_id', (int) $this->filterAccount))
             ->when(FinanceEntryType::tryFrom($this->filterType) !== null, fn ($query) => $query->where('type', $this->filterType))
             ->when((int) $this->filterCategory > 0, fn ($query) => $query->where('category_id', (int) $this->filterCategory))
+            ->when((int) $this->filterParty > 0, fn ($query) => $query->where('party_id', (int) $this->filterParty))
             ->orderByDesc('occurred_on')
             ->orderByDesc('id')
             ->paginate(25);
@@ -233,6 +234,7 @@ new #[Layout('layouts::authenticated')] class extends Component
             'expenseCategories' => $categories->filter(fn ($category) => $category->isActive() && $category->direction === CategoryDirection::Expense),
             'branches' => Branch::where('organization_id', auth()->user()->organization_id)->where('status', 'active')->orderBy('name')->get(),
             'parties' => FinanceParty::where('status', 'active')->orderBy('name')->get(),
+            'allParties' => FinanceParty::orderBy('name')->get(),
             'types' => FinanceEntryType::cases(),
         ];
     }
@@ -271,7 +273,7 @@ new #[Layout('layouts::authenticated')] class extends Component
             <a href="{{ route('finance.accounts') }}" wire:navigate class="inline-block mt-3 text-[14px] text-brand-600 hover:underline">Hesaplar'a git →</a>
         </div>
     @else
-        <div class="mb-4 grid grid-cols-2 lg:grid-cols-5 gap-3">
+        <div class="mb-4 grid grid-cols-2 lg:grid-cols-3 gap-3">
             <input type="date" wire:model.live="filterFrom" aria-label="Başlangıç" class="border border-line rounded-md px-3 py-2 text-[13px] bg-surface">
             <input type="date" wire:model.live="filterTo" aria-label="Bitiş" class="border border-line rounded-md px-3 py-2 text-[13px] bg-surface">
             <select wire:model.live="filterAccount" class="border border-line rounded-md px-3 py-2 text-[13px] bg-surface">
@@ -286,10 +288,16 @@ new #[Layout('layouts::authenticated')] class extends Component
                     <option value="{{ $type->value }}">{{ $type->label() }}</option>
                 @endforeach
             </select>
-            <select wire:model.live="filterCategory" class="col-span-2 lg:col-span-1 border border-line rounded-md px-3 py-2 text-[13px] bg-surface">
+            <select wire:model.live="filterCategory" class="border border-line rounded-md px-3 py-2 text-[13px] bg-surface">
                 <option value="">Tüm kategoriler</option>
                 @foreach ($categories as $category)
                     <option value="{{ $category->id }}">{{ $category->name }}</option>
+                @endforeach
+            </select>
+            <select wire:model.live="filterParty" aria-label="Cari" class="border border-line rounded-md px-3 py-2 text-[13px] bg-surface">
+                <option value="">Tüm cariler</option>
+                @foreach ($allParties as $party)
+                    <option value="{{ $party->id }}">{{ $party->name }}{{ $party->isActive() ? '' : ' (pasif)' }}</option>
                 @endforeach
             </select>
         </div>

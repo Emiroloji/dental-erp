@@ -17,6 +17,9 @@ use Livewire\Component;
 
 new #[Layout('layouts::authenticated')] class extends Component
 {
+    /** Domain hata alanı → bu formdaki özellik. */
+    private const FORM_FIELDS = ['name' => 'name', 'amount' => 'amount', 'category' => 'categoryId', 'party' => 'partyId', 'ends_on' => 'endsOn'];
+
     public bool $showForm = false;
 
     public ?int $editingId = null;
@@ -123,15 +126,7 @@ new #[Layout('layouts::authenticated')] class extends Component
                 ])
                 : $recurrings->update($editing, $common);
         } catch (FinanceRuleException $e) {
-            $message = mb_strtolower($e->getMessage());
-            $field = match (true) {
-                str_contains($message, 'tutar') => 'amount',
-                str_contains($message, 'kategori') => 'categoryId',
-                str_contains($message, 'cari') => 'partyId',
-                str_contains($message, 'bitiş') => 'endsOn',
-                default => 'name',
-            };
-            $this->addError($field, $e->getMessage());
+            $this->addError(self::FORM_FIELDS[$e->field] ?? 'name', $e->getMessage());
 
             return;
         }

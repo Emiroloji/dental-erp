@@ -55,7 +55,7 @@ class ObligationService
         $reason = trim($reason);
 
         if ($reason === '') {
-            throw new FinanceRuleException('İptal için bir gerekçe yazın.');
+            throw new FinanceRuleException('İptal için bir gerekçe yazın.', 'reason');
         }
 
         // Satır kilitlenir: eşzamanlı bir LedgerService::pay ile iptal yarışmasın.
@@ -63,11 +63,11 @@ class ObligationService
             $locked = FinanceObligation::whereKey($obligation->id)->lockForUpdate()->firstOrFail();
 
             if ($locked->status === ObligationStatus::Cancelled) {
-                throw new FinanceRuleException('Bu kayıt zaten iptal edilmiş.');
+                throw new FinanceRuleException('Bu kayıt zaten iptal edilmiş.', 'reason');
             }
 
             if ($this->balances->paid($locked) !== 0) {
-                throw new FinanceRuleException('Önce bu kayda bağlı ödemeleri iptal edin.');
+                throw new FinanceRuleException('Önce bu kayda bağlı ödemeleri iptal edin.', 'reason');
             }
 
             $locked->update(['status' => ObligationStatus::Cancelled, 'cancel_reason' => $reason]);
@@ -95,24 +95,24 @@ class ObligationService
         }
 
         if ($data['amount'] <= 0) {
-            throw new FinanceRuleException('Tutar sıfırdan büyük olmalıdır.');
+            throw new FinanceRuleException('Tutar sıfırdan büyük olmalıdır.', 'amount');
         }
 
         if ($description === '') {
-            throw new FinanceRuleException('Açıklama yazın (örn. fatura no veya ne için olduğu).');
+            throw new FinanceRuleException('Açıklama yazın (örn. fatura no veya ne için olduğu).', 'description');
         }
 
         if ($party !== null && ! $party->isActive()) {
-            throw new FinanceRuleException("{$party->name} pasif bir cari.");
+            throw new FinanceRuleException("{$party->name} pasif bir cari.", 'party');
         }
 
         if ($category !== null) {
             if (! $category->isActive()) {
-                throw new FinanceRuleException("{$category->name} pasif bir kategori.");
+                throw new FinanceRuleException("{$category->name} pasif bir kategori.", 'category');
             }
 
             if ($category->direction !== $direction->categoryDirection()) {
-                throw new FinanceRuleException('Bu kayıt için bir '.mb_strtolower($direction->categoryDirection()->label()).' kategorisi seçin.');
+                throw new FinanceRuleException('Bu kayıt için bir '.mb_strtolower($direction->categoryDirection()->label()).' kategorisi seçin.', 'category');
             }
         }
 
@@ -123,7 +123,7 @@ class ObligationService
         }
 
         if ($dueOn === null) {
-            throw new FinanceRuleException('Vade tarihini girin.');
+            throw new FinanceRuleException('Vade tarihini girin.', 'due_on');
         }
 
         $documentNo = trim((string) ($data['document_no'] ?? ''));

@@ -119,4 +119,26 @@ class FinanceSetupServicesTest extends TestCase
             $this->assertStringContainsString('aktifleştirin', $e->getMessage());
         }
     }
+
+    public function test_account_and_category_errors_carry_field_hints(): void
+    {
+        try {
+            app(FinanceAccountService::class)->create([
+                'name' => 'Kasa', 'type' => AccountType::Cash, 'opening_balance' => 0, 'opening_date' => CarbonImmutable::parse('2026-10-15'),
+            ]);
+            $this->fail('Hata bekleniyordu.');
+        } catch (FinanceRuleException $e) {
+            $this->assertSame('opening_date', $e->field);
+        }
+
+        $service = app(FinanceCategoryService::class);
+        $service->create('Diğer', CategoryDirection::Income);
+
+        try {
+            $service->create('Diğer', CategoryDirection::Income);
+            $this->fail('Hata bekleniyordu.');
+        } catch (FinanceRuleException $e) {
+            $this->assertSame('name', $e->field);
+        }
+    }
 }

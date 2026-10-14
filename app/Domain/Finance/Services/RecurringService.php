@@ -163,11 +163,11 @@ class RecurringService
         $endsOn = $data['ends_on'] ?? null;
 
         if ($name === '') {
-            throw new FinanceRuleException('Ad yazın (örn. Kira, Maaş).');
+            throw new FinanceRuleException('Ad yazın (örn. Kira, Maaş).', 'name');
         }
 
         if ($data['amount'] <= 0) {
-            throw new FinanceRuleException('Tutar sıfırdan büyük olmalıdır.');
+            throw new FinanceRuleException('Tutar sıfırdan büyük olmalıdır.', 'amount');
         }
 
         // Sonradan pasife alınmış cari/kategori, kalemde değişmeden duruyorsa düzenlemeyi engellemez;
@@ -176,15 +176,15 @@ class RecurringService
         $partyUnchanged = $current !== null && $party !== null && $current->party_id === $party->id;
 
         if ((! $categoryUnchanged && ! $data['category']->isActive()) || $data['category']->direction !== $direction->categoryDirection()) {
-            throw new FinanceRuleException('Aktif bir '.mb_strtolower($direction->categoryDirection()->label()).' kategorisi seçin.');
+            throw new FinanceRuleException('Aktif bir '.mb_strtolower($direction->categoryDirection()->label()).' kategorisi seçin.', 'category');
         }
 
         if ($party !== null && ! $partyUnchanged && ! $party->isActive()) {
-            throw new FinanceRuleException("{$party->name} pasif bir cari.");
+            throw new FinanceRuleException("{$party->name} pasif bir cari.", 'party');
         }
 
         if ($endsOn !== null && $endsOn->toDateString() < $startsOn->toDateString()) {
-            throw new FinanceRuleException('Bitiş tarihi başlangıçtan önce olamaz.');
+            throw new FinanceRuleException('Bitiş tarihi başlangıçtan önce olamaz.', 'ends_on');
         }
 
         return [

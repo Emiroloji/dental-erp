@@ -224,4 +224,14 @@ class RecurringServiceTest extends TestCase
             }
         }
     }
+
+    public function test_end_before_start_points_to_the_ends_on_field(): void
+    {
+        try {
+            $this->recurrings->create($this->monthlyRent(['ends_on' => CarbonImmutable::parse('2026-10-01')]));
+            $this->fail('Hata bekleniyordu.');
+        } catch (FinanceRuleException $e) {
+            $this->assertSame('ends_on', $e->field);
+        }
+    }
 }

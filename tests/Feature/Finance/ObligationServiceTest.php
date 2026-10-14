@@ -174,4 +174,14 @@ class ObligationServiceTest extends TestCase
         $this->expectExceptionMessage('ödemeleri iptal');
         $this->obligations->cancel($paidOne, 'x');
     }
+
+    public function test_direction_mismatched_category_points_to_the_category_field(): void
+    {
+        try {
+            $this->obligations->create($this->payable(['category' => $this->revenue]));
+            $this->fail('Hata bekleniyordu.');
+        } catch (FinanceRuleException $e) {
+            $this->assertSame('category', $e->field);
+        }
+    }
 }
