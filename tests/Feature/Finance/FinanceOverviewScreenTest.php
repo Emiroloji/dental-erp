@@ -145,9 +145,23 @@ class FinanceOverviewScreenTest extends TestCase
         $otherAdmin = User::factory()->create(['organization_id' => $other->id, 'role' => User::ROLE_ADMIN, 'status' => 'active']);
 
         $this->actingAs($otherAdmin);
-        Livewire::test('pages::finance.overview')
-            ->assertSee('Önce bir kasa veya banka hesabı tanımla')
-            ->assertDontSee('Merkez Kasa')
-            ->assertDontSee('Depo faturası');
+        FinanceAccount::create(['name' => 'Yabancı Kasa', 'type' => AccountType::Cash, 'opening_balance' => 7_777_700, 'opening_date' => '2026-09-01']);
+        FinanceObligation::create(['direction' => ObligationDirection::Payable, 'amount' => 999_900, 'due_on' => '2026-10-15', 'description' => 'Yabancı fatura']);
+
+        $this->actingAs($this->admin);
+        $component = Livewire::test('pages::finance.overview')
+            ->assertSee('Merkez Kasa')
+            ->assertDontSee('Yabancı Kasa')
+            ->assertDontSee('Yabancı fatura')
+            ->assertDontSee('77.777,00');
+
+        $this->assertSame(1_000_000, $component->viewData('total'));
+        $this->assertSame(200_000, $component->viewData('summary')['weekPayable']);
+        $this->assertSame(1_000_000, $component->viewData('projection')['start']);
+
+        $this->actingAs($otherAdmin);
+        $foreign = Livewire::test('pages::finance.overview');
+        $this->assertSame(7_777_700, $foreign->viewData('total'));
+        $foreign->assertDontSee('Merkez Kasa')->assertDontSee('Depo faturası');
     }
 }

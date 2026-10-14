@@ -37,7 +37,7 @@ new #[Layout('layouts::authenticated')] class extends Component
             'total' => array_sum($accountBalances),
             'month' => $incomeExpense->report(FinanceReportFilters::fromArray([], $today->startOfMonth(), $today)),
             'summary' => $obligations->summarize(5, $today),
-            'projection' => $projection->project(90, $today),
+            'projection' => $projection->project(90, $today, array_sum($accountBalances)),
             'today' => $today,
         ];
     }

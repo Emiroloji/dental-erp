@@ -25,7 +25,8 @@ class ObligationSummaryService
         $today = ($today ?? FinanceCalendar::today())->toDateString();
         $weekEnd = CarbonImmutable::parse($today)->addDays(7)->toDateString();
 
-        $open = FinanceObligation::with(['party'])
+        $open = FinanceObligation::query()
+            ->when($upcomingLimit > 0, fn ($query) => $query->with('party'))
             ->whereIn('status', [ObligationStatus::Open, ObligationStatus::Partial])
             ->orderBy('due_on')->orderBy('id')
             ->get();

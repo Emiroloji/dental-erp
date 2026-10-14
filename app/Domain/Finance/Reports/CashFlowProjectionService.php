@@ -21,7 +21,7 @@ class CashFlowProjectionService
     /**
      * @return array{start: int, points: list<array{date: string, balance: int, in: int, out: int}>, first_negative: ?string, receivable: int, payable: int}
      */
-    public function project(int $days, ?CarbonImmutable $today = null): array
+    public function project(int $days, ?CarbonImmutable $today = null, ?int $start = null): array
     {
         // Savunma amaçlı sınır: ekran girdisi zaten 30/60/90'a indirilir.
         $days = max(1, min($days, 365));
@@ -58,7 +58,8 @@ class CashFlowProjectionService
             }
         }
 
-        $start = $this->balances->total();
+        // Çağıran toplam nakdi zaten hesapladıysa tekrar sorgulanmaz.
+        $start ??= $this->balances->total();
         $balance = $start;
         $points = [];
         $firstNegative = null;
