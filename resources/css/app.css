@@ -37,6 +37,10 @@
     --color-status-warn-bg: #faf0dc;
     --color-status-critical: #b8443a;
     --color-status-critical-bg: #f9eae8;
+
+    /* Finance: money in / money out. Separate from status-* (stock semantics only, karar 4.2) */
+    --color-finance-in: #1f6f8b;
+    --color-finance-out: #8a4b2a;
 }
 
 @layer base {

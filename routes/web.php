@@ -122,6 +122,19 @@ Route::middleware('tenant')->group(function () {
         ->middleware(['auth', 'can:stock_movement.viewAny'])
         ->name('uts.verify');
 
+    // Faz 5: Finans (ön muhasebe) — organizasyon geneli, şube kapsamı yok (karar 2.9).
+    Route::livewire('/finans/hareketler', 'pages::finance.entries')
+        ->middleware(['auth', 'can:finance.viewAny'])
+        ->name('finance.entries');
+
+    Route::livewire('/finans/hesaplar', 'pages::finance.accounts')
+        ->middleware(['auth', 'can:finance.viewAny'])
+        ->name('finance.accounts');
+
+    Route::livewire('/finans/kategoriler', 'pages::finance.categories')
+        ->middleware(['auth', 'can:finance.viewAny'])
+        ->name('finance.categories');
+
     Route::livewire('/stok-sayimi', 'pages::inventory.index')
         ->middleware(['auth', 'can:stock_movement.viewAny'])
         ->name('inventory.index');

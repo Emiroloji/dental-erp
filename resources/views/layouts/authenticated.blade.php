@@ -113,6 +113,12 @@
                             ÜTS
                         </x-nav-link>
                     @endcan
+                    @can('finance.viewAny')
+                        <x-nav-link :href="route('finance.entries')" :active="request()->routeIs('finance.*')">
+                            <x-slot:icon><path d="M3 7a2 2 0 0 1 2-2h13v4"/><path d="M3 7v11a2 2 0 0 0 2 2h15V9H5a2 2 0 0 1-2-2Z"/><path d="M16 14h.01"/></x-slot:icon>
+                            Finans
+                        </x-nav-link>
+                    @endcan
                     @can('reports.viewAny')
                         <x-nav-link :href="route('reports.stock')" :active="request()->routeIs('reports.stock', 'reports.movements', 'reports.usage', 'reports.purchasing', 'reports.forecast', 'reports.controlled', 'reports.assistant')">
                             <x-slot:icon><path d="M4 19V9m6 10V5m6 14v-7" stroke-linecap="round" stroke-linejoin="round"/></x-slot:icon>
