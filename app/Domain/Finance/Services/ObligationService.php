@@ -44,7 +44,7 @@ class ObligationService
                 throw new FinanceRuleException('Ödemesi olan veya kapanmış kayıt düzenlenemez; gerekirse iptal edip yeniden girin.');
             }
 
-            $locked->update($this->attributes($data, $locked->organization_id));
+            $locked->update($this->attributes($data, $locked->organization_id, $locked));
         });
 
         return $obligation->refresh();
@@ -79,7 +79,7 @@ class ObligationService
     /**
      * @return array<string, mixed>
      */
-    private function attributes(array $data, ?int $organizationId): array
+    private function attributes(array $data, ?int $organizationId, ?FinanceObligation $current = null): array
     {
         /** @var ObligationDirection $direction */
         $direction = $data['direction'];
@@ -102,12 +102,17 @@ class ObligationService
             throw new FinanceRuleException('Açıklama yazın (örn. fatura no veya ne için olduğu).', 'description');
         }
 
-        if ($party !== null && ! $party->isActive()) {
+        // Sonradan pasife alınmış cari/kategori kayıtta değişmeden duruyorsa düzenlemeyi engellemez
+        // (tekrarlayanlarla aynı kural); pasif bir kayda geçiş reddedilir. Yön kontrolü her zaman uygulanır.
+        $partyUnchanged = $party !== null && $party->id === $current?->party_id;
+        $categoryUnchanged = $category !== null && $category->id === $current?->category_id;
+
+        if ($party !== null && ! $partyUnchanged && ! $party->isActive()) {
             throw new FinanceRuleException("{$party->name} pasif bir cari.", 'party');
         }
 
         if ($category !== null) {
-            if (! $category->isActive()) {
+            if (! $categoryUnchanged && ! $category->isActive()) {
                 throw new FinanceRuleException("{$category->name} pasif bir kategori.", 'category');
             }
 

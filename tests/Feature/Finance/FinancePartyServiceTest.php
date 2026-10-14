@@ -6,6 +6,7 @@ use App\Domain\Finance\Exceptions\FinanceRuleException;
 use App\Domain\Finance\Models\FinanceAccount;
 use App\Domain\Finance\Models\FinanceEntry;
 use App\Domain\Finance\Models\FinanceObligation;
+use App\Domain\Finance\Models\FinanceParty;
 use App\Domain\Finance\Services\FinanceBalanceService;
 use App\Domain\Finance\Services\FinancePartyService;
 use App\Domain\Finance\Support\AccountType;
@@ -15,6 +16,7 @@ use App\Domain\Finance\Support\ObligationStatus;
 use App\Domain\Finance\Support\PartyKind;
 use App\Domain\Organization\Models\Organization;
 use App\Models\User;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -45,6 +47,15 @@ class FinancePartyServiceTest extends TestCase
         $this->assertSame(30, $party->default_term_days);
         $this->assertFalse($this->parties->deactivate($party)->fresh()->isActive());
         $this->assertTrue($this->parties->activate($party)->fresh()->isActive());
+    }
+
+    public function test_database_rejects_case_insensitive_duplicate_names(): void
+    {
+        FinanceParty::create(['name' => 'ABC Sigorta', 'kind' => PartyKind::Customer]);
+
+        $this->expectException(UniqueConstraintViolationException::class);
+
+        FinanceParty::create(['name' => 'abc sigorta', 'kind' => PartyKind::Customer]);
     }
 
     public function test_duplicate_name_is_rejected_and_passive_duplicate_explains_reactivation(): void

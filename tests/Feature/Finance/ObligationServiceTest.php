@@ -62,6 +62,24 @@ class ObligationServiceTest extends TestCase
         ];
     }
 
+    public function test_open_obligation_stays_editable_after_its_party_became_passive_but_switching_to_a_passive_party_is_rejected(): void
+    {
+        $obligation = $this->obligations->create($this->payable());
+        $this->supplier->update(['status' => 'passive']);
+
+        $updated = $this->obligations->update($obligation, $this->payable(['amount' => 1_800_000]));
+        $this->assertSame(1_800_000, $updated->amount);
+
+        $other = FinanceParty::create(['name' => 'Eski Depo', 'kind' => PartyKind::Supplier, 'status' => 'passive']);
+
+        try {
+            $this->obligations->update($obligation, $this->payable(['party' => $other]));
+            $this->fail('Pasif cariye geçiş reddedilmeliydi.');
+        } catch (FinanceRuleException $e) {
+            $this->assertSame('party', $e->field);
+        }
+    }
+
     public function test_create_records_an_open_obligation(): void
     {
         $obligation = $this->obligations->create($this->payable());

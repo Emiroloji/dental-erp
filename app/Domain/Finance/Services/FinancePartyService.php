@@ -5,6 +5,7 @@ namespace App\Domain\Finance\Services;
 use App\Domain\Finance\Exceptions\FinanceRuleException;
 use App\Domain\Finance\Models\FinanceParty;
 use App\Domain\Finance\Support\PartyKind;
+use Illuminate\Database\UniqueConstraintViolationException;
 
 /**
  * Cari kartı. Hasta açılmaz (karar 2.6/2.9); ekran "kurum veya firma" diye yönlendirir.
@@ -19,7 +20,11 @@ class FinancePartyService
         $attributes = $this->attributes($data);
         $this->ensureUniqueName($attributes['name']);
 
-        return FinanceParty::create($attributes);
+        try {
+            return FinanceParty::create($attributes);
+        } catch (UniqueConstraintViolationException) {
+            throw new FinanceRuleException("\"{$attributes['name']}\" adında bir cari zaten var.", 'name');
+        }
     }
 
     /**
@@ -30,7 +35,11 @@ class FinancePartyService
         $attributes = $this->attributes($data);
         $this->ensureUniqueName($attributes['name'], $party);
 
-        $party->update($attributes);
+        try {
+            $party->update($attributes);
+        } catch (UniqueConstraintViolationException) {
+            throw new FinanceRuleException("\"{$attributes['name']}\" adında bir cari zaten var.", 'name');
+        }
 
         return $party;
     }

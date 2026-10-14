@@ -122,6 +122,14 @@ class RecurringService
             $horizonDate = $horizon->toDateString();
             $endsOn = $recurring->ends_on?->toDateString();
 
+            // Uzun süre kapalı kalan klinik yeniden açılınca geçmiş dönemler toplu
+            // üretilmez: create() ile aynı taban (bugün − HORIZON_DAYS).
+            $floor = FinanceCalendar::today()->subDays(self::HORIZON_DAYS)->toDateString();
+
+            while ($next->toDateString() < $floor) {
+                $next = $recurring->frequency->next($next, $recurring->day);
+            }
+
             while ($next->toDateString() <= $horizonDate && ($endsOn === null || $next->toDateString() <= $endsOn)) {
                 // whereDate: due_on 'date' cast'iyle saklanırken düz eşitlik mevcut kaydı bulamayabilir.
                 $exists = FinanceObligation::withoutGlobalScopes()

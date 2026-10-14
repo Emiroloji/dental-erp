@@ -126,6 +126,23 @@ class RecurringServiceTest extends TestCase
         $this->assertSame('2026-11-05', $recurring->fresh()->next_due_on->toDateString());
     }
 
+    public function test_reactivated_organization_does_not_backfill_beyond_horizon(): void
+    {
+        $recurring = $this->recurrings->create($this->monthlyRent());
+        $recurring->update(['next_due_on' => '2026-06-05']);
+
+        $this->organization->update(['status' => OrganizationStatus::Passive]);
+        $this->assertSame(0, $this->recurrings->generateDue());
+        $this->assertSame('2026-06-05', $recurring->fresh()->next_due_on->toDateString());
+
+        // Bugün 14.10 → taban 09.09; ilk dönem 05.10, ufuk 18.11 → 05.10 ve 05.11.
+        $this->organization->update(['status' => OrganizationStatus::Active]);
+        $this->assertSame(2, $this->recurrings->generateDue());
+
+        $dates = FinanceObligation::orderBy('due_on')->pluck('due_on')->map->toDateString()->all();
+        $this->assertSame(['2026-10-05', '2026-11-05'], $dates);
+    }
+
     public function test_update_changes_future_amount_only(): void
     {
         $recurring = $this->recurrings->create($this->monthlyRent());
