@@ -182,4 +182,28 @@ class FinanceRecurringsScreenTest extends TestCase
         $this->assertSame('active', $fresh->status);
         $this->assertSame(2_000_000, $fresh->amount);
     }
+
+    public function test_edit_saves_when_party_and_category_became_passive(): void
+    {
+        $party = FinanceParty::create(['name' => 'Ev Sahibi', 'kind' => PartyKind::Other]);
+        $recurring = $this->makeRecurring();
+        $recurring->update(['party_id' => $party->id]);
+        $party->update(['status' => 'passive']);
+        $this->rent->update(['status' => 'passive']);
+
+        Livewire::test('pages::finance.recurrings')
+            ->call('openForm', $recurring->id)->set('amount', '21.000')
+            ->call('save')->assertHasNoErrors();
+
+        $this->assertSame(2_100_000, $recurring->fresh()->amount);
+        $this->assertSame($party->id, $recurring->fresh()->party_id);
+    }
+
+    public function test_zero_amount_error_shows_on_amount_field(): void
+    {
+        Livewire::test('pages::finance.recurrings')
+            ->call('openForm')->set('name', 'Kira')->set('amount', '0')->set('categoryId', (string) $this->rent->id)->set('startsOn', '2026-11-05')
+            ->call('save')
+            ->assertHasErrors('amount')->assertHasNoErrors('name');
+    }
 }

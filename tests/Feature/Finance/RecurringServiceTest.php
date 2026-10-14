@@ -196,4 +196,32 @@ class RecurringServiceTest extends TestCase
             }
         }
     }
+
+    public function test_update_keeps_working_when_party_or_category_became_passive_but_is_unchanged(): void
+    {
+        $party = FinanceParty::create(['name' => 'Ev Sahibi', 'kind' => PartyKind::Other]);
+        $recurring = $this->recurrings->create($this->monthlyRent(['party' => $party]));
+        $party->update(['status' => 'passive']);
+        $this->rent->update(['status' => 'passive']);
+
+        $this->recurrings->update($recurring->fresh(), ['name' => 'Kira', 'amount' => 2_500_000, 'category' => $this->rent->fresh(), 'party' => $party->fresh()]);
+
+        $this->assertSame(2_500_000, $recurring->fresh()->amount);
+    }
+
+    public function test_update_still_rejects_switching_to_a_passive_party_or_category(): void
+    {
+        $recurring = $this->recurrings->create($this->monthlyRent());
+        $passiveParty = FinanceParty::create(['name' => 'Eski', 'kind' => PartyKind::Other, 'status' => 'passive']);
+        $passiveCategory = FinanceCategory::create(['name' => 'Eski kira', 'direction' => CategoryDirection::Expense, 'status' => 'passive']);
+
+        foreach ([['party' => $passiveParty], ['category' => $passiveCategory]] as $change) {
+            try {
+                $this->recurrings->update($recurring->fresh(), ['name' => 'Kira', 'amount' => 2_000_000, 'category' => $this->rent, ...$change]);
+                $this->fail('FinanceRuleException bekleniyordu.');
+            } catch (FinanceRuleException) {
+                $this->addToAssertionCount(1);
+            }
+        }
+    }
 }

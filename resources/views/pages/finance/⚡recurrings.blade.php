@@ -125,6 +125,7 @@ new #[Layout('layouts::authenticated')] class extends Component
         } catch (FinanceRuleException $e) {
             $message = mb_strtolower($e->getMessage());
             $field = match (true) {
+                str_contains($message, 'tutar') => 'amount',
                 str_contains($message, 'kategori') => 'categoryId',
                 str_contains($message, 'cari') => 'partyId',
                 str_contains($message, 'bitiş') => 'endsOn',
@@ -160,7 +161,8 @@ new #[Layout('layouts::authenticated')] class extends Component
     {
         return [
             'recurrings' => FinanceRecurring::with(['category', 'party'])->orderByRaw("status = 'active' desc")->orderBy('next_due_on')->get(),
-            'categories' => FinanceCategory::where('status', 'active')
+            // Düzenlenen kalemin kategorisi pasife alınmış olsa da seçili kalır.
+            'categories' => FinanceCategory::where(fn ($query) => $query->where('status', 'active')->orWhere('id', (int) $this->categoryId))
                 ->where('direction', ObligationDirection::tryFrom($this->formDirection)?->categoryDirection())
                 ->orderBy('name')->get(),
             // Düzenlenen kalemin cari pasife alınmış olsa da seçili kalır; sessizce silinmesin.
@@ -297,7 +299,7 @@ new #[Layout('layouts::authenticated')] class extends Component
                     <select wire:model="categoryId" class="w-full border border-line rounded-md px-3 py-2 text-[14px] bg-surface">
                         <option value="">Seç</option>
                         @foreach ($categories as $category)
-                            <option value="{{ $category->id }}">{{ $category->name }}</option>
+                            <option value="{{ $category->id }}">{{ $category->name }}{{ $category->isActive() ? '' : ' (pasif)' }}</option>
                         @endforeach
                     </select>
                     @error('categoryId') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
@@ -307,7 +309,7 @@ new #[Layout('layouts::authenticated')] class extends Component
                     <select wire:model="partyId" class="w-full border border-line rounded-md px-3 py-2 text-[14px] bg-surface">
                         <option value="">—</option>
                         @foreach ($parties as $party)
-                            <option value="{{ $party->id }}">{{ $party->name }}</option>
+                            <option value="{{ $party->id }}">{{ $party->name }}{{ $party->isActive() ? '' : ' (pasif)' }}</option>
                         @endforeach
                     </select>
                     @error('partyId') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror

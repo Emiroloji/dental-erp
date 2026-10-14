@@ -58,7 +58,7 @@ class RecurringService
      */
     public function update(FinanceRecurring $recurring, array $data): FinanceRecurring
     {
-        $recurring->update($this->attributes($data, $recurring->direction, $recurring->starts_on));
+        $recurring->update($this->attributes($data, $recurring->direction, $recurring->starts_on, $recurring));
 
         return $recurring;
     }
@@ -156,7 +156,7 @@ class RecurringService
     /**
      * @return array<string, mixed>
      */
-    private function attributes(array $data, ObligationDirection $direction, CarbonImmutable $startsOn): array
+    private function attributes(array $data, ObligationDirection $direction, CarbonImmutable $startsOn, ?FinanceRecurring $current = null): array
     {
         $name = trim($data['name']);
         $party = $data['party'] ?? null;
@@ -170,11 +170,16 @@ class RecurringService
             throw new FinanceRuleException('Tutar sıfırdan büyük olmalıdır.');
         }
 
-        if (! $data['category']->isActive() || $data['category']->direction !== $direction->categoryDirection()) {
+        // Sonradan pasife alınmış cari/kategori, kalemde değişmeden duruyorsa düzenlemeyi engellemez;
+        // pasif bir kayda geçiş yine reddedilir.
+        $categoryUnchanged = $current !== null && $current->category_id === $data['category']->id;
+        $partyUnchanged = $current !== null && $party !== null && $current->party_id === $party->id;
+
+        if ((! $categoryUnchanged && ! $data['category']->isActive()) || $data['category']->direction !== $direction->categoryDirection()) {
             throw new FinanceRuleException('Aktif bir '.mb_strtolower($direction->categoryDirection()->label()).' kategorisi seçin.');
         }
 
-        if ($party !== null && ! $party->isActive()) {
+        if ($party !== null && ! $partyUnchanged && ! $party->isActive()) {
             throw new FinanceRuleException("{$party->name} pasif bir cari.");
         }
 
