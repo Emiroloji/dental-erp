@@ -22,6 +22,7 @@ new #[Layout('layouts::authenticated')] class extends Component
         'stock_count' => 'Stok Sayımı',
         'return' => 'İade',
         'plan' => 'Paket',
+        'finance' => 'Finans',
     ];
 
     public function updatingStatusFilter(): void

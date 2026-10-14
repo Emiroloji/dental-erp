@@ -31,3 +31,7 @@ Schedule::command('queue:health-check')->hourly();
 // Faz 5 (Aşama 35): tekrarlayan finans kalemlerinden 35 gün ilerisinin
 // yükümlülükleri. Tekil (recurring_id, due_on) sayesinde tekrar çalışması zararsız.
 Schedule::command('finance:generate-recurring')->dailyAt('03:15');
+
+// Faz 5 (Aşama 35): vadesi yaklaşan/geçmiş ödeme ve tahsilat bildirimi. Tekrarlayan
+// kalem üretiminden sonra çalışır ki yeni üretilen yükümlülükler de görülsün.
+Schedule::command('finance:scan-due')->dailyAt('05:00');
