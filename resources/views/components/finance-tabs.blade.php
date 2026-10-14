@@ -1,6 +1,7 @@
 @php
     $tabs = [
         'finance.entries' => 'Hareketler',
+        'finance.obligations' => 'Ödemeler ve Tahsilatlar',
         'finance.parties' => 'Cariler',
         'finance.accounts' => 'Hesaplar',
         'finance.categories' => 'Kategoriler',
