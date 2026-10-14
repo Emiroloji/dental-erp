@@ -12,6 +12,7 @@ use App\Domain\Finance\Support\ObligationDirection;
 use App\Domain\Finance\Support\ObligationStatus;
 use App\Domain\Organization\Models\Branch;
 use Carbon\CarbonInterface;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Vadeli borç ve alacak. Geçmiş tarihli vade girilebilir (eski ödenmemiş
@@ -27,7 +28,7 @@ class ObligationService
      */
     public function create(array $data): FinanceObligation
     {
-        return FinanceObligation::create($this->attributes($data));
+        return FinanceObligation::create($this->attributes($data, auth()->user()?->organization_id));
     }
 
     /**
@@ -39,7 +40,7 @@ class ObligationService
             throw new FinanceRuleException('Ödemesi olan veya kapanmış kayıt düzenlenemez; gerekirse iptal edip yeniden girin.');
         }
 
-        $obligation->update($this->attributes($data));
+        $obligation->update($this->attributes($data, $obligation->organization_id));
 
         return $obligation;
     }
@@ -52,29 +53,41 @@ class ObligationService
             throw new FinanceRuleException('İptal için bir gerekçe yazın.');
         }
 
-        if ($obligation->status === ObligationStatus::Cancelled) {
-            throw new FinanceRuleException('Bu kayıt zaten iptal edilmiş.');
-        }
+        // Satır kilitlenir: eşzamanlı bir LedgerService::pay ile iptal yarışmasın.
+        return DB::transaction(function () use ($obligation, $reason) {
+            $locked = FinanceObligation::whereKey($obligation->id)->lockForUpdate()->firstOrFail();
 
-        if ($this->balances->paid($obligation) !== 0) {
-            throw new FinanceRuleException('Önce bu kayda bağlı ödemeleri iptal edin.');
-        }
+            if ($locked->status === ObligationStatus::Cancelled) {
+                throw new FinanceRuleException('Bu kayıt zaten iptal edilmiş.');
+            }
 
-        $obligation->update(['status' => ObligationStatus::Cancelled, 'cancel_reason' => $reason]);
+            if ($this->balances->paid($locked) !== 0) {
+                throw new FinanceRuleException('Önce bu kayda bağlı ödemeleri iptal edin.');
+            }
 
-        return $obligation;
+            $locked->update(['status' => ObligationStatus::Cancelled, 'cancel_reason' => $reason]);
+
+            return $locked;
+        });
     }
 
     /**
      * @return array<string, mixed>
      */
-    private function attributes(array $data): array
+    private function attributes(array $data, ?int $organizationId): array
     {
         /** @var ObligationDirection $direction */
         $direction = $data['direction'];
         $party = $data['party'] ?? null;
         $category = $data['category'] ?? null;
+        $branch = $data['branch'] ?? null;
         $description = trim($data['description']);
+
+        foreach ([$party, $category, $branch] as $related) {
+            if ($related !== null && (int) $related->organization_id !== (int) $organizationId) {
+                throw new FinanceRuleException('Kayıtlar aynı organizasyona ait değil.');
+            }
+        }
 
         if ($data['amount'] <= 0) {
             throw new FinanceRuleException('Tutar sıfırdan büyük olmalıdır.');
@@ -118,7 +131,7 @@ class ObligationService
             'category_id' => $category?->id,
             'description' => $description,
             'document_no' => $documentNo === '' ? null : $documentNo,
-            'branch_id' => ($data['branch'] ?? null)?->id,
+            'branch_id' => $branch?->id,
         ];
     }
 }

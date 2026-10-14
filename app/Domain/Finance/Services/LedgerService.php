@@ -6,12 +6,17 @@ use App\Domain\Finance\Exceptions\FinanceRuleException;
 use App\Domain\Finance\Models\FinanceAccount;
 use App\Domain\Finance\Models\FinanceCategory;
 use App\Domain\Finance\Models\FinanceEntry;
+use App\Domain\Finance\Models\FinanceObligation;
+use App\Domain\Finance\Models\FinanceParty;
 use App\Domain\Finance\Support\CategoryDirection;
 use App\Domain\Finance\Support\FinanceCalendar;
 use App\Domain\Finance\Support\FinanceEntryType;
+use App\Domain\Finance\Support\Money;
+use App\Domain\Finance\Support\ObligationStatus;
 use App\Domain\Organization\Models\Branch;
 use App\Models\User;
 use Carbon\CarbonInterface;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -24,9 +29,13 @@ use Illuminate\Support\Str;
  * Kurallar: tutar > 0, yönü türü belirler; pasif hesap/kategoriye yazılmaz;
  * ileri tarihli ve hesabın açılışından önceki tarihli hareket yazılmaz; eksi
  * bakiyeye izin verilir (ek hesaplı banka gerçekliği), uyarıyı ekran gösterir.
+ * Yükümlülük ödemeleri de buradan geçer (pay); yükümlülüğün durumu her ödeme ve
+ * iptalden sonra defterden yeniden hesaplanır.
  */
 class LedgerService
 {
+    public function __construct(private readonly FinanceBalanceService $balances) {}
+
     public function income(
         FinanceAccount $account,
         int $amount,
@@ -36,8 +45,9 @@ class LedgerService
         ?string $description = null,
         ?Branch $branch = null,
         ?string $documentNo = null,
+        ?FinanceParty $party = null,
     ): FinanceEntry {
-        return $this->categorized(FinanceEntryType::Income, $account, $amount, $date, $category, $actor, $description, $branch, $documentNo);
+        return $this->categorized(FinanceEntryType::Income, $account, $amount, $date, $category, $actor, $description, $branch, $documentNo, $party);
     }
 
     public function expense(
@@ -49,8 +59,9 @@ class LedgerService
         ?string $description = null,
         ?Branch $branch = null,
         ?string $documentNo = null,
+        ?FinanceParty $party = null,
     ): FinanceEntry {
-        return $this->categorized(FinanceEntryType::Expense, $account, $amount, $date, $category, $actor, $description, $branch, $documentNo);
+        return $this->categorized(FinanceEntryType::Expense, $account, $amount, $date, $category, $actor, $description, $branch, $documentNo, $party);
     }
 
     /**
@@ -78,6 +89,7 @@ class LedgerService
 
         $this->ensureWritable($from, $date);
         $this->ensureWritable($to, $date);
+        $this->ensureSameOrganization($from, $to, $commissionCategory);
 
         if ($commission < 0) {
             throw new FinanceRuleException('Komisyon eksi olamaz.');
@@ -107,6 +119,52 @@ class LedgerService
             }
 
             return $entries;
+        });
+    }
+
+    /**
+     * Yükümlülüğe ödeme/tahsilat (kısmi olabilir). Yükümlülük satırı kilitlenir:
+     * kalan kontrolü ile yazma arasında ikinci bir ödeme sığmasın. Ödeme
+     * kaydı yükümlülüğün kategorisini, carisini ve şubesini taşır — raporlar
+     * ödemeyi o kategoride gelir/gider sayar.
+     */
+    public function pay(
+        FinanceObligation $obligation,
+        FinanceAccount $account,
+        int $amount,
+        CarbonInterface $date,
+        ?User $actor = null,
+        ?string $description = null,
+    ): FinanceEntry {
+        $this->ensurePositive($amount);
+        $this->ensureWritable($account, $date);
+        $this->ensureSameOrganization($account, $obligation);
+
+        return DB::transaction(function () use ($obligation, $account, $amount, $date, $actor, $description) {
+            $locked = FinanceObligation::whereKey($obligation->id)->lockForUpdate()->firstOrFail();
+
+            if (! $locked->isOpen()) {
+                throw new FinanceRuleException('Bu kayıt kapanmış veya iptal edilmiş; ödeme yapılamaz.');
+            }
+
+            $remaining = $this->balances->remaining($locked);
+
+            if ($amount > $remaining) {
+                throw new FinanceRuleException('Kalan tutardan ('.Money::format($remaining).') fazla ödeme yapılamaz.');
+            }
+
+            $entry = $this->record($account, FinanceEntryType::Payment, $locked->direction->entryDirection(), $amount, $date, $actor, [
+                'category_id' => $locked->category_id,
+                'party_id' => $locked->party_id,
+                'obligation_id' => $locked->id,
+                'branch_id' => $locked->branch_id,
+                'description' => $this->clean($description) ?? $locked->description,
+                'document_no' => $locked->document_no,
+            ]);
+
+            $this->syncObligationStatus($locked);
+
+            return $entry;
         });
     }
 
@@ -143,20 +201,29 @@ class LedgerService
 
         // reverses_entry_id tekil olduğu için eşzamanlı ikinci iptal veritabanında reddedilir.
         try {
-            return DB::transaction(fn () => $targets->map(fn (FinanceEntry $target) => $this->record(
-                $target->account,
-                FinanceEntryType::Reversal,
-                -$target->direction,
-                $target->amount,
-                $today,
-                $actor,
-                [
-                    'category_id' => $target->category_id,
-                    'branch_id' => $target->branch_id,
-                    'reverses_entry_id' => $target->id,
-                    'description' => "İptal: #{$target->id} — {$reason}",
-                ],
-            )));
+            return DB::transaction(function () use ($targets, $today, $actor, $reason) {
+                $reversals = $targets->map(fn (FinanceEntry $target) => $this->record(
+                    $target->account,
+                    FinanceEntryType::Reversal,
+                    -$target->direction,
+                    $target->amount,
+                    $today,
+                    $actor,
+                    [
+                        'category_id' => $target->category_id,
+                        'party_id' => $target->party_id,
+                        'obligation_id' => $target->obligation_id,
+                        'branch_id' => $target->branch_id,
+                        'reverses_entry_id' => $target->id,
+                        'description' => "İptal: #{$target->id} — {$reason}",
+                    ],
+                ));
+
+                $targets->pluck('obligation_id')->filter()->unique()
+                    ->each(fn (int $obligationId) => $this->syncObligationStatus(FinanceObligation::whereKey($obligationId)->lockForUpdate()->firstOrFail()));
+
+                return $reversals;
+            });
         } catch (UniqueConstraintViolationException) {
             throw new FinanceRuleException('Bu hareket zaten iptal edilmiş.');
         }
@@ -172,13 +239,20 @@ class LedgerService
         ?string $description,
         ?Branch $branch,
         ?string $documentNo,
+        ?FinanceParty $party,
     ): FinanceEntry {
         $this->ensurePositive($amount);
         $this->ensureWritable($account, $date);
         $this->ensureCategory($category, $type === FinanceEntryType::Income ? CategoryDirection::Income : CategoryDirection::Expense);
+        $this->ensureSameOrganization($account, $category, $branch, $party);
+
+        if ($party !== null && ! $party->isActive()) {
+            throw new FinanceRuleException("{$party->name} pasif bir cari.");
+        }
 
         return DB::transaction(fn () => $this->record($account, $type, $type->direction(), $amount, $date, $actor, [
             'category_id' => $category->id,
+            'party_id' => $party?->id,
             'branch_id' => $branch?->id,
             'description' => $this->clean($description),
             'document_no' => $this->clean($documentNo),
@@ -233,6 +307,40 @@ class LedgerService
             'actor_id' => $actor?->id,
             ...$attributes,
         ]);
+    }
+
+    /**
+     * Durum defterden türetilir; iptal edilmiş kayda dokunulmaz.
+     */
+    private function syncObligationStatus(FinanceObligation $obligation): void
+    {
+        if ($obligation->status === ObligationStatus::Cancelled) {
+            return;
+        }
+
+        $paid = $this->balances->paid($obligation);
+        $status = match (true) {
+            $paid <= 0 => ObligationStatus::Open,
+            $paid >= $obligation->amount => ObligationStatus::Paid,
+            default => ObligationStatus::Partial,
+        };
+
+        if ($obligation->status !== $status) {
+            $obligation->update(['status' => $status]);
+        }
+    }
+
+    /**
+     * Savunma: ekranlar kapsamlı modeller geçiriyor ama defter, başka bir
+     * organizasyonun kategorisini/carisini/şubesini asla yazmamalı.
+     */
+    private function ensureSameOrganization(?Model ...$models): void
+    {
+        $organizationIds = collect($models)->filter()->map(fn (Model $model) => (int) $model->organization_id)->unique();
+
+        if ($organizationIds->count() > 1) {
+            throw new FinanceRuleException('Kayıtlar aynı organizasyona ait değil.');
+        }
     }
 
     private function clean(?string $value): ?string

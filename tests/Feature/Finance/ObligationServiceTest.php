@@ -116,6 +116,17 @@ class ObligationServiceTest extends TestCase
         $this->obligations->create($this->payable());
     }
 
+    public function test_records_from_another_organization_are_rejected(): void
+    {
+        $other = Organization::create(['name' => 'Diğer', 'status' => 'active', 'plan' => 'starter']);
+        $foreignCategory = FinanceCategory::create(['organization_id' => $other->id, 'name' => 'Yabancı', 'direction' => CategoryDirection::Expense]);
+
+        $this->expectException(FinanceRuleException::class);
+        $this->expectExceptionMessage('aynı organizasyon');
+
+        $this->obligations->create($this->payable(['category' => $foreignCategory]));
+    }
+
     public function test_update_only_without_payments(): void
     {
         $obligation = $this->obligations->create($this->payable());
