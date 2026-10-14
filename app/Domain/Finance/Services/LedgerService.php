@@ -12,7 +12,9 @@ use App\Domain\Finance\Support\FinanceEntryType;
 use App\Domain\Organization\Models\Branch;
 use App\Models\User;
 use Carbon\CarbonInterface;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 /**
  * Finans defterinin tek kapısı (karar 1.7 — stoktaki StockMovementService'in
@@ -48,6 +50,111 @@ class LedgerService
         ?string $documentNo = null,
     ): FinanceEntry {
         return $this->categorized(FinanceEntryType::Expense, $account, $amount, $date, $category, $actor, $description, $branch, $documentNo);
+    }
+
+    /**
+     * Hesaplar arası transfer: iki ayak aynı transfer_group ile yazılır. POS'tan
+     * bankaya geçişte banka net tutarı yatırır; komisyon verilirse hedef
+     * hesaptan ayrıca gider olarak düşülür (aynı gruba bağlı).
+     *
+     * @return Collection<int, FinanceEntry>
+     */
+    public function transfer(
+        FinanceAccount $from,
+        FinanceAccount $to,
+        int $amount,
+        CarbonInterface $date,
+        ?User $actor = null,
+        ?string $description = null,
+        int $commission = 0,
+        ?FinanceCategory $commissionCategory = null,
+    ): Collection {
+        $this->ensurePositive($amount);
+
+        if ($from->is($to)) {
+            throw new FinanceRuleException('Kaynak ve hedef hesap aynı olamaz.');
+        }
+
+        $this->ensureWritable($from, $date);
+        $this->ensureWritable($to, $date);
+
+        if ($commission < 0) {
+            throw new FinanceRuleException('Komisyon eksi olamaz.');
+        }
+
+        if ($commission > 0) {
+            if ($commissionCategory === null) {
+                throw new FinanceRuleException('Komisyon için bir gider kategorisi seçin.');
+            }
+
+            $this->ensureCategory($commissionCategory, CategoryDirection::Expense);
+        }
+
+        $common = ['transfer_group' => (string) Str::uuid(), 'description' => $this->clean($description)];
+
+        return DB::transaction(function () use ($from, $to, $amount, $date, $actor, $commission, $commissionCategory, $common) {
+            $entries = collect([
+                $this->record($from, FinanceEntryType::TransferOut, -1, $amount, $date, $actor, $common),
+                $this->record($to, FinanceEntryType::TransferIn, 1, $amount, $date, $actor, $common),
+            ]);
+
+            if ($commission > 0) {
+                $entries->push($this->record($to, FinanceEntryType::Expense, -1, $commission, $date, $actor, [
+                    ...$common,
+                    'category_id' => $commissionCategory->id,
+                ]));
+            }
+
+            return $entries;
+        });
+    }
+
+    /**
+     * Yanlış kaydı ters kayıtla iptal eder (karar 1.5 — silme yok). Transferin
+     * herhangi bir ayağı iptal edilirse grubun tüm kayıtları birlikte iptal
+     * edilir; aksi hâlde para bir hesaptan çıkmış, diğerine girmemiş görünür.
+     * İptal, iptal günü tarihlenir: kapanmış dönemin raporu sonradan değişmez.
+     *
+     * @return Collection<int, FinanceEntry>
+     */
+    public function reverse(FinanceEntry $entry, string $reason, ?User $actor = null): Collection
+    {
+        $reason = trim($reason);
+
+        if ($reason === '') {
+            throw new FinanceRuleException('İptal için bir gerekçe yazın.');
+        }
+
+        if ($entry->type === FinanceEntryType::Reversal) {
+            throw new FinanceRuleException('İptal kaydı iptal edilemez; gerekiyorsa yeni bir hareket girin.');
+        }
+
+        $targets = $entry->transfer_group
+            ? FinanceEntry::where('transfer_group', $entry->transfer_group)->where('type', '!=', FinanceEntryType::Reversal)->with('account')->get()
+            : collect([$entry->loadMissing('account')]);
+
+        if ($targets->contains(fn (FinanceEntry $target) => $target->reversal()->exists())) {
+            throw new FinanceRuleException('Bu hareket zaten iptal edilmiş.');
+        }
+
+        $today = FinanceCalendar::today();
+        $targets->each(fn (FinanceEntry $target) => $this->ensureWritable($target->account, $today));
+
+        // reverses_entry_id tekil olduğu için eşzamanlı ikinci iptal veritabanında reddedilir.
+        return DB::transaction(fn () => $targets->map(fn (FinanceEntry $target) => $this->record(
+            $target->account,
+            FinanceEntryType::Reversal,
+            -$target->direction,
+            $target->amount,
+            $today,
+            $actor,
+            [
+                'category_id' => $target->category_id,
+                'branch_id' => $target->branch_id,
+                'reverses_entry_id' => $target->id,
+                'description' => "İptal: #{$target->id} — {$reason}",
+            ],
+        )));
     }
 
     private function categorized(

@@ -167,4 +167,99 @@ class LedgerServiceTest extends TestCase
 
         $this->assertSame(1, FinanceEntry::count());
     }
+
+    public function test_transfer_moves_money_between_accounts_atomically(): void
+    {
+        $entries = $this->ledger->transfer($this->cash, $this->bank, 300_000, $this->day('2026-10-14'), $this->actor, 'Bankaya yatırıldı');
+
+        $this->assertCount(2, $entries);
+        $this->assertSame(700_000, $this->balances->balance($this->cash));
+        $this->assertSame(300_000, $this->balances->balance($this->bank));
+        $this->assertSame(1, $entries->pluck('transfer_group')->unique()->count());
+        $this->assertNotNull($entries->first()->transfer_group);
+    }
+
+    public function test_transfer_with_commission_records_expense_on_target(): void
+    {
+        $entries = $this->ledger->transfer($this->cash, $this->bank, 100_000, $this->day('2026-10-14'), $this->actor, 'POS günsonu', 2_500, $this->commission);
+
+        $this->assertCount(3, $entries);
+        $this->assertSame(97_500, $this->balances->balance($this->bank));
+        $fee = $entries->firstWhere('type', FinanceEntryType::Expense);
+        $this->assertSame($this->bank->id, $fee->account_id);
+        $this->assertSame($this->commission->id, $fee->category_id);
+    }
+
+    public function test_commission_requires_expense_category(): void
+    {
+        $this->expectException(FinanceRuleException::class);
+
+        $this->ledger->transfer($this->cash, $this->bank, 100_000, $this->day('2026-10-14'), $this->actor, null, 2_500);
+    }
+
+    public function test_transfer_to_same_account_is_rejected(): void
+    {
+        $this->expectException(FinanceRuleException::class);
+
+        $this->ledger->transfer($this->cash, $this->cash, 100, $this->day('2026-10-14'), $this->actor);
+    }
+
+    public function test_reverse_restores_balance_and_is_dated_today(): void
+    {
+        $expense = $this->ledger->expense($this->cash, 100_000, $this->day('2026-10-02'), $this->rent, $this->actor);
+
+        $reversals = $this->ledger->reverse($expense, 'Yanlış tutar', $this->actor);
+
+        $this->assertSame(1_000_000, $this->balances->balance($this->cash));
+        $reversal = $reversals->first();
+        $this->assertSame(FinanceEntryType::Reversal, $reversal->type);
+        $this->assertSame(1, $reversal->direction);
+        $this->assertSame($expense->id, $reversal->reverses_entry_id);
+        $this->assertSame($this->rent->id, $reversal->category_id);
+        $this->assertSame('2026-10-14', $reversal->occurred_on->toDateString());
+        $this->assertStringContainsString('Yanlış tutar', $reversal->description);
+        $this->assertSame(900_000, $this->balances->balance($this->cash, $this->day('2026-10-13')));
+    }
+
+    public function test_reversing_one_leg_reverses_the_whole_transfer(): void
+    {
+        $entries = $this->ledger->transfer($this->cash, $this->bank, 100_000, $this->day('2026-10-14'), $this->actor, null, 2_500, $this->commission);
+
+        $reversals = $this->ledger->reverse($entries->last(), 'Yanlış hesap', $this->actor);
+
+        $this->assertCount(3, $reversals);
+        $this->assertSame(1_000_000, $this->balances->balance($this->cash));
+        $this->assertSame(0, $this->balances->balance($this->bank));
+    }
+
+    public function test_entry_cannot_be_reversed_twice(): void
+    {
+        $expense = $this->ledger->expense($this->cash, 100, $this->day('2026-10-14'), $this->rent, $this->actor);
+        $this->ledger->reverse($expense, 'İlk', $this->actor);
+
+        $this->expectException(FinanceRuleException::class);
+        $this->expectExceptionMessage('zaten iptal');
+
+        $this->ledger->reverse($expense->fresh(), 'İkinci', $this->actor);
+    }
+
+    public function test_reversal_itself_cannot_be_reversed(): void
+    {
+        $expense = $this->ledger->expense($this->cash, 100, $this->day('2026-10-14'), $this->rent, $this->actor);
+        $reversal = $this->ledger->reverse($expense, 'İlk', $this->actor)->first();
+
+        $this->expectException(FinanceRuleException::class);
+
+        $this->ledger->reverse($reversal, 'Geri al', $this->actor);
+    }
+
+    public function test_reverse_requires_reason(): void
+    {
+        $expense = $this->ledger->expense($this->cash, 100, $this->day('2026-10-14'), $this->rent, $this->actor);
+
+        $this->expectException(FinanceRuleException::class);
+        $this->expectExceptionMessage('gerekçe');
+
+        $this->ledger->reverse($expense, '   ', $this->actor);
+    }
 }
