@@ -27,3 +27,7 @@ Schedule::command('backup:check-offsite')->dailyAt('06:00');
 // Aşama 28: kuyruk worker'ı düşerse işler sessizce birikir; saatlik kontrol
 // bekleyen ve başarısız işleri log'a uyarı olarak yazar.
 Schedule::command('queue:health-check')->hourly();
+
+// Faz 5 (Aşama 35): tekrarlayan finans kalemlerinden 35 gün ilerisinin
+// yükümlülükleri. Tekil (recurring_id, due_on) sayesinde tekrar çalışması zararsız.
+Schedule::command('finance:generate-recurring')->dailyAt('03:15');
