@@ -28,6 +28,14 @@ class StaffService
         PermissionScope $scope,
         array $branchIds = [],
     ): User {
+        // Finans organizasyon genelidir (karar 2.9): şubeyle sınırlı bir kapsamda
+        // finans yetkisi, kapsam dışı şubelerin parasını da göstermek demek olurdu.
+        $grantsFinance = in_array(true, $modulePermissions[Module::Finance->value] ?? [], true);
+
+        if ($grantsFinance && $scope !== PermissionScope::All) {
+            throw new StaffRuleException('Finans yetkisi yalnızca "Tüm şubeler" kapsamıyla verilebilir.');
+        }
+
         return DB::transaction(function () use ($attributes, $modulePermissions, $scope, $branchIds) {
             // Paket limiti (Faz 3): aktif kullanıcı sayısı; organizasyon satırı kilitlenir.
             $this->limits->ensureCanAddUser(Organization::whereKey(auth()->user()->organization_id)->lockForUpdate()->firstOrFail());

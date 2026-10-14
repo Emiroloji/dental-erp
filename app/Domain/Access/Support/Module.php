@@ -13,6 +13,7 @@ enum Module: string
     case StaffManagement = 'staff_management';
     case Reports = 'reports';
     case SystemSettings = 'system_settings';
+    case Finance = 'finance';
 
     public function label(): string
     {
@@ -26,6 +27,7 @@ enum Module: string
             self::StaffManagement => 'Personel Yönetimi',
             self::Reports => 'Raporlar',
             self::SystemSettings => 'Sistem Ayarları',
+            self::Finance => 'Finans (yalnızca tüm şubeler kapsamı)',
         };
     }
 }

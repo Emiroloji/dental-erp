@@ -94,7 +94,7 @@ new #[Layout('layouts::authenticated')] class extends Component
             scope: PermissionScope::from($validated['scope']),
             branchIds: $validated['selectedBranches'] ?? [],
             );
-        } catch (PlanLimitException $e) {
+        } catch (StaffRuleException|PlanLimitException $e) {
             $this->addError('name', $e->getMessage());
 
             return;
