@@ -33,14 +33,23 @@ class RecurringService
     public function create(array $data): FinanceRecurring
     {
         $startsOn = CarbonImmutable::parse($data['starts_on']->toDateString());
+        $day = $data['frequency']->dayFor($startsOn);
+
+        // Çok eski bir başlangıç yüzlerce geçmiş yükümlülük üretmesin: ilk vade
+        // en fazla ufuk kadar geriden başlar (starts_on ve day olduğu gibi kalır).
+        $floor = FinanceCalendar::today()->subDays(self::HORIZON_DAYS)->toDateString();
+        $nextDue = $startsOn;
+        while ($nextDue->toDateString() < $floor) {
+            $nextDue = $data['frequency']->next($nextDue, $day);
+        }
 
         return FinanceRecurring::create([
             ...$this->attributes($data, $data['direction'], $startsOn),
             'direction' => $data['direction'],
             'frequency' => $data['frequency'],
-            'day' => $data['frequency']->dayFor($startsOn),
+            'day' => $day,
             'starts_on' => $startsOn->toDateString(),
-            'next_due_on' => $startsOn->toDateString(),
+            'next_due_on' => $nextDue->toDateString(),
         ]);
     }
 
@@ -91,7 +100,12 @@ class RecurringService
             ->whereDate('next_due_on', '<=', $horizon->toDateString())
             ->chunkById(100, function (Collection $recurrings) use ($horizon, &$created) {
                 foreach ($recurrings as $recurring) {
-                    $created += $this->generateFor($recurring, $horizon);
+                    // Bozuk bir tanım diğer tanımların (ve kiracıların) üretimini durdurmasın.
+                    try {
+                        $created += $this->generateFor($recurring, $horizon);
+                    } catch (\Throwable $e) {
+                        report($e);
+                    }
                 }
             });
 
@@ -104,24 +118,35 @@ class RecurringService
             $created = 0;
             $next = $recurring->next_due_on;
 
-            while ($next->lte($horizon) && ($recurring->ends_on === null || $next->lte($recurring->ends_on))) {
-                $obligation = FinanceObligation::withoutGlobalScopes()->firstOrCreate(
-                    ['recurring_id' => $recurring->id, 'due_on' => $next->toDateString()],
-                    [
+            // Tarihler metin olarak karşılaştırılır: bugün İstanbul gece yarısı, date cast'leri UTC gece yarısıdır.
+            $horizonDate = $horizon->toDateString();
+            $endsOn = $recurring->ends_on?->toDateString();
+
+            while ($next->toDateString() <= $horizonDate && ($endsOn === null || $next->toDateString() <= $endsOn)) {
+                // whereDate: due_on 'date' cast'iyle saklanırken düz eşitlik mevcut kaydı bulamayabilir.
+                $exists = FinanceObligation::withoutGlobalScopes()
+                    ->where('recurring_id', $recurring->id)
+                    ->whereDate('due_on', $next->toDateString())
+                    ->exists();
+
+                if (! $exists) {
+                    FinanceObligation::withoutGlobalScopes()->create([
                         'organization_id' => $recurring->organization_id,
+                        'recurring_id' => $recurring->id,
+                        'due_on' => $next->toDateString(),
                         'direction' => $recurring->direction,
                         'party_id' => $recurring->party_id,
                         'category_id' => $recurring->category_id,
                         'amount' => $recurring->amount,
                         'description' => $recurring->name.' — '.$recurring->frequency->periodLabel($next),
-                    ],
-                );
+                    ]);
+                    $created++;
+                }
 
-                $created += $obligation->wasRecentlyCreated ? 1 : 0;
                 $next = $recurring->frequency->next($next, $recurring->day);
             }
 
-            $ended = $recurring->ends_on !== null && $next->gt($recurring->ends_on);
+            $ended = $endsOn !== null && $next->toDateString() > $endsOn;
             $recurring->update(['next_due_on' => $next->toDateString(), 'status' => $ended ? 'passive' : $recurring->status]);
 
             return $created;

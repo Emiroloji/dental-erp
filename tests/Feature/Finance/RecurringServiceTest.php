@@ -18,6 +18,7 @@ use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class RecurringServiceTest extends TestCase
@@ -135,6 +136,47 @@ class RecurringServiceTest extends TestCase
         $this->recurrings->generateDue();
 
         $this->assertSame([2_000_000, 2_000_000, 2_200_000], FinanceObligation::orderBy('due_on')->pluck('amount')->all());
+    }
+
+    public function test_due_date_exactly_at_horizon_is_generated(): void
+    {
+        $this->recurrings->create($this->monthlyRent(['starts_on' => CarbonImmutable::parse('2026-11-18')]));
+
+        $this->assertSame(1, $this->recurrings->generateDue());
+        $this->assertSame('2026-11-18', FinanceObligation::first()->due_on->toDateString());
+    }
+
+    public function test_old_start_date_is_not_backfilled_beyond_the_horizon(): void
+    {
+        $recurring = $this->recurrings->create($this->monthlyRent(['starts_on' => CarbonImmutable::parse('2025-01-05')]));
+
+        $this->assertSame(5, $recurring->day);
+        $this->assertSame('2025-01-05', $recurring->starts_on->toDateString());
+        $this->assertSame('2026-10-05', $recurring->next_due_on->toDateString());
+        $this->assertSame(2, $this->recurrings->generateDue());
+        $this->assertSame('2026-10-05', FinanceObligation::orderBy('due_on')->first()->due_on->toDateString());
+    }
+
+    public function test_rerun_after_resetting_next_due_hits_unique_index_safely(): void
+    {
+        $recurring = $this->recurrings->create($this->monthlyRent());
+        $this->assertSame(2, $this->recurrings->generateDue());
+
+        DB::table('finance_recurrings')->where('id', $recurring->id)->update(['next_due_on' => '2026-10-05']);
+
+        $this->assertSame(0, $this->recurrings->generateDue());
+        $this->assertSame(2, FinanceObligation::count());
+    }
+
+    public function test_a_broken_definition_does_not_stop_the_others(): void
+    {
+        $bad = $this->recurrings->create($this->monthlyRent(['name' => 'Bozuk']));
+        $good = $this->recurrings->create($this->monthlyRent(['name' => 'Sağlam']));
+        DB::table('finance_recurrings')->where('id', $bad->id)->update(['frequency' => 'invalid']);
+
+        $this->assertSame(2, $this->recurrings->generateDue());
+        $this->assertSame(2, FinanceObligation::where('recurring_id', $good->id)->count());
+        $this->assertSame(0, FinanceObligation::where('recurring_id', $bad->id)->count());
     }
 
     public function test_validation(): void
