@@ -7,7 +7,7 @@
     $w = 720;
     $h = 200;
     $chart = FinanceChart::line($values, $w, $h, 8);
-    $clip = 'fc-'.\Illuminate\Support\Str::random(8);
+    $clip = 'fc-'.substr(md5(json_encode([$values, $w, $h])), 0, 8);
     $summary = $values === [] ? '' : 'İlk: '.Money::format($values[0])
         .', son: '.Money::format($values[count($values) - 1])
         .', en düşük: '.Money::format($chart['min'])

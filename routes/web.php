@@ -151,6 +151,10 @@ Route::middleware('tenant')->group(function () {
         ->middleware(['auth', 'can:finance.viewAny'])
         ->name('finance.accounts.show');
 
+    Route::livewire('/finans/raporlar', 'pages::finance.reports')
+        ->middleware(['auth', 'can:finance.viewAny'])
+        ->name('finance.reports');
+
     Route::livewire('/finans/kategoriler', 'pages::finance.categories')
         ->middleware(['auth', 'can:finance.viewAny'])
         ->name('finance.categories');
@@ -226,7 +230,7 @@ Route::middleware('tenant')->group(function () {
 
     Route::get('/raporlar/indir/{export}', ReportExportDownloadController::class)
         ->whereNumber('export')
-        ->middleware(['auth', 'can:reports.viewAny'])
+        ->middleware(['auth', 'can:report_exports.download'])
         ->name('reports.exports.download');
 
     Route::livewire('/depo-stoklari', 'pages::reports.warehouse-stock')

@@ -29,7 +29,7 @@
             @forelse ($rows as $row)
                 <tr>
                     @foreach ($row as $cell)
-                        <td class="{{ is_int($cell) || is_float($cell) ? 'number' : '' }}">{{ is_float($cell) ? Number::format($cell, precision: 2) : ($cell ?? '—') }}</td>
+                        <td class="{{ is_int($cell) || is_float($cell) || (is_string($cell) && str_ends_with($cell, ' ₺')) ? 'number' : '' }}">{{ is_float($cell) ? Number::format($cell, precision: 2) : ($cell ?? '—') }}</td>
                     @endforeach
                 </tr>
             @empty
@@ -42,7 +42,7 @@
             <tfoot>
                 <tr>
                     @foreach ($totals as $cell)
-                        <td class="{{ is_float($cell) ? 'number' : '' }}">{{ is_float($cell) ? Number::format($cell, precision: 2) : $cell }}</td>
+                        <td class="{{ is_float($cell) || (is_string($cell) && str_ends_with($cell, ' ₺')) ? 'number' : '' }}">{{ is_float($cell) ? Number::format($cell, precision: 2) : $cell }}</td>
                     @endforeach
                 </tr>
             </tfoot>

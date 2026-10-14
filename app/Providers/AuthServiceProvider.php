@@ -71,6 +71,11 @@ class AuthServiceProvider extends ServiceProvider
         // Paket ve kullanım (Faz 3): abonelik Ana Klinik Sahibi'nin (Admin) konusudur.
         Gate::define('subscription.view', fn (User $user) => false);
 
+        // Hazır rapor dosyasını indirme: Raporlar veya Finans okuma yetkisi yeterli;
+        // denetleyici yalnızca isteyen kullanıcının kendi dosyasını verir.
+        Gate::define('report_exports.download', fn (User $user) => $user->canModule(Module::Reports, 'read')
+            || $user->canModule(Module::Finance, 'read'));
+
         // Depo stokları stok verisidir: stok veya rapor okuma yetkisi yeterli.
         Gate::define('warehouse_stock.viewAny', fn (User $user) => $user->canModule(Module::StockMovement, 'read')
             || $user->canModule(Module::Reports, 'read'));

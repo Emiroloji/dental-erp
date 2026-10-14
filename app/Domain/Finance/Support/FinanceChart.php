@@ -59,12 +59,14 @@ final class FinanceChart
     }
 
     /**
+     * Negatif giriş/çıkış 0 kabul edilir (çubuk grafik yalnızca pozitif tutar çizer).
+     *
      * @param  list<array{in: int, out: int}>  $groups
      * @return array{bars: list<array{x: float, y: float, width: float, height: float, kind: 'in'|'out'}>, zero_y: float, max: int}
      */
     public static function bars(array $groups, int $width = 720, int $height = 200, int $padding = 8): array
     {
-        $groups = array_values($groups);
+        $groups = array_map(fn (array $g) => ['in' => max(0, $g['in']), 'out' => max(0, $g['out'])], array_values($groups));
         $count = count($groups);
         $zeroY = (float) ($height - $padding);
 

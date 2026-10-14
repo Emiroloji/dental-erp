@@ -73,9 +73,19 @@ class ReportDownloader
      */
     public function pdfContent(string $title, array $table, ReportFilters $filters): string
     {
+        return $this->pdfContentWithDescription($title, $table, $filters->describe());
+    }
+
+    /**
+     * Süzgeç özeti hazır metin olarak verilen raporlar (ör. finans) için.
+     *
+     * @param  array{headings: array<int, string>, rows: Collection<int, array<int, mixed>>, totals?: array<int, mixed>}  $table
+     */
+    public function pdfContentWithDescription(string $title, array $table, string $description): string
+    {
         return Pdf::loadView('reports.table-pdf', [
             'title' => $title,
-            'filters' => $filters->describe(),
+            'filters' => $description,
             'headings' => $table['headings'],
             'rows' => $table['rows'],
             'totals' => $table['totals'] ?? [],

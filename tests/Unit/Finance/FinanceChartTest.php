@@ -70,4 +70,14 @@ class FinanceChartTest extends TestCase
         $this->assertSame(0, $c['max']);
         $this->assertEqualsWithDelta(0.0, $c['bars'][0]['height'], 0.01);
     }
+
+    public function test_cubuk_negatif_giris_cikisi_sifir_sayar(): void
+    {
+        $c = FinanceChart::bars([['in' => -500, 'out' => 100]], 720, 200, 8);
+
+        $this->assertSame(100, $c['max']);
+        $this->assertEqualsWithDelta(0.0, $c['bars'][0]['height'], 0.01);
+        $this->assertEqualsWithDelta(184.0, $c['bars'][1]['height'], 0.01);
+        $this->assertEqualsWithDelta(192.0, $c['bars'][0]['y'], 0.01);
+    }
 }

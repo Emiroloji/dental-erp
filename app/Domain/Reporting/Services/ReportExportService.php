@@ -3,6 +3,7 @@
 namespace App\Domain\Reporting\Services;
 
 use App\Domain\Access\Support\Module;
+use App\Domain\Finance\Reports\FinanceReportExporter;
 use App\Domain\Reporting\Jobs\GenerateReportExportJob;
 use App\Domain\Reporting\Models\ReportExport;
 use App\Domain\Reporting\Support\ReportExportStatus;
@@ -38,6 +39,7 @@ class ReportExportService
         private readonly PurchaseReportService $purchasing,
         private readonly ControlledLedgerService $controlled,
         private readonly ReportDownloader $downloader,
+        private readonly FinanceReportExporter $finance,
     ) {}
 
     /**
@@ -71,7 +73,7 @@ class ReportExportService
 
         $user = User::find($export->user_id);
 
-        if (! $user?->isActive() || $user->organization_id !== $export->organization_id || ! $user->canModule(Module::Reports, 'read')) {
+        if (! $user?->isActive() || $user->organization_id !== $export->organization_id || ! $user->canModule($export->report->module(), 'read')) {
             $this->markFailed($export, new RuntimeException('Raporu isteyen kullanıcının artık rapor yetkisi yok.'));
 
             return;
@@ -121,7 +123,7 @@ class ReportExportService
             'report',
             'Rapor hazırlanamadı',
             "{$export->report->label()} ({$this->formatLabel($export->format)}) oluşturulamadı. Lütfen tekrar deneyin.",
-            route('reports.stock'),
+            route($export->report->pageRoute()),
             WorkflowNotification::LEVEL_WARN,
         ));
     }
@@ -137,6 +139,11 @@ class ReportExportService
     private function content(ReportExport $export, User $user): string
     {
         $parameters = $export->parameters ?? [];
+
+        if ($export->report->isFinance()) {
+            return $this->finance->content($export->report, $export->format, $parameters);
+        }
+
         $filters = ReportFilters::fromArray($parameters['filters'] ?? []);
         $accessible = $user->accessibleBranchIds(Module::Reports);
         $pdf = $export->format === 'pdf';
