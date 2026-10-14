@@ -124,4 +124,11 @@ class CashFlowProjectionTest extends TestCase
             ['13.11.2026', 0, 0, -300_000],
         ], $table['rows']);
     }
+
+    public function test_days_are_clamped_to_a_sane_range(): void
+    {
+        $this->assertCount(2, $this->projection->project(-1, $this->day('2026-10-14'))['points']);
+        $this->assertCount(366, $this->projection->project(100_000, $this->day('2026-10-14'))['points']);
+        $this->assertNotEmpty($this->projection->table(-1)['rows']);
+    }
 }

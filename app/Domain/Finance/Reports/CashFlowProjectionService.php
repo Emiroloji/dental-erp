@@ -23,6 +23,8 @@ class CashFlowProjectionService
      */
     public function project(int $days, ?CarbonImmutable $today = null): array
     {
+        // Savunma amaçlı sınır: ekran girdisi zaten 30/60/90'a indirilir.
+        $days = max(1, min($days, 365));
         $today = ($today ?? FinanceCalendar::today())->startOfDay();
         $todayKey = $today->toDateString();
         $lastKey = $today->addDays($days)->toDateString();

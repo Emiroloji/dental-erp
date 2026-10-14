@@ -6,6 +6,7 @@ use App\Domain\Finance\Models\FinanceAccount;
 use App\Domain\Finance\Models\FinanceCategory;
 use App\Domain\Finance\Reports\CashFlowReportService;
 use App\Domain\Finance\Reports\FinanceReportFilters;
+use App\Domain\Finance\Services\FinanceBalanceService;
 use App\Domain\Finance\Services\LedgerService;
 use App\Domain\Finance\Support\AccountType;
 use App\Domain\Finance\Support\CategoryDirection;
@@ -120,5 +121,38 @@ class CashFlowReportTest extends TestCase
         $this->assertSame(['Ay', 'Giriş', 'Çıkış', 'Net', 'Dönem sonu nakit'], $table['headings']);
         $this->assertSame(['Ekim 2026', 20_000, 11_000, 9_000, 139_000], $table['rows'][1]);
         $this->assertSame(['Toplam', 70_000, 31_000, 39_000, 139_000], $table['totals']);
+    }
+
+    public function test_current_month_closing_matches_balance_total_for_active_accounts(): void
+    {
+        $months = $this->reports->actual($this->filters());
+
+        $this->assertSame(app(FinanceBalanceService::class)->total(), $months[1]['closing']);
+    }
+
+    public function test_closing_includes_passive_account_balance_that_total_excludes(): void
+    {
+        $this->bank->update(['status' => 'inactive']);
+
+        $months = $this->reports->actual($this->filters());
+
+        $this->assertSame(139_000, $months[1]['closing']);
+        $this->assertSame(30_000, $months[1]['closing'] - app(FinanceBalanceService::class)->total());
+    }
+
+    public function test_reversed_transfer_is_excluded_unless_account_filter_is_set(): void
+    {
+        $transfer = app(LedgerService::class)->transfer($this->cash, $this->bank, 5_000, $this->day('2026-10-10'), $this->actor);
+        app(LedgerService::class)->reverse($transfer->first(), 'Yanlış transfer', $this->actor);
+
+        $all = $this->reports->actual($this->filters());
+        $this->assertSame(20_000, $all[1]['in']);
+        $this->assertSame(11_000, $all[1]['out']);
+        $this->assertSame(139_000, $all[1]['closing']);
+
+        $bank = $this->reports->actual($this->filters(['account_id' => $this->bank->id]));
+        $this->assertSame(5_000, $bank[1]['in']);
+        $this->assertSame(5_000, $bank[1]['out']);
+        $this->assertSame(30_000, $bank[1]['closing']);
     }
 }
