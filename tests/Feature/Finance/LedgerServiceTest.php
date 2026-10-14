@@ -262,4 +262,16 @@ class LedgerServiceTest extends TestCase
 
         $this->ledger->reverse($expense, '   ', $this->actor);
     }
+
+    public function test_transfer_group_is_reversed_in_ascending_id_order(): void
+    {
+        $entries = $this->ledger->transfer($this->cash, $this->bank, 100_000, $this->day('2026-10-14'), $this->actor, null, 2_500, $this->commission);
+
+        $reversed = $this->ledger->reverse($entries->last(), 'Yanlış hesap', $this->actor)->pluck('reverses_entry_id')->all();
+
+        $this->assertCount(3, $reversed);
+        $sorted = $reversed;
+        sort($sorted);
+        $this->assertSame($sorted, $reversed);
+    }
 }

@@ -56,7 +56,7 @@ new #[Layout('layouts::authenticated')] class extends Component
 
         try {
             $openingBalance = Money::parse($validated['openingBalance']);
-        } catch (InvalidArgumentException $e) {
+        } catch (\InvalidArgumentException $e) {
             $this->addError('openingBalance', $e->getMessage());
 
             return;
@@ -87,6 +87,15 @@ new #[Layout('layouts::authenticated')] class extends Component
         $accounts->deactivate(FinanceAccount::findOrFail($accountId));
 
         session()->flash('status', 'Hesap pasife alındı; geçmiş hareketleri korunur.');
+    }
+
+    public function activate(int $accountId, FinanceAccountService $accounts): void
+    {
+        Gate::authorize('finance.update');
+
+        $accounts->activate(FinanceAccount::findOrFail($accountId));
+
+        session()->flash('status', 'Hesap yeniden aktifleştirildi.');
     }
 
     public function with(FinanceBalanceService $balances): array
@@ -134,7 +143,7 @@ new #[Layout('layouts::authenticated')] class extends Component
             <thead>
                 <tr class="text-left text-ink-muted text-[12px] border-b border-line">
                     <th class="px-3 sm:px-5 py-3 font-medium">Hesap</th>
-                    <th class="px-3 sm:px-5 py-3 font-medium">Tür</th>
+                    <th class="hidden sm:table-cell px-5 py-3 font-medium">Tür</th>
                     <th class="hidden sm:table-cell px-5 py-3 font-medium">Açılış</th>
                     <th class="px-3 sm:px-5 py-3 font-medium text-right">Bakiye</th>
                     <th class="px-3 sm:px-5 py-3 font-medium"></th>
@@ -148,8 +157,14 @@ new #[Layout('layouts::authenticated')] class extends Component
                             @if ($account->iban)
                                 <div class="text-[12px] text-ink-muted font-mono">{{ $account->iban }}</div>
                             @endif
+                            <div class="sm:hidden text-[12px] text-ink-muted">
+                                {{ $account->type->label() }}
+                                @unless ($account->isActive())
+                                    · Pasif
+                                @endunless
+                            </div>
                         </td>
-                        <td class="px-3 sm:px-5 py-3 whitespace-nowrap">
+                        <td class="hidden sm:table-cell px-5 py-3 whitespace-nowrap">
                             {{ $account->type->label() }}
                             @unless ($account->isActive())
                                 <span class="ml-1 inline-flex px-2 py-0.5 rounded text-[12px] bg-line text-ink-muted">Pasif</span>
@@ -162,7 +177,9 @@ new #[Layout('layouts::authenticated')] class extends Component
                         <td class="px-3 sm:px-5 py-3 text-right whitespace-nowrap">
                             @can('finance.update')
                                 @if ($account->isActive())
-                                    <button wire:click="deactivate({{ $account->id }})" wire:confirm="Bu hesap pasife alınsın mı? Yeni hareket yazılamaz, geçmişi korunur." class="text-[13px] text-ink-muted hover:text-ink hover:underline">Pasife al</button>
+                                    <button wire:click="deactivate({{ $account->id }})" wire:confirm="Bu hesap pasife alınsın mı? Yeni hareket yazılamaz, geçmişi korunur; bakiyesi artık Toplam nakit'e sayılmaz." class="text-[13px] text-ink-muted hover:text-ink hover:underline">Pasife al</button>
+                                @else
+                                    <button wire:click="activate({{ $account->id }})" class="text-[13px] text-brand-600 hover:underline">Aktifleştir</button>
                                 @endif
                             @endcan
                         </td>

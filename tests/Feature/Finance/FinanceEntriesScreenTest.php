@@ -143,4 +143,28 @@ class FinanceEntriesScreenTest extends TestCase
 
         $this->get('/finans/hareketler')->assertOk()->assertSee('Önce bir kasa veya banka hesabı');
     }
+
+    public function test_tampered_filters_do_not_break_the_list(): void
+    {
+        Livewire::test('pages::finance.entries')
+            ->set('filterAccount', 'abc')
+            ->set('filterCategory', 'x')
+            ->set('filterFrom', 'not-a-date')
+            ->set('filterTo', '2026-13-99 bad')
+            ->set('filterType', 'bogus')
+            ->assertOk();
+    }
+
+    public function test_commission_parse_error_is_reported_on_commission(): void
+    {
+        Livewire::test('pages::finance.entries')
+            ->call('openForm', 'transfer')
+            ->set('accountId', $this->cash->id)
+            ->set('toAccountId', $this->bank->id)
+            ->set('amount', '3.000')
+            ->set('commission', 'abc')
+            ->call('save')
+            ->assertHasErrors('commission')
+            ->assertHasNoErrors('amount');
+    }
 }

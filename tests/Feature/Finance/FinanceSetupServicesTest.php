@@ -85,4 +85,38 @@ class FinanceSetupServicesTest extends TestCase
         $this->assertSame(0, $service->addSuggested());
         $this->assertSame(1, FinanceCategory::where('name', 'Kira')->count());
     }
+
+    public function test_account_can_be_reactivated(): void
+    {
+        $service = app(FinanceAccountService::class);
+        $account = $service->create(['name' => 'Kasa', 'type' => AccountType::Cash, 'opening_balance' => 0, 'opening_date' => CarbonImmutable::parse('2026-10-01')]);
+        $service->deactivate($account);
+
+        $this->assertTrue($service->activate($account)->isActive());
+        $this->assertTrue($account->fresh()->isActive());
+    }
+
+    public function test_category_can_be_reactivated(): void
+    {
+        $service = app(FinanceCategoryService::class);
+        $category = $service->create('Kira', CategoryDirection::Expense);
+        $service->deactivate($category);
+
+        $this->assertTrue($service->activate($category)->isActive());
+        $this->assertTrue($category->fresh()->isActive());
+    }
+
+    public function test_duplicate_of_passive_category_tells_user_to_reactivate(): void
+    {
+        $service = app(FinanceCategoryService::class);
+        $service->deactivate($service->create('Kira', CategoryDirection::Expense));
+
+        try {
+            $service->create('Kira', CategoryDirection::Expense);
+            $this->fail('Yinelenen pasif kategori reddedilmeliydi.');
+        } catch (FinanceRuleException $e) {
+            $this->assertStringContainsString('pasif', $e->getMessage());
+            $this->assertStringContainsString('aktifleştirin', $e->getMessage());
+        }
+    }
 }

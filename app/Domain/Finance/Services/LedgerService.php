@@ -12,6 +12,7 @@ use App\Domain\Finance\Support\FinanceEntryType;
 use App\Domain\Organization\Models\Branch;
 use App\Models\User;
 use Carbon\CarbonInterface;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -130,7 +131,7 @@ class LedgerService
         }
 
         $targets = $entry->transfer_group
-            ? FinanceEntry::where('transfer_group', $entry->transfer_group)->where('type', '!=', FinanceEntryType::Reversal)->with('account')->get()
+            ? FinanceEntry::where('transfer_group', $entry->transfer_group)->where('type', '!=', FinanceEntryType::Reversal)->with('account')->orderBy('id')->get()
             : collect([$entry->loadMissing('account')]);
 
         if ($targets->contains(fn (FinanceEntry $target) => $target->reversal()->exists())) {
@@ -141,20 +142,24 @@ class LedgerService
         $targets->each(fn (FinanceEntry $target) => $this->ensureWritable($target->account, $today));
 
         // reverses_entry_id tekil olduğu için eşzamanlı ikinci iptal veritabanında reddedilir.
-        return DB::transaction(fn () => $targets->map(fn (FinanceEntry $target) => $this->record(
-            $target->account,
-            FinanceEntryType::Reversal,
-            -$target->direction,
-            $target->amount,
-            $today,
-            $actor,
-            [
-                'category_id' => $target->category_id,
-                'branch_id' => $target->branch_id,
-                'reverses_entry_id' => $target->id,
-                'description' => "İptal: #{$target->id} — {$reason}",
-            ],
-        )));
+        try {
+            return DB::transaction(fn () => $targets->map(fn (FinanceEntry $target) => $this->record(
+                $target->account,
+                FinanceEntryType::Reversal,
+                -$target->direction,
+                $target->amount,
+                $today,
+                $actor,
+                [
+                    'category_id' => $target->category_id,
+                    'branch_id' => $target->branch_id,
+                    'reverses_entry_id' => $target->id,
+                    'description' => "İptal: #{$target->id} — {$reason}",
+                ],
+            )));
+        } catch (UniqueConstraintViolationException) {
+            throw new FinanceRuleException('Bu hareket zaten iptal edilmiş.');
+        }
     }
 
     private function categorized(

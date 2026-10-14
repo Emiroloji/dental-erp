@@ -41,4 +41,11 @@ class FinanceAccountService
 
         return $account;
     }
+
+    public function activate(FinanceAccount $account): FinanceAccount
+    {
+        $account->update(['status' => 'active']);
+
+        return $account;
+    }
 }

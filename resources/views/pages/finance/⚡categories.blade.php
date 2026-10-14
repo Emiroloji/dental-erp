@@ -70,6 +70,15 @@ new #[Layout('layouts::authenticated')] class extends Component
         session()->flash('status', 'Kategori pasife alındı; geçmiş hareketlerde görünmeye devam eder.');
     }
 
+    public function activate(int $categoryId, FinanceCategoryService $categories): void
+    {
+        Gate::authorize('finance.update');
+
+        $categories->activate(FinanceCategory::findOrFail($categoryId));
+
+        session()->flash('status', 'Kategori yeniden aktifleştirildi.');
+    }
+
     public function with(): array
     {
         $all = FinanceCategory::orderByRaw("status = 'active' desc")->orderBy('name')->get();
@@ -131,6 +140,8 @@ new #[Layout('layouts::authenticated')] class extends Component
                                 @can('finance.update')
                                     @if ($category->isActive())
                                         <button wire:click="deactivate({{ $category->id }})" wire:confirm="Bu kategori pasife alınsın mı?" class="text-[13px] text-ink-muted hover:text-ink hover:underline">Pasife al</button>
+                                    @else
+                                        <button wire:click="activate({{ $category->id }})" class="text-[13px] text-brand-600 hover:underline">Aktifleştir</button>
                                     @endif
                                 @endcan
                             </li>

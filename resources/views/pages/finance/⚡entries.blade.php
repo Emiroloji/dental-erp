@@ -112,9 +112,16 @@ new #[Layout('layouts::authenticated')] class extends Component
 
         try {
             $amount = Money::parse($this->amount);
-            $commission = $isTransfer && trim($this->commission) !== '' ? Money::parse($this->commission) : 0;
-        } catch (InvalidArgumentException $e) {
+        } catch (\InvalidArgumentException $e) {
             $this->addError('amount', $e->getMessage());
+
+            return;
+        }
+
+        try {
+            $commission = $isTransfer && trim($this->commission) !== '' ? Money::parse($this->commission) : 0;
+        } catch (\InvalidArgumentException $e) {
+            $this->addError('commission', $e->getMessage());
 
             return;
         }
@@ -192,12 +199,14 @@ new #[Layout('layouts::authenticated')] class extends Component
 
     public function with(): array
     {
+        $isDate = '/^\d{4}-\d{2}-\d{2}$/';
+
         $entries = FinanceEntry::with(['account', 'category', 'branch', 'actor', 'reversal'])
-            ->when($this->filterFrom !== '', fn ($query) => $query->whereDate('occurred_on', '>=', $this->filterFrom))
-            ->when($this->filterTo !== '', fn ($query) => $query->whereDate('occurred_on', '<=', $this->filterTo))
-            ->when($this->filterAccount !== '', fn ($query) => $query->where('account_id', $this->filterAccount))
-            ->when($this->filterType !== '', fn ($query) => $query->where('type', $this->filterType))
-            ->when($this->filterCategory !== '', fn ($query) => $query->where('category_id', $this->filterCategory))
+            ->when(preg_match($isDate, $this->filterFrom), fn ($query) => $query->whereDate('occurred_on', '>=', $this->filterFrom))
+            ->when(preg_match($isDate, $this->filterTo), fn ($query) => $query->whereDate('occurred_on', '<=', $this->filterTo))
+            ->when((int) $this->filterAccount > 0, fn ($query) => $query->where('account_id', (int) $this->filterAccount))
+            ->when(FinanceEntryType::tryFrom($this->filterType) !== null, fn ($query) => $query->where('type', $this->filterType))
+            ->when((int) $this->filterCategory > 0, fn ($query) => $query->where('category_id', (int) $this->filterCategory))
             ->orderByDesc('occurred_on')
             ->orderByDesc('id')
             ->paginate(25);

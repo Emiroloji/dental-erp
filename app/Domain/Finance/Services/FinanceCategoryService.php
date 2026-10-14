@@ -31,7 +31,13 @@ class FinanceCategoryService
     {
         $name = trim($name);
 
-        if (FinanceCategory::where('direction', $direction)->where('name', $name)->exists()) {
+        $existing = FinanceCategory::where('direction', $direction)->where('name', $name)->first();
+
+        if ($existing && ! $existing->isActive()) {
+            throw new FinanceRuleException("\"{$name}\" adında pasif bir ".mb_strtolower($direction->label()).' kategorisi var; Kategoriler listesinden aktifleştirin.');
+        }
+
+        if ($existing) {
             throw new FinanceRuleException("\"{$name}\" adında bir ".mb_strtolower($direction->label()).' kategorisi zaten var.');
         }
 
@@ -41,6 +47,13 @@ class FinanceCategoryService
     public function deactivate(FinanceCategory $category): FinanceCategory
     {
         $category->update(['status' => 'passive']);
+
+        return $category;
+    }
+
+    public function activate(FinanceCategory $category): FinanceCategory
+    {
+        $category->update(['status' => 'active']);
 
         return $category;
     }

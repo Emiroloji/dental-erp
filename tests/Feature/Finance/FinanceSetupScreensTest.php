@@ -9,6 +9,7 @@ use App\Domain\Finance\Models\FinanceAccount;
 use App\Domain\Finance\Models\FinanceCategory;
 use App\Domain\Finance\Services\FinanceCategoryService;
 use App\Domain\Finance\Support\AccountType;
+use App\Domain\Finance\Support\CategoryDirection;
 use App\Domain\Organization\Models\Organization;
 use App\Models\User;
 use Carbon\CarbonImmutable;
@@ -120,5 +121,54 @@ class FinanceSetupScreensTest extends TestCase
 
         $staff = User::factory()->create(['organization_id' => $this->organization->id, 'role' => User::ROLE_STAFF, 'status' => 'active']);
         $this->actingAs($staff)->get('/dashboard')->assertDontSee(route('finance.entries'));
+    }
+
+    public function test_account_deactivate_and_activate_round_trip(): void
+    {
+        $account = FinanceAccount::create(['organization_id' => $this->organization->id, 'name' => 'Kasa', 'type' => AccountType::Cash, 'opening_balance' => 0, 'opening_date' => '2026-10-01']);
+        $this->actingAs($this->admin);
+
+        $page = Livewire::test('pages::finance.accounts')->call('deactivate', $account->id);
+        $this->assertFalse($account->fresh()->isActive());
+
+        $page->assertSee('Aktifleştir')->call('activate', $account->id);
+        $this->assertTrue($account->fresh()->isActive());
+    }
+
+    public function test_category_deactivate_and_activate_round_trip(): void
+    {
+        $category = FinanceCategory::create(['organization_id' => $this->organization->id, 'name' => 'Kira', 'direction' => 'expense']);
+        $this->actingAs($this->admin);
+
+        $page = Livewire::test('pages::finance.categories')->call('deactivate', $category->id);
+        $this->assertFalse($category->fresh()->isActive());
+
+        $page->assertSee('Aktifleştir')->call('activate', $category->id);
+        $this->assertTrue($category->fresh()->isActive());
+    }
+
+    public function test_read_only_staff_cannot_deactivate_or_activate(): void
+    {
+        $account = FinanceAccount::create(['organization_id' => $this->organization->id, 'name' => 'Kasa', 'type' => AccountType::Cash, 'opening_balance' => 0, 'opening_date' => '2026-10-01']);
+        $category = FinanceCategory::create(['organization_id' => $this->organization->id, 'name' => 'Kira', 'direction' => 'expense']);
+        $staff = User::factory()->create(['organization_id' => $this->organization->id, 'role' => User::ROLE_STAFF, 'status' => 'active']);
+        Permission::create(['user_id' => $staff->id, 'module' => Module::Finance->value, 'can_read' => true, 'can_write' => false, 'can_delete' => false, 'scope' => PermissionScope::All->value]);
+        $this->actingAs($staff);
+
+        Livewire::test('pages::finance.accounts')->call('deactivate', $account->id)->assertForbidden();
+        Livewire::test('pages::finance.accounts')->call('activate', $account->id)->assertForbidden();
+        Livewire::test('pages::finance.categories')->call('deactivate', $category->id)->assertForbidden();
+        Livewire::test('pages::finance.categories')->call('activate', $category->id)->assertForbidden();
+        $this->assertTrue($account->fresh()->isActive());
+    }
+
+    public function test_duplicate_of_passive_category_shows_reactivate_hint(): void
+    {
+        $this->actingAs($this->admin);
+        $categories = app(FinanceCategoryService::class);
+        $categories->deactivate($categories->create('Kira', CategoryDirection::Expense));
+
+        Livewire::test('pages::finance.categories')->call('openForm')->set('name', 'Kira')->set('direction', 'expense')->call('save')
+            ->assertHasErrors('name')->assertSee('aktifleştirin');
     }
 }
