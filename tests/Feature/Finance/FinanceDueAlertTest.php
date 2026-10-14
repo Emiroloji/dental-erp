@@ -18,6 +18,7 @@ use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Exceptions;
 use Tests\TestCase;
 
 class FinanceDueAlertTest extends TestCase
@@ -125,6 +126,7 @@ class FinanceDueAlertTest extends TestCase
 
     public function test_one_organization_failing_does_not_stop_others_from_being_notified(): void
     {
+        Exceptions::fake();
         $broken = $this->obligation('2026-10-16');
         DB::table('finance_obligations')->where('id', $broken->id)->update(['direction' => 'bozuk']);
 
@@ -137,5 +139,35 @@ class FinanceDueAlertTest extends TestCase
         $this->assertSame(1, $sent);
         $this->assertSame(0, $this->admin->notifications()->count());
         $this->assertSame(1, $otherAdmin->notifications()->count());
+        Exceptions::assertReported(fn (\ValueError $e) => true);
+    }
+
+    public function test_date_boundaries_around_today_and_notice_window(): void
+    {
+        $due = $this->obligation('2026-10-14');
+        $past = $this->obligation('2026-10-13');
+        $edge = $this->obligation('2026-10-17');
+        $this->obligation('2026-10-18');
+
+        $this->assertSame(3, app(FinanceDueAlertService::class)->scan());
+
+        $states = $this->admin->notifications()->get()->pluck('data.state', 'data.obligation_id');
+        $this->assertCount(3, $states);
+        $this->assertSame('upcoming', $states[$due->id]);
+        $this->assertSame('overdue', $states[$past->id]);
+        $this->assertSame('upcoming', $states[$edge->id]);
+    }
+
+    public function test_istanbul_date_is_used_when_utc_date_is_still_the_previous_day(): void
+    {
+        $this->travelToIstanbul('2026-10-15 01:00:00');
+        $yesterday = $this->obligation('2026-10-14');
+        $today = $this->obligation('2026-10-15');
+
+        $this->assertSame(2, app(FinanceDueAlertService::class)->scan());
+
+        $states = $this->admin->notifications()->get()->pluck('data.state', 'data.obligation_id');
+        $this->assertSame('overdue', $states[$yesterday->id]);
+        $this->assertSame('upcoming', $states[$today->id]);
     }
 }
