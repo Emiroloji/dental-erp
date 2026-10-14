@@ -18,6 +18,7 @@ use App\Domain\Organization\Models\Organization;
 use App\Models\User;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class FinancePartyServiceTest extends TestCase
@@ -56,6 +57,30 @@ class FinancePartyServiceTest extends TestCase
         $this->expectException(UniqueConstraintViolationException::class);
 
         FinanceParty::create(['name' => 'abc sigorta', 'kind' => PartyKind::Customer]);
+    }
+
+    public function test_migration_renames_existing_case_variant_duplicates_before_creating_the_index(): void
+    {
+        $orgId = auth()->user()->organization_id;
+        $other = Organization::create(['name' => 'Diğer', 'status' => 'active', 'plan' => 'starter']);
+
+        DB::statement('DROP INDEX finance_parties_org_lower_name_unique');
+        $row = fn (int $org, string $name) => DB::table('finance_parties')->insertGetId([
+            'organization_id' => $org, 'name' => $name, 'kind' => PartyKind::Customer->value, 'status' => 'active',
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+        $first = $row($orgId, 'ABC Sigorta');
+        $second = $row($orgId, 'abc sigorta');
+        $unrelated = $row($other->id, 'abc sigorta');
+
+        (require database_path('migrations/2026_10_16_090000_add_unique_lower_name_to_finance_parties.php'))->up();
+
+        $this->assertSame('ABC Sigorta', DB::table('finance_parties')->where('id', $first)->value('name'));
+        $this->assertSame("abc sigorta ({$second})", DB::table('finance_parties')->where('id', $second)->value('name'));
+        $this->assertSame('abc sigorta', DB::table('finance_parties')->where('id', $unrelated)->value('name'));
+
+        $this->expectException(UniqueConstraintViolationException::class);
+        $row($orgId, 'ABC SIGORTA');
     }
 
     public function test_duplicate_name_is_rejected_and_passive_duplicate_explains_reactivation(): void

@@ -82,7 +82,7 @@ class FinancePartyService
 
     private function ensureUniqueName(string $name, ?FinanceParty $except = null): void
     {
-        $existing = FinanceParty::whereRaw('LOWER(name) = ?', [mb_strtolower($name)])
+        $existing = FinanceParty::whereRaw('LOWER(name) = LOWER(?)', [$name])
             ->when($except, fn ($query) => $query->whereKeyNot($except->id))
             ->first();
 
