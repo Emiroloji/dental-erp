@@ -127,6 +127,18 @@ class ObligationServiceTest extends TestCase
         $this->obligations->create($this->payable(['category' => $foreignCategory]));
     }
 
+    public function test_cancel_and_update_leave_the_callers_instance_current(): void
+    {
+        $obligation = $this->obligations->create($this->payable());
+
+        $this->obligations->update($obligation, $this->payable(['amount' => 777]));
+        $this->assertSame(777, $obligation->amount);
+
+        $this->obligations->cancel($obligation, 'Yanlış girildi');
+        $this->assertSame(ObligationStatus::Cancelled, $obligation->status);
+        $this->assertSame('Yanlış girildi', $obligation->cancel_reason);
+    }
+
     public function test_update_only_without_payments(): void
     {
         $obligation = $this->obligations->create($this->payable());

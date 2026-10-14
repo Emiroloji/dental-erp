@@ -36,13 +36,18 @@ class ObligationService
      */
     public function update(FinanceObligation $obligation, array $data): FinanceObligation
     {
-        if (! $obligation->isOpen() || FinanceEntry::where('obligation_id', $obligation->id)->exists()) {
-            throw new FinanceRuleException('Ödemesi olan veya kapanmış kayıt düzenlenemez; gerekirse iptal edip yeniden girin.');
-        }
+        // Satır kilitlenir: eşzamanlı bir LedgerService::pay ile düzenleme yarışmasın.
+        DB::transaction(function () use ($obligation, $data) {
+            $locked = FinanceObligation::whereKey($obligation->id)->lockForUpdate()->firstOrFail();
 
-        $obligation->update($this->attributes($data, $obligation->organization_id));
+            if (! $locked->isOpen() || FinanceEntry::where('obligation_id', $locked->id)->exists()) {
+                throw new FinanceRuleException('Ödemesi olan veya kapanmış kayıt düzenlenemez; gerekirse iptal edip yeniden girin.');
+            }
 
-        return $obligation;
+            $locked->update($this->attributes($data, $locked->organization_id));
+        });
+
+        return $obligation->refresh();
     }
 
     public function cancel(FinanceObligation $obligation, string $reason): FinanceObligation
@@ -54,7 +59,7 @@ class ObligationService
         }
 
         // Satır kilitlenir: eşzamanlı bir LedgerService::pay ile iptal yarışmasın.
-        return DB::transaction(function () use ($obligation, $reason) {
+        DB::transaction(function () use ($obligation, $reason) {
             $locked = FinanceObligation::whereKey($obligation->id)->lockForUpdate()->firstOrFail();
 
             if ($locked->status === ObligationStatus::Cancelled) {
@@ -66,9 +71,9 @@ class ObligationService
             }
 
             $locked->update(['status' => ObligationStatus::Cancelled, 'cancel_reason' => $reason]);
-
-            return $locked;
         });
+
+        return $obligation->refresh();
     }
 
     /**

@@ -202,6 +202,14 @@ class LedgerService
         // reverses_entry_id tekil olduğu için eşzamanlı ikinci iptal veritabanında reddedilir.
         try {
             return DB::transaction(function () use ($targets, $today, $actor, $reason) {
+                // Kilit sırası: önce yükümlülükler (artan id), sonra yazma. obligation_id
+                // gerçek bir FK; PostgreSQL'de insert satıra FOR KEY SHARE alır, kilidi
+                // yazmadan sonra isteyen iki eşzamanlı iptal birbirini kilitler (deadlock).
+                $obligationIds = $targets->pluck('obligation_id')->filter()->unique()->values();
+                $obligations = $obligationIds->isEmpty()
+                    ? collect()
+                    : FinanceObligation::whereKey($obligationIds->all())->orderBy('id')->lockForUpdate()->get();
+
                 $reversals = $targets->map(fn (FinanceEntry $target) => $this->record(
                     $target->account,
                     FinanceEntryType::Reversal,
@@ -219,8 +227,7 @@ class LedgerService
                     ],
                 ));
 
-                $targets->pluck('obligation_id')->filter()->unique()
-                    ->each(fn (int $obligationId) => $this->syncObligationStatus(FinanceObligation::whereKey($obligationId)->lockForUpdate()->firstOrFail()));
+                $obligations->each(fn (FinanceObligation $obligation) => $this->syncObligationStatus($obligation));
 
                 return $reversals;
             });
