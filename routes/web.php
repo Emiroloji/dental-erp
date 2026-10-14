@@ -127,6 +127,14 @@ Route::middleware('tenant')->group(function () {
         ->middleware(['auth', 'can:finance.viewAny'])
         ->name('finance.entries');
 
+    Route::livewire('/finans/cariler', 'pages::finance.parties')
+        ->middleware(['auth', 'can:finance.viewAny'])
+        ->name('finance.parties');
+
+    Route::livewire('/finans/cariler/{party}', 'pages::finance.party')
+        ->middleware(['auth', 'can:finance.viewAny'])
+        ->name('finance.parties.show');
+
     Route::livewire('/finans/hesaplar', 'pages::finance.accounts')
         ->middleware(['auth', 'can:finance.viewAny'])
         ->name('finance.accounts');
