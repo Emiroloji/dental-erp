@@ -67,10 +67,33 @@ new #[Layout('layouts::authenticated')] class extends Component
 
     public string $cancelReason = '';
 
+    public function mount(): void
+    {
+        $this->normalizeFilters();
+    }
+
     public function updated(string $property): void
     {
         if (in_array($property, ['tab', 'direction'], true)) {
+            $this->normalizeFilters();
             $this->resetPage();
+        }
+    }
+
+    public function updatedFormDirection(): void
+    {
+        // Kategori yöne bağlı: yön değişince eski yönün kategorisi kalmasın.
+        $this->categoryId = '';
+    }
+
+    private function normalizeFilters(): void
+    {
+        if (! in_array($this->tab, self::TABS, true)) {
+            $this->tab = 'week';
+        }
+
+        if (ObligationDirection::tryFrom($this->direction) === null) {
+            $this->direction = '';
         }
     }
 
@@ -109,6 +132,13 @@ new #[Layout('layouts::authenticated')] class extends Component
     {
         Gate::authorize($this->editingId === null ? 'finance.create' : 'finance.update');
 
+        $editing = $this->editingId === null ? null : FinanceObligation::findOrFail($this->editingId);
+
+        // Düzenlemede yön değişmez: sahte formDirection yok sayılır.
+        if ($editing !== null) {
+            $this->formDirection = $editing->direction->value;
+        }
+
         $this->validate([
             'formDirection' => ['required', Rule::enum(ObligationDirection::class)],
             'amount' => ['required', 'string'],
@@ -140,11 +170,18 @@ new #[Layout('layouts::authenticated')] class extends Component
         ];
 
         try {
-            $this->editingId === null
+            $editing === null
                 ? $obligations->create($data)
-                : $obligations->update(FinanceObligation::findOrFail($this->editingId), $data);
+                : $obligations->update($editing, $data);
         } catch (FinanceRuleException $e) {
-            $this->addError(str_contains($e->getMessage(), 'Vade') ? 'dueOn' : 'amount', $e->getMessage());
+            $message = mb_strtolower($e->getMessage());
+            $field = match (true) {
+                str_contains($message, 'kategori') => 'categoryId',
+                str_contains($message, 'cari') => 'partyId',
+                str_contains($message, 'vade') => 'dueOn',
+                default => 'amount',
+            };
+            $this->addError($field, $e->getMessage());
 
             return;
         }
@@ -159,6 +196,7 @@ new #[Layout('layouts::authenticated')] class extends Component
         Gate::authorize('finance.create');
 
         $obligation = FinanceObligation::findOrFail($id);
+        abort_unless($obligation->isOpen(), 404);
         $this->resetValidation();
         $this->payingId = $obligation->id;
         $this->payAmount = Money::input($balances->remaining($obligation));
