@@ -4,6 +4,7 @@ use App\Domain\Finance\Exceptions\FinanceRuleException;
 use App\Domain\Finance\Models\FinanceAccount;
 use App\Domain\Finance\Models\FinanceCategory;
 use App\Domain\Finance\Models\FinanceEntry;
+use App\Domain\Finance\Models\FinanceParty;
 use App\Domain\Finance\Services\FinanceBalanceService;
 use App\Domain\Finance\Services\LedgerService;
 use App\Domain\Finance\Support\CategoryDirection;
@@ -34,6 +35,8 @@ new #[Layout('layouts::authenticated')] class extends Component
     public string $categoryId = '';
 
     public string $branchId = '';
+
+    public string $partyId = '';
 
     public string $description = '';
 
@@ -83,7 +86,7 @@ new #[Layout('layouts::authenticated')] class extends Component
 
     private function resetForm(): void
     {
-        $this->reset('accountId', 'toAccountId', 'amount', 'date', 'categoryId', 'branchId', 'description', 'documentNo', 'commission', 'commissionCategoryId');
+        $this->reset('accountId', 'toAccountId', 'amount', 'date', 'categoryId', 'branchId', 'partyId', 'description', 'documentNo', 'commission', 'commissionCategoryId');
         $this->resetValidation();
     }
 
@@ -101,6 +104,7 @@ new #[Layout('layouts::authenticated')] class extends Component
             'date' => ['required', 'date_format:Y-m-d'],
             'categoryId' => [$isTransfer ? 'nullable' : 'required', 'integer'],
             'branchId' => ['nullable', 'integer'],
+            'partyId' => ['nullable', 'integer'],
             'description' => ['nullable', 'string', 'max:500'],
             'documentNo' => ['nullable', 'string', 'max:100'],
             'commission' => ['nullable', 'string'],
@@ -141,10 +145,11 @@ new #[Layout('layouts::authenticated')] class extends Component
             } else {
                 $category = FinanceCategory::findOrFail($this->categoryId);
                 $branch = $this->branchId !== '' ? Branch::where('organization_id', $actor->organization_id)->findOrFail($this->branchId) : null;
+                $party = $this->partyId !== '' ? FinanceParty::findOrFail($this->partyId) : null;
                 if ($this->formType === 'income') {
-                    $ledger->income($account, $amount, $date, $category, $actor, $this->description, $branch, $this->documentNo);
+                    $ledger->income($account, $amount, $date, $category, $actor, $this->description, $branch, $this->documentNo, $party);
                 } else {
-                    $ledger->expense($account, $amount, $date, $category, $actor, $this->description, $branch, $this->documentNo);
+                    $ledger->expense($account, $amount, $date, $category, $actor, $this->description, $branch, $this->documentNo, $party);
                 }
                 $touched = [$account];
             }
@@ -201,7 +206,7 @@ new #[Layout('layouts::authenticated')] class extends Component
     {
         $isDate = '/^\d{4}-\d{2}-\d{2}$/';
 
-        $entries = FinanceEntry::with(['account', 'category', 'branch', 'actor', 'reversal'])
+        $entries = FinanceEntry::with(['account', 'category', 'branch', 'actor', 'reversal', 'party'])
             ->when(preg_match($isDate, $this->filterFrom), fn ($query) => $query->whereDate('occurred_on', '>=', $this->filterFrom))
             ->when(preg_match($isDate, $this->filterTo), fn ($query) => $query->whereDate('occurred_on', '<=', $this->filterTo))
             ->when((int) $this->filterAccount > 0, fn ($query) => $query->where('account_id', (int) $this->filterAccount))
@@ -222,6 +227,7 @@ new #[Layout('layouts::authenticated')] class extends Component
             'formCategories' => $categories->filter(fn ($category) => $category->isActive() && $category->direction === ($this->formType === 'income' ? CategoryDirection::Income : CategoryDirection::Expense)),
             'expenseCategories' => $categories->filter(fn ($category) => $category->isActive() && $category->direction === CategoryDirection::Expense),
             'branches' => Branch::where('organization_id', auth()->user()->organization_id)->where('status', 'active')->orderBy('name')->get(),
+            'parties' => FinanceParty::where('status', 'active')->orderBy('name')->get(),
             'types' => FinanceEntryType::cases(),
         ];
     }
@@ -302,7 +308,7 @@ new #[Layout('layouts::authenticated')] class extends Component
                             <td class="hidden sm:table-cell px-5 py-3 whitespace-nowrap align-top">{{ $entry->account->name }}</td>
                             <td class="px-3 sm:px-5 py-3">
                                 <div class="flex flex-wrap items-center gap-x-2">
-                                    <span class="text-[12px] text-ink-muted">{{ $entry->type->label() }}</span>
+                                    <span class="text-[12px] text-ink-muted">{{ $entry->label() }}</span>
                                     <span class="sm:hidden text-[12px] text-ink-muted">· {{ $entry->account->name }}</span>
                                     @if ($entry->category)
                                         <span class="text-[12px] px-1.5 rounded bg-canvas border border-line">{{ $entry->category->name }}</span>
@@ -319,6 +325,9 @@ new #[Layout('layouts::authenticated')] class extends Component
                                         {{ $entry->description }}
                                         @if ($entry->document_no) <span class="text-ink-muted">· Belge {{ $entry->document_no }}</span> @endif
                                     </div>
+                                @endif
+                                @if ($entry->party)
+                                    <div class="text-[12px] text-ink-muted mt-0.5">· <a href="{{ route('finance.parties.show', $entry->party) }}" wire:navigate class="hover:underline hover:text-ink">{{ $entry->party->name }}</a></div>
                                 @endif
                             </td>
                             <td @class([
@@ -426,6 +435,16 @@ new #[Layout('layouts::authenticated')] class extends Component
                     <div>
                         <label class="block text-[13px] text-ink-muted mb-1.5">Belge no (isteğe bağlı)</label>
                         <input type="text" wire:model="documentNo" class="w-full border border-line rounded-md px-3 py-2 text-[14px]">
+                    </div>
+                    <div class="sm:col-span-2">
+                        <label class="block text-[13px] text-ink-muted mb-1.5">Cari (isteğe bağlı)</label>
+                        <select wire:model="partyId" class="w-full border border-line rounded-md px-3 py-2 text-[14px] bg-surface">
+                            <option value="">—</option>
+                            @foreach ($parties as $party)
+                                <option value="{{ $party->id }}">{{ $party->name }}</option>
+                            @endforeach
+                        </select>
+                        @error('partyId') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
                     </div>
                 @endif
             </div>

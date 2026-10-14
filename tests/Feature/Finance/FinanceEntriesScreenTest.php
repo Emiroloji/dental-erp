@@ -5,14 +5,17 @@ namespace Tests\Feature\Finance;
 use App\Domain\Finance\Models\FinanceAccount;
 use App\Domain\Finance\Models\FinanceCategory;
 use App\Domain\Finance\Models\FinanceEntry;
+use App\Domain\Finance\Models\FinanceParty;
 use App\Domain\Finance\Services\FinanceBalanceService;
 use App\Domain\Finance\Services\LedgerService;
 use App\Domain\Finance\Support\AccountType;
 use App\Domain\Finance\Support\CategoryDirection;
 use App\Domain\Finance\Support\FinanceEntryType;
+use App\Domain\Finance\Support\PartyKind;
 use App\Domain\Organization\Models\Organization;
 use App\Models\User;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use Tests\TestCase;
@@ -166,5 +169,37 @@ class FinanceEntriesScreenTest extends TestCase
             ->call('save')
             ->assertHasErrors('commission')
             ->assertHasNoErrors('amount');
+    }
+
+    public function test_expense_can_be_linked_to_a_party_and_list_shows_it(): void
+    {
+        $party = FinanceParty::create(['name' => 'Depo Ltd.', 'kind' => PartyKind::Supplier]);
+
+        Livewire::test('pages::finance.entries')
+            ->call('openForm', 'expense')
+            ->set('accountId', $this->cash->id)->set('amount', '100')->set('categoryId', $this->rent->id)->set('partyId', (string) $party->id)
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $this->assertSame($party->id, FinanceEntry::firstOrFail()->party_id);
+        $this->get('/finans/hareketler')->assertSee('Depo Ltd.');
+    }
+
+    public function test_foreign_party_cannot_be_linked_to_an_entry(): void
+    {
+        $orgB = Organization::create(['name' => 'Klinik B', 'status' => 'active', 'plan' => 'starter']);
+        $foreign = FinanceParty::withoutGlobalScopes()->create(['organization_id' => $orgB->id, 'name' => 'Yabancı', 'kind' => PartyKind::Supplier]);
+
+        try {
+            Livewire::test('pages::finance.entries')
+                ->call('openForm', 'expense')
+                ->set('accountId', $this->cash->id)->set('amount', '100')->set('categoryId', $this->rent->id)->set('partyId', (string) $foreign->id)
+                ->call('save');
+            $this->fail('Yabancı cari için ModelNotFoundException bekleniyordu.');
+        } catch (ModelNotFoundException $e) {
+            $this->assertInstanceOf(ModelNotFoundException::class, $e);
+        }
+
+        $this->assertSame(0, FinanceEntry::count());
     }
 }

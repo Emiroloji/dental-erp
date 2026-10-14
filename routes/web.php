@@ -139,6 +139,10 @@ Route::middleware('tenant')->group(function () {
         ->middleware(['auth', 'can:finance.viewAny'])
         ->name('finance.parties.show');
 
+    Route::livewire('/finans/tekrarlayanlar', 'pages::finance.recurrings')
+        ->middleware(['auth', 'can:finance.viewAny'])
+        ->name('finance.recurrings');
+
     Route::livewire('/finans/hesaplar', 'pages::finance.accounts')
         ->middleware(['auth', 'can:finance.viewAny'])
         ->name('finance.accounts');

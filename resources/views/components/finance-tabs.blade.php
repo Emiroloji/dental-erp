@@ -3,6 +3,7 @@
         'finance.entries' => 'Hareketler',
         'finance.obligations' => 'Ödemeler ve Tahsilatlar',
         'finance.parties' => 'Cariler',
+        'finance.recurrings' => 'Tekrarlayanlar',
         'finance.accounts' => 'Hesaplar',
         'finance.categories' => 'Kategoriler',
     ];
