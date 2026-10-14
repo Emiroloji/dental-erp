@@ -156,7 +156,7 @@ new #[Layout('layouts::authenticated')] class extends Component
                 @forelse ($accounts as $account)
                     <tr wire:key="account-{{ $account->id }}" @class(['text-ink-muted' => ! $account->isActive()])>
                         <td class="px-3 sm:px-5 py-3">
-                            <div class="font-medium">{{ $account->name }}</div>
+                            <a href="{{ route('finance.accounts.show', $account) }}" wire:navigate class="font-medium hover:underline">{{ $account->name }}</a>
                             @if ($account->iban)
                                 <div class="text-[12px] text-ink-muted font-mono">{{ $account->iban }}</div>
                             @endif
