@@ -291,4 +291,16 @@ class LedgerServiceTest extends TestCase
         $this->assertSame('amount', $hint(fn () => $this->ledger->income($this->cash, 0, $this->day('2026-10-14'), $this->revenue, $this->actor)));
         $this->assertSame('category', $hint(fn () => $this->ledger->income($this->cash, 100, $this->day('2026-10-14'), $this->rent, $this->actor)));
     }
+
+    public function test_passive_destination_account_points_to_the_to_account_field(): void
+    {
+        $passive = FinanceAccount::create(['name' => 'Eski', 'type' => AccountType::Cash, 'opening_balance' => 0, 'opening_date' => '2026-01-01', 'status' => 'passive']);
+
+        try {
+            $this->ledger->transfer($this->cash, $passive, 100, $this->day('2026-10-14'), $this->actor);
+            $this->fail('Hata bekleniyordu.');
+        } catch (FinanceRuleException $e) {
+            $this->assertSame('to_account', $e->field);
+        }
+    }
 }

@@ -159,7 +159,8 @@ new #[Layout('layouts::authenticated')] class extends Component
                 $touched = [$account];
             }
         } catch (FinanceRuleException $e) {
-            $this->addError(self::FORM_FIELDS[$e->field] ?? 'amount', $e->getMessage());
+            $field = $isTransfer && $e->field === 'category' ? 'commissionCategoryId' : (self::FORM_FIELDS[$e->field] ?? 'amount');
+            $this->addError($field, $e->getMessage());
 
             return;
         }
@@ -424,6 +425,7 @@ new #[Layout('layouts::authenticated')] class extends Component
                     <div>
                         <label class="block text-[13px] text-ink-muted mb-1.5">Komisyon (isteğe bağlı)</label>
                         <input type="text" inputmode="decimal" wire:model="commission" placeholder="0" class="w-full border border-line rounded-md px-3 py-2 text-[14px] tabular-nums">
+                        @error('commission') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
                         <p class="text-[12px] text-ink-muted mt-1">POS'tan bankaya geçişte kesilen tutar; giren hesaptan gider olarak düşer.</p>
                     </div>
                     <div>
@@ -434,6 +436,7 @@ new #[Layout('layouts::authenticated')] class extends Component
                                 <option value="{{ $category->id }}">{{ $category->name }}</option>
                             @endforeach
                         </select>
+                        @error('commissionCategoryId') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
                     </div>
                 @else
                     <div>

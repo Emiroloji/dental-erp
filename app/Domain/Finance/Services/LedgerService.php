@@ -88,7 +88,7 @@ class LedgerService
         }
 
         $this->ensureWritable($from, $date);
-        $this->ensureWritable($to, $date);
+        $this->ensureWritable($to, $date, 'to_account');
         $this->ensureSameOrganization($from, $to, $commissionCategory);
 
         if ($commission < 0) {
@@ -273,10 +273,10 @@ class LedgerService
         }
     }
 
-    private function ensureWritable(FinanceAccount $account, CarbonInterface $date): void
+    private function ensureWritable(FinanceAccount $account, CarbonInterface $date, string $field = 'account'): void
     {
         if (! $account->isActive()) {
-            throw new FinanceRuleException("{$account->name} pasif bir hesap; hareket yazılamaz.", 'account');
+            throw new FinanceRuleException("{$account->name} pasif bir hesap; hareket yazılamaz.", $field);
         }
 
         if ($date->toDateString() > FinanceCalendar::today()->toDateString()) {
@@ -284,7 +284,7 @@ class LedgerService
         }
 
         if ($date->toDateString() < $account->opening_date->toDateString()) {
-            throw new FinanceRuleException("{$account->name} hesabının açılış tarihinden önce hareket yazılamaz.", 'account');
+            throw new FinanceRuleException("{$account->name} hesabının açılış tarihinden önce hareket yazılamaz.", $field);
         }
     }
 

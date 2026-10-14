@@ -17,6 +17,7 @@ use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Livewire\Features\SupportTesting\Testable;
 use Livewire\Livewire;
 use Tests\TestCase;
 
@@ -245,5 +246,40 @@ class FinanceEntriesScreenTest extends TestCase
             ->assertDontSee('Depo gideri')
             ->set('filterParty', '')
             ->assertSee('Carisiz gider');
+    }
+
+    private function transferForm(): Testable
+    {
+        return Livewire::test('pages::finance.entries')
+            ->call('openForm', 'transfer')
+            ->set('accountId', $this->cash->id)
+            ->set('toAccountId', $this->bank->id)
+            ->set('amount', '100');
+    }
+
+    public function test_transfer_commission_errors_are_shown_on_the_transfer_form(): void
+    {
+        $this->transferForm()->set('commission', '-5')->call('save')
+            ->assertHasErrors('commission')->assertHasNoErrors('amount')
+            ->assertSee('Komisyon eksi olamaz');
+
+        $this->transferForm()->set('commission', '5')->call('save')
+            ->assertHasErrors('commission')->assertHasNoErrors('amount');
+
+        $passiveExpense = FinanceCategory::create(['name' => 'Eski Gider', 'direction' => CategoryDirection::Expense, 'status' => 'passive']);
+        $this->transferForm()->set('commission', '5')->set('commissionCategoryId', (string) $passiveExpense->id)->call('save')
+            ->assertHasErrors('commissionCategoryId')->assertHasNoErrors(['categoryId', 'amount'])
+            ->assertSee('pasif bir kategori');
+
+        $this->transferForm()->set('commission', '5')->set('commissionCategoryId', (string) $this->revenue->id)->call('save')
+            ->assertHasErrors('commissionCategoryId')->assertHasNoErrors('categoryId');
+    }
+
+    public function test_transfer_to_a_passive_destination_error_is_shown_on_the_destination_field(): void
+    {
+        $this->bank->update(['status' => 'passive']);
+
+        $this->transferForm()->call('save')
+            ->assertHasErrors('toAccountId')->assertHasNoErrors(['accountId', 'amount']);
     }
 }
