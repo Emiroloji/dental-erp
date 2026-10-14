@@ -87,6 +87,16 @@ class ReconciliationServiceTest extends TestCase
         $this->assertSame(1, FinanceEntry::count());
     }
 
+    public function test_adjustment_description_is_cut_to_the_column_length(): void
+    {
+        // PostgreSQL varchar(500) taşmayı hata sayar; SQLite saymaz, bu yüzden uzunluk açıkça sınanır.
+        $record = $this->reconciliations->reconcile($this->cash, $this->day('2026-10-12'), 1_245_000, $this->actor, true, str_repeat('Ş', 600));
+
+        $description = FinanceEntry::findOrFail($record->adjustment_entry_id)->description;
+        $this->assertLessThanOrEqual(500, mb_strlen($description));
+        $this->assertStringStartsWith('Mutabakat:', $description);
+    }
+
     public function test_difference_is_closed_with_an_adjustment_entry_dated_at_the_statement(): void
     {
         $record = $this->reconciliations->reconcile($this->cash, $this->day('2026-10-12'), 1_245_000, $this->actor, true, 'Banka masrafı');

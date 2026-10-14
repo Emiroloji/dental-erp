@@ -98,7 +98,7 @@ class CashFlowReportService
         $rows = array_map(fn (array $m) => [$m['month'], $m['in'], $m['out'], $m['net'], $m['closing']], $months);
 
         return [
-            'headings' => ['Ay', 'Giriş', 'Çıkış', 'Net', 'Dönem sonu nakit'],
+            'headings' => ['Ay', 'Giriş', 'Çıkış', 'Net', 'Dönem sonu nakit (tüm hesaplar)'],
             'rows' => $rows,
             'totals' => ['Toplam', array_sum(array_column($months, 'in')), array_sum(array_column($months, 'out')), array_sum(array_column($months, 'net')), $months === [] ? 0 : end($months)['closing']],
         ];

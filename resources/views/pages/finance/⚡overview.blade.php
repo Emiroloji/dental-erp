@@ -33,7 +33,7 @@ new #[Layout('layouts::authenticated')] class extends Component
         return [
             'accounts' => $accounts,
             'accountBalances' => $accountBalances,
-            // Toplam nakit, aktif hesapların bakiye toplamıdır (raporlarla aynı tanım).
+            // Toplam nakit, aktif hesapların bakiye toplamıdır (Nakit Akışı raporunun dönem sonu nakdi pasif hesapları da içerir).
             'total' => array_sum($accountBalances),
             'month' => $incomeExpense->report(FinanceReportFilters::fromArray([], $today->startOfMonth(), $today)),
             'summary' => $obligations->summarize(5, $today),

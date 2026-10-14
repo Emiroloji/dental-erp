@@ -24,7 +24,7 @@
                     <th class="px-3 sm:px-5 py-3 font-medium text-right">Giriş</th>
                     <th class="px-3 sm:px-5 py-3 font-medium text-right">Çıkış</th>
                     <th class="hidden sm:table-cell px-5 py-3 font-medium text-right">Net</th>
-                    <th class="px-3 sm:px-5 py-3 font-medium text-right">Dönem sonu nakit</th>
+                    <th class="px-3 sm:px-5 py-3 font-medium text-right">Dönem sonu nakit<span class="block text-[11px] font-normal text-ink-muted">pasif hesaplar dahil</span></th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-line">
@@ -43,7 +43,7 @@
 
     <h2 class="mb-2 text-[15px] font-medium text-ink">Vade bazlı projeksiyon ({{ count($points) - 1 }} gün, tüm aktif hesaplar)</h2>
     @if ($projection['first_negative'])
-        <div class="mb-3 rounded-md bg-status-critical/10 border border-status-critical/30 text-status-critical text-[13px] px-4 py-3">Nakit {{ $fmt($projection['first_negative']) }}'de eksiye düşüyor.</div>
+        <div class="mb-3 rounded-md bg-finance-out/10 border border-finance-out/30 text-finance-out text-[13px] px-4 py-3">Nakit {{ $fmt($projection['first_negative']) }}'de eksiye düşüyor.</div>
     @endif
 
     <dl class="grid grid-cols-2 lg:grid-cols-4 gap-px bg-line rounded-lg overflow-hidden border border-line mb-3">

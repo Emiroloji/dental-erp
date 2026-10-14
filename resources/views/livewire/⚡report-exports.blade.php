@@ -46,7 +46,7 @@ new class extends Component
                         </span>
                         <span class="flex items-center gap-3">
                             <span class="inline-flex items-center px-2 py-0.5 rounded text-[12px] {{ $export->status->badgeClasses() }}">{{ $export->status->label() }}</span>
-                            @if ($export->status === ReportExportStatus::Completed)
+                            @if ($export->status === ReportExportStatus::Completed && auth()->user()->canModule($export->report->module(), 'read'))
                                 <a href="{{ route('reports.exports.download', $export) }}" class="text-brand-600 hover:underline">İndir</a>
                             @endif
                         </span>

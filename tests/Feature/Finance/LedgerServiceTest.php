@@ -151,6 +151,15 @@ class LedgerServiceTest extends TestCase
         $this->assertSame(-50_000, $this->balances->balance($this->bank));
     }
 
+    public function test_reversal_description_is_cut_to_the_column_length(): void
+    {
+        $expense = $this->ledger->expense($this->cash, 10_000, CarbonImmutable::parse('2026-10-10'), $this->rent, $this->actor);
+
+        $reversals = $this->ledger->reverse($expense, str_repeat('Ğ', 600), $this->actor);
+
+        $this->assertLessThanOrEqual(500, mb_strlen($reversals->first()->description));
+    }
+
     public function test_balances_and_total(): void
     {
         $this->ledger->income($this->bank, 30_000, $this->day('2026-10-14'), $this->revenue, $this->actor);

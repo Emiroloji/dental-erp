@@ -90,7 +90,8 @@ class RecurringService
 
     public function generateDue(?CarbonImmutable $today = null): int
     {
-        $horizon = ($today ?? FinanceCalendar::today())->addDays(self::HORIZON_DAYS);
+        $today ??= FinanceCalendar::today();
+        $horizon = $today->addDays(self::HORIZON_DAYS);
         $activeOrganizations = Organization::where('status', OrganizationStatus::Active)->pluck('id');
         $created = 0;
 
@@ -98,11 +99,11 @@ class RecurringService
             ->where('status', 'active')
             ->whereIn('organization_id', $activeOrganizations)
             ->whereDate('next_due_on', '<=', $horizon->toDateString())
-            ->chunkById(100, function (Collection $recurrings) use ($horizon, &$created) {
+            ->chunkById(100, function (Collection $recurrings) use ($horizon, $today, &$created) {
                 foreach ($recurrings as $recurring) {
                     // Bozuk bir tanım diğer tanımların (ve kiracıların) üretimini durdurmasın.
                     try {
-                        $created += $this->generateFor($recurring, $horizon);
+                        $created += $this->generateFor($recurring, $horizon, $today);
                     } catch (\Throwable $e) {
                         report($e);
                     }
@@ -112,9 +113,9 @@ class RecurringService
         return $created;
     }
 
-    private function generateFor(FinanceRecurring $recurring, CarbonImmutable $horizon): int
+    private function generateFor(FinanceRecurring $recurring, CarbonImmutable $horizon, CarbonImmutable $today): int
     {
-        return DB::transaction(function () use ($recurring, $horizon) {
+        return DB::transaction(function () use ($recurring, $horizon, $today) {
             $created = 0;
             $next = $recurring->next_due_on;
 
@@ -124,7 +125,7 @@ class RecurringService
 
             // Uzun süre kapalı kalan klinik yeniden açılınca geçmiş dönemler toplu
             // üretilmez: create() ile aynı taban (bugün − HORIZON_DAYS).
-            $floor = FinanceCalendar::today()->subDays(self::HORIZON_DAYS)->toDateString();
+            $floor = $today->subDays(self::HORIZON_DAYS)->toDateString();
 
             while ($next->toDateString() < $floor) {
                 $next = $recurring->frequency->next($next, $recurring->day);

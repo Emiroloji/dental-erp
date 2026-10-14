@@ -15,6 +15,13 @@ return new class extends Migration
 {
     public function up(): void
     {
+        // PostgreSQL: yeniden adlandırma ile indeks kurulumu arasında canlı bir ekleme
+        // yeni bir yinelenen yaratmasın diye yazmaları (SELECT hariç) engelle.
+        // Göç işlemi bir transaction içinde çalışır; kilit sonunda kendiliğinden kalkar.
+        if (DB::getDriverName() === 'pgsql') {
+            DB::statement('LOCK TABLE finance_parties IN SHARE ROW EXCLUSIVE MODE');
+        }
+
         $groups = DB::table('finance_parties')
             ->selectRaw('organization_id, LOWER(name) AS k, MIN(id) AS keep_id')
             ->groupByRaw('organization_id, LOWER(name)')

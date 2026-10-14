@@ -118,7 +118,7 @@ class CashFlowReportTest extends TestCase
     {
         $table = $this->reports->table($this->filters());
 
-        $this->assertSame(['Ay', 'Giriş', 'Çıkış', 'Net', 'Dönem sonu nakit'], $table['headings']);
+        $this->assertSame(['Ay', 'Giriş', 'Çıkış', 'Net', 'Dönem sonu nakit (tüm hesaplar)'], $table['headings']);
         $this->assertSame(['Ekim 2026', 20_000, 11_000, 9_000, 139_000], $table['rows'][1]);
         $this->assertSame(['Toplam', 70_000, 31_000, 39_000, 139_000], $table['totals']);
     }

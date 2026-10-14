@@ -21,6 +21,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 use Maatwebsite\Excel\Facades\Excel;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 use Tests\TestCase;
 
 class AdvancedReportScreenTest extends TestCase
@@ -178,5 +179,20 @@ class AdvancedReportScreenTest extends TestCase
         $this->get('/raporlar/hareketler')->assertForbidden();
         $this->get('/raporlar/kullanim')->assertForbidden();
         $this->get('/raporlar/satin-alma')->assertForbidden();
+    }
+
+    public function test_table_export_writes_formula_like_text_as_a_string_cell(): void
+    {
+        $export = new TableExport('Test', ['Ad', 'Tutar'], collect([['=1+1', 12.5], ['@SUM(A1)', 3]]));
+        $path = tempnam(sys_get_temp_dir(), 'xl').'.xlsx';
+        file_put_contents($path, Excel::raw($export, \Maatwebsite\Excel\Excel::XLSX));
+
+        $sheet = IOFactory::load($path)->getActiveSheet();
+        @unlink($path);
+
+        $this->assertSame('s', $sheet->getCell('A2')->getDataType());
+        $this->assertSame('=1+1', $sheet->getCell('A2')->getValue());
+        $this->assertSame('s', $sheet->getCell('A3')->getDataType());
+        $this->assertSame('n', $sheet->getCell('B2')->getDataType());
     }
 }

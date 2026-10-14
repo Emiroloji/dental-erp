@@ -119,6 +119,22 @@ class ReportExportQueueTest extends TestCase
         $this->actingAs($foreign)->get(route('reports.exports.download', $export))->assertNotFound();
     }
 
+    public function test_download_link_is_hidden_without_read_permission_for_the_report_module(): void
+    {
+        Queue::fake();
+
+        $this->actingAs($this->northStaff);
+        Livewire::test('pages::reports.usage')->call('export', 'xlsx');
+        ReportExport::sole()->update(['status' => ReportExportStatus::Completed, 'file_path' => 'x.xlsx', 'file_name' => 'x.xlsx']);
+
+        Livewire::test('report-exports')->assertSee('İndir');
+
+        Permission::where('user_id', $this->northStaff->id)->delete();
+        $this->actingAs($this->northStaff->fresh());
+
+        Livewire::test('report-exports')->assertSee(ReportExportStatus::Completed->label())->assertDontSee('İndir');
+    }
+
     public function test_export_fails_if_permission_is_revoked_before_the_job_runs(): void
     {
         Queue::fake();

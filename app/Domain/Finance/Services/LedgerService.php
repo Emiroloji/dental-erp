@@ -338,6 +338,14 @@ class LedgerService
      */
     private function record(FinanceAccount $account, FinanceEntryType $type, int $direction, int $amount, CarbonInterface $date, ?User $actor, array $attributes = []): FinanceEntry
     {
+        // PostgreSQL varchar uzunluğunu zorlar (SQLite zorlamaz): "Mutabakat: ..." ve
+        // "İptal: #id — ..." gibi öneklerle uzayan metinler 22001 hatasıyla 500 vermesin.
+        foreach (['description' => 500, 'document_no' => 100] as $column => $limit) {
+            if (isset($attributes[$column])) {
+                $attributes[$column] = mb_substr($attributes[$column], 0, $limit);
+            }
+        }
+
         return FinanceEntry::create([
             'organization_id' => $account->organization_id,
             'account_id' => $account->id,

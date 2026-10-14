@@ -43,7 +43,9 @@ class ReconciliationService
 
         return DB::transaction(function () use ($account, $statementDate, $statementBalance, $actor, $adjust, $note) {
             // Hesap satırı kilitlenir: eşzamanlı iki mutabakat aynı sistem bakiyesini
-            // okuyup iki düzeltme yazmasın. pay() yükümlülüğü kilitler, hesabı değil;
+            // okuyup iki düzeltme yazmasın. Defter yazımı (finance_entries ekleme) hesap
+            // satırına yabancı anahtar nedeniyle FOR KEY SHARE kilidi alır ve bu FOR UPDATE'i
+            // bekler; kilidi etkili kılan budur. pay() yükümlülüğü kilitler, hesabı değil;
             // ortak kilit olmadığından sıra çakışması (deadlock) oluşmaz.
             $locked = FinanceAccount::whereKey($account->id)->lockForUpdate()->firstOrFail();
 
