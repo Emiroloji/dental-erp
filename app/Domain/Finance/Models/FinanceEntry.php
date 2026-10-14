@@ -31,6 +31,8 @@ class FinanceEntry extends Model
         'amount',
         'occurred_on',
         'category_id',
+        'party_id',
+        'obligation_id',
         'branch_id',
         'transfer_group',
         'reverses_entry_id',
@@ -76,6 +78,28 @@ class FinanceEntry extends Model
     public function actor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'actor_id');
+    }
+
+    public function party(): BelongsTo
+    {
+        return $this->belongsTo(FinanceParty::class, 'party_id');
+    }
+
+    public function obligation(): BelongsTo
+    {
+        return $this->belongsTo(FinanceObligation::class, 'obligation_id');
+    }
+
+    /**
+     * Ekranda gösterilecek tür adı: ödeme kaydı yönüne göre "Ödeme" veya "Tahsilat".
+     */
+    public function label(): string
+    {
+        if ($this->type === FinanceEntryType::Payment) {
+            return $this->direction < 0 ? 'Ödeme' : 'Tahsilat';
+        }
+
+        return $this->type->label();
     }
 
     /**
