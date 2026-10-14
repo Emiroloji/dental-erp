@@ -98,6 +98,8 @@ class AccountStatementTest extends TestCase
         $this->assertSame($this->balances->balance($this->cash), $statement['closing']);
         $this->assertSame($statement['opening'] + $statement['in'] - $statement['out'], $statement['closing']);
         $this->assertCount(4, $statement['rows']);
+        $this->assertSame(350_000, $statement['in']);
+        $this->assertSame(400_000, $statement['out']);
     }
 
     public function test_table_export_uses_fixed_headings_and_kurus_amounts(): void
@@ -111,5 +113,36 @@ class AccountStatementTest extends TestCase
         $this->assertSame(100_000, $table['rows'][0][5]);
         $this->assertSame(1_150_000, $table['rows'][0][6]);
         $this->assertSame(['opening' => 1_250_000, 'in' => 0, 'out' => 400_000, 'closing' => 850_000], $table['totals']);
+    }
+
+    public function test_mutable_carbon_arguments_are_not_changed_and_give_same_numbers(): void
+    {
+        $from = Carbon::parse('2026-10-06');
+        $to = Carbon::parse('2026-10-10');
+
+        $statement = $this->statements->statement($this->cash, $from, $to);
+        $table = $this->statements->table($this->cash, $from, $to);
+
+        $this->assertSame('2026-10-06', $from->toDateString());
+        $this->assertSame('2026-10-10', $to->toDateString());
+        $this->assertSame(1_250_000, $statement['opening']);
+        $this->assertCount(2, $statement['rows']);
+        $this->assertSame(850_000, $statement['closing']);
+        $this->assertSame(400_000, $statement['out']);
+        $this->assertSame(1_250_000, $table['totals']['opening']);
+        $this->assertSame('2026-10-06', $from->toDateString());
+    }
+
+    public function test_same_day_entries_are_ordered_by_id(): void
+    {
+        $category = FinanceCategory::where('name', 'Malzeme')->first();
+        $actor = auth()->user();
+        $first = app(LedgerService::class)->expense($this->cash, 10_000, $this->day('2026-10-12'), $category, $actor, 'Birinci');
+        $second = app(LedgerService::class)->expense($this->cash, 20_000, $this->day('2026-10-12'), $category, $actor, 'İkinci');
+
+        $rows = $this->statements->statement($this->cash, $this->day('2026-10-12'), $this->day('2026-10-12'))['rows'];
+
+        $this->assertSame([$first->id, $second->id], [$rows[0]['entry']->id, $rows[1]['entry']->id]);
+        $this->assertSame([940_000, 920_000], [$rows[0]['balance'], $rows[1]['balance']]);
     }
 }

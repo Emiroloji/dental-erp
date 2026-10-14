@@ -299,7 +299,7 @@ new #[Layout('layouts::authenticated')] class extends Component
                     @error('note') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
                 </div>
                 <div class="sm:col-span-3">
-                    <button type="submit" class="border border-line rounded-md px-4 py-2 text-[14px] font-medium text-ink hover:bg-canvas transition-colors">Karşılaştır</button>
+                    <button wire:loading.attr="disabled" type="submit" class="border border-line rounded-md px-4 py-2 text-[14px] font-medium text-ink hover:bg-canvas transition-colors">Karşılaştır</button>
                 </div>
             </form>
 
@@ -322,10 +322,10 @@ new #[Layout('layouts::authenticated')] class extends Component
                     <div class="mt-4 flex flex-wrap items-center gap-3">
                         @if ($previewDifference === 0)
                             <p class="text-[13px] text-ink-muted w-full">Ekstre ve defter bakiyesi eşit.</p>
-                            <button wire:click="reconcile(false)" class="bg-panel-900 text-white rounded-md px-4 py-2.5 text-[14px] font-medium hover:bg-panel-800 transition-colors">Kayıt et</button>
+                            <button wire:loading.attr="disabled" wire:click="reconcile(false)" class="bg-panel-900 text-white rounded-md px-4 py-2.5 text-[14px] font-medium hover:bg-panel-800 transition-colors">Kayıt et</button>
                         @else
-                            <button wire:click="reconcile(true)" wire:confirm="Fark, ekstre tarihli bir düzeltme hareketiyle kapatılsın mı?" class="bg-panel-900 text-white rounded-md px-4 py-2.5 text-[14px] font-medium hover:bg-panel-800 transition-colors">Farkı düzeltme hareketiyle kapat</button>
-                            <button wire:click="reconcile(false)" class="border border-line rounded-md px-4 py-2.5 text-[14px] font-medium text-ink hover:bg-canvas transition-colors">Yalnızca kaydet</button>
+                            <button wire:loading.attr="disabled" wire:click="reconcile(true)" wire:confirm="Fark, ekstre tarihli bir düzeltme hareketiyle kapatılsın mı?" class="bg-panel-900 text-white rounded-md px-4 py-2.5 text-[14px] font-medium hover:bg-panel-800 transition-colors">Farkı düzeltme hareketiyle kapat</button>
+                            <button wire:loading.attr="disabled" wire:click="reconcile(false)" class="border border-line rounded-md px-4 py-2.5 text-[14px] font-medium text-ink hover:bg-canvas transition-colors">Yalnızca kaydet</button>
                         @endif
                     </div>
                 </div>

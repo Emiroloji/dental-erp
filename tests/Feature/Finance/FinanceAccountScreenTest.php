@@ -188,4 +188,26 @@ class FinanceAccountScreenTest extends TestCase
             ->assertSet('from', '2026-09-01')
             ->assertSet('to', '2026-10-10');
     }
+
+    public function test_negative_statement_balance_previews_correctly(): void
+    {
+        Livewire::test('pages::finance.account', ['account' => $this->bank])
+            ->set('statementBalance', '-2.500')
+            ->call('compare')
+            ->assertHasNoErrors()
+            ->assertSet('previewSystem', 1_250_000)
+            ->assertSet('previewStatement', -250_000)
+            ->assertSet('previewDifference', -1_500_000);
+    }
+
+    public function test_reconcile_routes_future_date_to_statement_date_field(): void
+    {
+        Livewire::test('pages::finance.account', ['account' => $this->bank])
+            ->set('statementDate', '2026-10-20')
+            ->set('statementBalance', '12.500')
+            ->call('reconcile', true)
+            ->assertHasErrors('statementDate');
+
+        $this->assertSame(0, FinanceReconciliation::count());
+    }
 }

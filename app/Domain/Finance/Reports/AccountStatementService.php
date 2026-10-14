@@ -20,6 +20,10 @@ class AccountStatementService
      */
     public function statement(FinanceAccount $account, CarbonInterface $from, CarbonInterface $to): array
     {
+        // Çağıranın (değişebilir) Carbon nesnesi bozulmasın: değişmez kopyalarla çalışılır.
+        $from = $from->toImmutable();
+        $to = $to->toImmutable();
+
         // Açılış tarihinden önceki bir gün için bakiye servisi açılış bakiyesini döndürür.
         $opening = $this->balances->balance($account, $from->subDay());
 
@@ -39,7 +43,11 @@ class AccountStatementService
         foreach ($entries as $entry) {
             $signed = $entry->signedAmount();
             $running += $signed;
-            $signed > 0 ? $in += $signed : $out += -$signed;
+            if ($signed > 0) {
+                $in += $signed;
+            } else {
+                $out += -$signed;
+            }
             $rows[] = ['entry' => $entry, 'balance' => $running];
         }
 
