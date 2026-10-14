@@ -41,7 +41,7 @@ Tutarlar **kuruş cinsinden tam sayı** saklanır (`bigInteger`, 1.250,50 TL →
 `id, organization_id, name, type (cash|bank|pos), iban (nullable), opening_balance (bigint), opening_date, currency (default 'TRY'), status (active|inactive), timestamps`
 
 **`finance_categories`** — gelir/gider kategorisi
-`id, organization_id, name, direction (income|expense), status, timestamps`. Organizasyon açılırken ve mevcut organizasyonlara göçle varsayılanlar eklenir: Gelir — Hasılat, Kurum Tahsilatı, Diğer Gelir; Gider — Kira, Maaş, Malzeme, Fatura (elektrik/su/internet), Vergi/SGK, Banka/POS Komisyonu, Diğer Gider. `(organization_id, direction, name)` tekil.
+`id, organization_id, name, direction (income|expense), status, timestamps`. Önerilen kategoriler organizasyon açılışında eklenmez (Platform domain'i klinik verisine dokunmaz); Kategoriler ekranındaki "Önerilenleri ekle" düğmesi eksik olanları ekler: Gelir — Hasılat, Kurum Tahsilatı, Diğer Gelir; Gider — Kira, Maaş, Malzeme, Fatura (elektrik/su/internet), Vergi/SGK, Banka/POS Komisyonu, Diğer Gider. `(organization_id, direction, name)` tekil.
 
 **`finance_parties`** — cari hesap
 `id, organization_id, name, kind (customer|supplier|other), phone, email, tax_number, default_term_days (nullable), note, status, timestamps`. Kişi (hasta) açılmaz; ekranda "kurum veya firma" diye yönlendirilir.
@@ -92,7 +92,9 @@ Bakiye sorguları `FinanceBalanceService` içinde tek yerde toplanır; organizas
 - `adjust(account, signedAmount, date, actor, reconciliation)` — yalnızca `ReconciliationService` çağırır.
 - `reverse(entry, reason, actor)` — ters kayıt; gerekçe zorunlu; zaten iptal edilmiş ya da kendisi `reversal` olan kayıt iptal edilemez; transfer iptali iki ayağı (ve varsa komisyon giderini) birlikte ters kayda alır; ödeme iptalinde yükümlülük durumu yeniden hesaplanır.
 
-Her metod `DB::transaction` içinde çalışır, etkilenen hesap satır(lar)ını `lockForUpdate` ile kilitler (transferde id sırasıyla, kilitlenme önlenir).
+Her metod `DB::transaction` içinde çalışır. Hesap satırı kilitlenmez: eksi bakiyeye izin verildiği için korunacak bir bakiye değişmezi yoktur; eşzamanlı çift iptali `reverses_entry_id` tekil indeksi veritabanında engeller. (Aşama 35'te `pay` kalan kontrolü yaptığı için yükümlülük satırını `lockForUpdate` ile kilitler.)
+
+"Bugün" `FinanceCalendar::today()` ile Europe/Istanbul takvim günüdür: uygulama UTC çalışır ve 00:00–03:00 arasında UTC hâlâ dündür; aksi hâlde bugünün tarihli hareketi "ileri tarihli" diye reddedilirdi.
 
 ### Kurallar
 
