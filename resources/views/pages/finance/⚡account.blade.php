@@ -9,6 +9,8 @@ use App\Domain\Finance\Services\LedgerService;
 use App\Domain\Finance\Services\ReconciliationService;
 use App\Domain\Finance\Support\FinanceCalendar;
 use App\Domain\Finance\Support\Money;
+use App\Domain\Reporting\Services\ReportExportService;
+use App\Domain\Reporting\Support\ReportType;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Layout;
@@ -152,6 +154,27 @@ new #[Layout('layouts::authenticated')] class extends Component
             : ($adjust ? 'Mutabakat kaydedildi ve fark düzeltme hareketiyle kapatıldı.' : 'Mutabakat farkıyla birlikte kaydedildi.'));
     }
 
+    public function export(string $format, ReportExportService $exports): void
+    {
+        Gate::authorize('finance.viewAny');
+
+        if (! in_array($format, ReportExportService::FORMATS, true)) {
+            return;
+        }
+
+        $this->normalizePeriod();
+        // Kapsamlı sorgu: hesap bu organizasyonda yoksa istek kuyruğa girmeden 404 döner.
+        $account = FinanceAccount::findOrFail($this->account->id);
+
+        $exports->request(auth()->user(), ReportType::FinanceStatement, $format, [
+            'filters' => ['from' => $this->from, 'to' => $this->to],
+            'account_id' => $account->id,
+        ]);
+
+        $this->dispatch('report-export-queued');
+        session()->flash('export-status', 'Ekstre hazırlanıyor. Hazır olduğunda bildirim alacaksınız; "Dışa Aktarımlar" listesinden indirebilirsiniz.');
+    }
+
     public function with(FinanceBalanceService $balances, AccountStatementService $statements): array
     {
         $this->normalizePeriod();
@@ -195,8 +218,14 @@ new #[Layout('layouts::authenticated')] class extends Component
         <div class="mb-6 rounded-md bg-brand-100 border border-brand-500/20 text-brand-600 text-[13px] px-4 py-3">{{ session('status') }}</div>
     @endif
 
+    @if (session('export-status'))
+        <div class="mb-4 rounded-md bg-brand-100 border border-brand-500/20 text-brand-600 text-[13px] px-4 py-3">{{ session('export-status') }}</div>
+    @endif
+
+    <livewire:report-exports />
+
     <div class="mb-3 flex flex-wrap items-end gap-3">
-        <h2 class="text-[15px] font-medium text-ink mr-auto">Hesap ekstresi</h2>
+        <h2 class="w-full sm:w-auto text-[15px] font-medium text-ink sm:mr-auto">Hesap ekstresi</h2>
         <div>
             <label class="block text-[12px] text-ink-muted mb-1">Başlangıç</label>
             <input type="date" wire:model.live="from" class="border border-line rounded-md px-3 py-1.5 text-[14px] bg-surface">
@@ -204,6 +233,10 @@ new #[Layout('layouts::authenticated')] class extends Component
         <div>
             <label class="block text-[12px] text-ink-muted mb-1">Bitiş</label>
             <input type="date" wire:model.live="to" class="border border-line rounded-md px-3 py-1.5 text-[14px] bg-surface">
+        </div>
+        <div class="flex gap-2">
+            <button wire:click="export('xlsx')" wire:loading.attr="disabled" class="text-[13px] border border-line rounded-md px-3 py-2 hover:bg-canvas transition-colors">Excel'e Aktar</button>
+            <button wire:click="export('pdf')" wire:loading.attr="disabled" class="text-[13px] border border-line rounded-md px-3 py-2 hover:bg-canvas transition-colors">PDF'e Aktar</button>
         </div>
     </div>
 

@@ -81,7 +81,7 @@ final class FinanceChart
 
         $plotH = (float) ($height - 2 * $padding);
         $slot = ($width - 2 * $padding) / $count;
-        $barW = $slot * 0.32;
+        $barW = min($slot * 0.32, 40.0); // tek aylık dönemde çubuklar devasa olmasın
         $gap = 2.0; // iki çubuk arası yüzey boşluğu
 
         $bars = [];

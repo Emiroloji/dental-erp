@@ -6,6 +6,7 @@
         'finance.recurrings' => 'Tekrarlayanlar',
         'finance.accounts' => 'Hesaplar',
         'finance.categories' => 'Kategoriler',
+        'finance.reports' => 'Raporlar',
     ];
 @endphp
 
