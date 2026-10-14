@@ -297,22 +297,28 @@ class LedgerService
         }
     }
 
-    /**
-     * Hesaba o tarihte hareket yazılabilir mi: aktif hesap, bugünden sonra değil,
-     * açılıştan önce değil. Mutabakat ekstre tarihini de aynı kuralla doğrular.
-     */
-    public function ensureWritable(FinanceAccount $account, CarbonInterface $date, string $field = 'account'): void
+    private function ensureWritable(FinanceAccount $account, CarbonInterface $date, string $field = 'account'): void
     {
         if (! $account->isActive()) {
             throw new FinanceRuleException("{$account->name} pasif bir hesap; hareket yazılamaz.", $field);
         }
 
+        $this->assertDateWritable($account, $date, $field);
+    }
+
+    /**
+     * Yalnızca tarih kuralları: bugünden sonra olamaz ('date'), hesabın açılışından
+     * önce olamaz ($openingField, varsayılan 'date'). Mutabakat ekstre tarihini
+     * defter yazma kurallarıyla aynı biçimde doğrulamak için dışarı açıktır.
+     */
+    public function assertDateWritable(FinanceAccount $account, CarbonInterface $date, string $openingField = 'date'): void
+    {
         if ($date->toDateString() > FinanceCalendar::today()->toDateString()) {
             throw new FinanceRuleException('İleri tarihli hareket yazılamaz; gerçekleşmemiş ödeme hareket değildir.', 'date');
         }
 
         if ($date->toDateString() < $account->opening_date->toDateString()) {
-            throw new FinanceRuleException("{$account->name} hesabının açılış tarihinden önce hareket yazılamaz.", $field);
+            throw new FinanceRuleException("{$account->name} hesabının açılış tarihinden önce hareket yazılamaz.", $openingField);
         }
     }
 

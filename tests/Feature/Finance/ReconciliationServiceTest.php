@@ -152,6 +152,34 @@ class ReconciliationServiceTest extends TestCase
         }
     }
 
+    public function test_second_reconcile_with_same_statement_finds_no_difference(): void
+    {
+        $first = $this->reconciliations->reconcile($this->cash, $this->day('2026-10-12'), 1_245_000, $this->actor, true);
+        $second = $this->reconciliations->reconcile($this->cash, $this->day('2026-10-12'), 1_245_000, $this->actor, true);
+
+        $this->assertSame(-5_000, $first->difference);
+        $this->assertSame(0, $second->difference);
+        $this->assertNull($second->adjustment_entry_id);
+        $this->assertSame(2, FinanceEntry::count());
+    }
+
+    public function test_long_note_is_truncated_to_500_characters(): void
+    {
+        $record = $this->reconciliations->reconcile($this->cash, $this->day('2026-10-12'), 1_245_000, $this->actor, false, str_repeat('ş', 600));
+
+        $this->assertSame(500, mb_strlen($record->note));
+    }
+
+    public function test_zero_adjustment_is_rejected_by_the_ledger(): void
+    {
+        try {
+            $this->ledger->adjust($this->cash, 0, $this->day('2026-10-12'), $this->actor, 'Mutabakat');
+            $this->fail('Sıfır düzeltme reddedilmeliydi.');
+        } catch (FinanceRuleException $e) {
+            $this->assertSame('amount', $e->field);
+        }
+    }
+
     public function test_adjustment_can_be_reversed_like_any_entry(): void
     {
         $record = $this->reconciliations->reconcile($this->cash, $this->day('2026-10-12'), 1_245_000, $this->actor, true);

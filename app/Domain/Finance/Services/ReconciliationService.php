@@ -39,28 +39,33 @@ class ReconciliationService
         bool $adjust,
         ?string $note = null,
     ): FinanceReconciliation {
-        if (! $account->isActive()) {
-            throw new FinanceRuleException("{$account->name} pasif bir hesap; mutabakat yapılamaz.", 'account');
-        }
-
-        // Ekstre tarihi, defter yazma kurallarıyla aynı: bugünden sonra ve açılıştan önce olamaz.
-        $this->ledger->ensureWritable($account, $statementDate, 'date');
-
-        $note = trim((string) $note) === '' ? null : trim((string) $note);
+        $note = trim((string) $note) === '' ? null : mb_substr(trim((string) $note), 0, 500);
 
         return DB::transaction(function () use ($account, $statementDate, $statementBalance, $actor, $adjust, $note) {
-            ['system_balance' => $system, 'difference' => $difference] = $this->preview($account, $statementDate, $statementBalance);
+            // Hesap satırı kilitlenir: eşzamanlı iki mutabakat aynı sistem bakiyesini
+            // okuyup iki düzeltme yazmasın. pay() yükümlülüğü kilitler, hesabı değil;
+            // ortak kilit olmadığından sıra çakışması (deadlock) oluşmaz.
+            $locked = FinanceAccount::whereKey($account->id)->lockForUpdate()->firstOrFail();
+
+            if (! $locked->isActive()) {
+                throw new FinanceRuleException("{$locked->name} pasif bir hesap; mutabakat yapılamaz.", 'account');
+            }
+
+            // Ekstre tarihi, defter yazma kurallarıyla aynı: bugünden sonra ve açılıştan önce olamaz.
+            $this->ledger->assertDateWritable($locked, $statementDate);
+
+            ['system_balance' => $system, 'difference' => $difference] = $this->preview($locked, $statementDate, $statementBalance);
 
             $entry = null;
 
             if ($difference !== 0 && $adjust) {
                 $description = "Mutabakat: ekstre {$statementDate->format('d.m.Y')}".($note !== null ? " — {$note}" : '');
-                $entry = $this->ledger->adjust($account, $difference, $statementDate, $actor, $description);
+                $entry = $this->ledger->adjust($locked, $difference, $statementDate, $actor, $description);
             }
 
             return FinanceReconciliation::create([
-                'organization_id' => $account->organization_id,
-                'account_id' => $account->id,
+                'organization_id' => $locked->organization_id,
+                'account_id' => $locked->id,
                 'statement_date' => $statementDate->toDateString(),
                 'statement_balance' => $statementBalance,
                 'system_balance' => $system,
