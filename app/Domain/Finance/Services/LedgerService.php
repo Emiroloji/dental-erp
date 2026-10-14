@@ -236,6 +236,30 @@ class LedgerService
         }
     }
 
+    /**
+     * Mutabakat düzeltmesi: ekstre ile sistem bakiyesi arasındaki farkı kapatan,
+     * kategorisiz işaretli hareket. Yalnızca ReconciliationService çağırır —
+     * ekranlardan doğrudan düzeltme yazılmaz.
+     */
+    public function adjust(FinanceAccount $account, int $signedAmount, CarbonInterface $date, ?User $actor, string $description): FinanceEntry
+    {
+        if ($signedAmount === 0) {
+            throw new FinanceRuleException('Düzeltme tutarı sıfır olamaz.', 'amount');
+        }
+
+        $this->ensureWritable($account, $date);
+
+        return DB::transaction(fn () => $this->record(
+            $account,
+            FinanceEntryType::Adjustment,
+            $signedAmount <=> 0,
+            abs($signedAmount),
+            $date,
+            $actor,
+            ['description' => $this->clean($description)],
+        ));
+    }
+
     private function categorized(
         FinanceEntryType $type,
         FinanceAccount $account,
@@ -273,7 +297,11 @@ class LedgerService
         }
     }
 
-    private function ensureWritable(FinanceAccount $account, CarbonInterface $date, string $field = 'account'): void
+    /**
+     * Hesaba o tarihte hareket yazılabilir mi: aktif hesap, bugünden sonra değil,
+     * açılıştan önce değil. Mutabakat ekstre tarihini de aynı kuralla doğrular.
+     */
+    public function ensureWritable(FinanceAccount $account, CarbonInterface $date, string $field = 'account'): void
     {
         if (! $account->isActive()) {
             throw new FinanceRuleException("{$account->name} pasif bir hesap; hareket yazılamaz.", $field);

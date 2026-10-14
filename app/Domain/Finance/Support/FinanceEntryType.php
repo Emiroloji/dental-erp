@@ -10,6 +10,7 @@ enum FinanceEntryType: string
     case TransferIn = 'transfer_in';
     case Payment = 'payment';
     case Reversal = 'reversal';
+    case Adjustment = 'adjustment';
 
     public function label(): string
     {
@@ -20,19 +21,20 @@ enum FinanceEntryType: string
             self::TransferIn => 'Transfer (Giren)',
             self::Payment => 'Ödeme/Tahsilat',
             self::Reversal => 'İptal',
+            self::Adjustment => 'Mutabakat düzeltmesi',
         };
     }
 
     /**
-     * Hesaba etkisinin işareti. Ödeme ve iptal kayıtlarının yönü sabit değildir:
-     * ödemede yükümlülüğün yönü, iptalde iptal ettiği kaydın tersi.
+     * Hesaba etkisinin işareti. Ödeme, iptal ve mutabakat düzeltmesinin yönü sabit değildir:
+     * ödemede yükümlülüğün yönü, iptalde iptal ettiği kaydın tersi, düzeltmede farkın işareti.
      */
     public function direction(): ?int
     {
         return match ($this) {
             self::Income, self::TransferIn => 1,
             self::Expense, self::TransferOut => -1,
-            self::Payment, self::Reversal => null,
+            self::Payment, self::Reversal, self::Adjustment => null,
         };
     }
 }
