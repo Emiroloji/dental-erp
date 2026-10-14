@@ -62,6 +62,7 @@ new #[Layout('layouts::authenticated')] class extends Component
         // Her sekmenin varsayılan dönemi farklıdır.
         $this->from = '';
         $this->to = '';
+        $this->branch = '';
         $this->normalize();
     }
 
@@ -93,17 +94,18 @@ new #[Layout('layouts::authenticated')] class extends Component
         ], $from, $today);
 
         // Kapsamlı listede olmayan şube/hesap kimliği süzgeci sessizce kaldırır.
-        $branchId = $filters->branchId !== null && Branch::where('organization_id', auth()->user()->organization_id)->whereKey($filters->branchId)->exists() ? $filters->branchId : null;
+        // Şube yalnızca Gelir-Gider'de bir süzgeçtir; diğer sekmelerde görünmez olduğundan uygulanmaz.
+        $branchId = $this->report === 'income_expense' && $filters->branchId !== null && Branch::where('organization_id', auth()->user()->organization_id)->whereKey($filters->branchId)->exists() ? $filters->branchId : null;
         $accountId = $filters->accountId !== null && FinanceAccount::whereKey($filters->accountId)->exists() ? $filters->accountId : null;
 
-        $filters = new FinanceReportFilters($filters->from, $filters->to, $branchId, $accountId, $filters->direction ?? ObligationDirection::Receivable, $filters->days);
+        $filters = new FinanceReportFilters($filters->from, $filters->to, $branchId, $accountId, $this->report === 'aging' ? ($filters->direction ?? ObligationDirection::Receivable) : null, $filters->days);
 
         $this->from = $filters->from->toDateString();
         $this->to = $filters->to->toDateString();
         $this->branch = (string) $branchId;
         $this->account = (string) $accountId;
         $this->days = (string) $filters->days;
-        $this->direction = $filters->direction->value;
+        $this->direction = (ObligationDirection::tryFrom($this->direction) ?? ObligationDirection::Receivable)->value;
 
         return $filters;
     }
@@ -131,7 +133,7 @@ new #[Layout('layouts::authenticated')] class extends Component
             'income_expense' => ['income' => $incomeExpense->report($filters)],
             'cash_flow' => ['cash' => $cashFlow->actual($filters), 'projection' => $projection->project($filters->days)],
             'aging' => [
-                'aging' => $aging->report($filters->direction),
+                'aging' => $aging->report($filters->direction ?? ObligationDirection::Receivable),
                 'bucketLabels' => array_combine(AgingReportService::BUCKETS, array_map($aging->bucketLabel(...), AgingReportService::BUCKETS)),
             ],
         };

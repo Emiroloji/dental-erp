@@ -19,7 +19,7 @@ class ReportExportDownloadController extends Controller
         $record = ReportExport::where('user_id', auth()->id())->find($export);
 
         abort_unless(
-            $record && $record->status === ReportExportStatus::Completed && Storage::disk('local')->exists($record->file_path),
+            $record && auth()->user()->canModule($record->report->module(), 'read') && $record->status === ReportExportStatus::Completed && Storage::disk('local')->exists($record->file_path),
             404,
         );
 

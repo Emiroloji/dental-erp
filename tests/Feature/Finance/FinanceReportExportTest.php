@@ -14,6 +14,7 @@ use App\Domain\Finance\Support\CategoryDirection;
 use App\Domain\Organization\Models\Branch;
 use App\Domain\Organization\Models\Organization;
 use App\Domain\Reporting\Models\ReportExport;
+use App\Domain\Reporting\Services\ReportDownloader;
 use App\Domain\Reporting\Services\ReportExportService;
 use App\Domain\Reporting\Support\ReportExportStatus;
 use App\Domain\Reporting\Support\ReportType;
@@ -184,5 +185,51 @@ class FinanceReportExportTest extends TestCase
         }
 
         $this->assertSame(ReportExportStatus::Failed, ReportExport::sole()->status);
+    }
+
+    public function test_cash_flow_excel_keeps_actual_total_before_projection_section(): void
+    {
+        $export = app(ReportExportService::class)->request($this->admin, ReportType::FinanceCashFlow, 'xlsx', ['filters' => [...$this->filterInput(), 'days' => 30]])->refresh();
+
+        $rows = array_map(fn ($r) => $r[0], $this->sheet($export));
+        $totalAt = array_search('Gerçekleşen toplam', $rows, true);
+        $headingAt = array_search('Projeksiyon (30 gün, tüm aktif hesaplar)', $rows, true);
+        $summaryAt = array_search('Projeksiyon toplamı', $rows, true);
+
+        $this->assertNotFalse($totalAt);
+        $this->assertNotFalse($headingAt);
+        $this->assertNotFalse($summaryAt);
+        // Aylık satırlar -> gerçekleşen toplam -> boş satır -> başlık -> projeksiyon günleri -> özet (en sonda).
+        $this->assertSame('Ekim 2026', $rows[$totalAt - 1]);
+        $this->assertNull($rows[$totalAt + 1]);
+        $this->assertSame($totalAt + 2, $headingAt);
+        $this->assertGreaterThan($headingAt, $summaryAt);
+        $this->assertSame(count($rows) - 1, $summaryAt);
+    }
+
+    public function test_direction_is_ignored_outside_aging_report(): void
+    {
+        $this->mock(ReportDownloader::class, function ($mock) {
+            $mock->shouldReceive('pdfContentWithDescription')->once()
+                ->withArgs(fn (string $title, array $table, string $description) => ! str_contains($description, 'Yön:'))
+                ->andReturn('pdf');
+        });
+
+        $export = app(ReportExportService::class)->request($this->admin, ReportType::FinanceIncomeExpense, 'pdf', ['filters' => [...$this->filterInput(), 'direction' => 'payable']])->refresh();
+
+        $this->assertSame(ReportExportStatus::Completed, $export->status);
+    }
+
+    public function test_download_requires_current_read_permission_of_the_reports_module(): void
+    {
+        Permission::create(['user_id' => $this->staff->id, 'module' => Module::Reports->value, 'can_read' => true, 'can_write' => false, 'can_delete' => false, 'scope' => PermissionScope::All->value]);
+        $this->actingAs($this->staff);
+        $export = app(ReportExportService::class)->request($this->staff, ReportType::FinanceIncomeExpense, 'pdf', ['filters' => $this->filterInput()])->refresh();
+        $this->get(route('reports.exports.download', $export))->assertOk();
+
+        Permission::where('user_id', $this->staff->id)->where('module', Module::Finance->value)->delete();
+        $this->actingAs($this->staff->fresh());
+
+        $this->get(route('reports.exports.download', $export))->assertNotFound();
     }
 }

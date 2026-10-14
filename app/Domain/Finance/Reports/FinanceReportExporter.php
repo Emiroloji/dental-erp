@@ -60,30 +60,49 @@ class FinanceReportExporter
         $from = $type === ReportType::FinanceCashFlow ? $today->subMonthsNoOverflow(5)->startOfMonth() : $today->startOfMonth();
         $filters = FinanceReportFilters::fromArray($input, $from, $today);
 
+        // Her süzgeç yalnızca kendi raporunda geçerlidir: şube Gelir-Gider'e, yön Yaşlandırma'ya aittir.
+        $filters = new FinanceReportFilters(
+            $filters->from,
+            $filters->to,
+            $type === ReportType::FinanceIncomeExpense ? $filters->branchId : null,
+            $filters->accountId,
+            $type === ReportType::FinanceAging ? $filters->direction : null,
+            $filters->days,
+        );
+
         return match ($type) {
             ReportType::FinanceIncomeExpense => [$this->incomeExpense->table($filters), $filters->describe()],
-            ReportType::FinanceCashFlow => [$this->cashFlowTable($filters), $filters->describe().' · Projeksiyon: '.$filters->days.' gün'],
+            ReportType::FinanceCashFlow => [$this->cashFlowTable($filters), $filters->describe().' · Projeksiyon: '.$filters->days.' gün, tüm aktif hesaplar'],
             ReportType::FinanceAging => $this->agingTable($filters, $today),
             ReportType::FinanceStatement => $this->statementTable($filters),
         };
     }
 
     /**
-     * Aylık gerçekleşen tablo; altına projeksiyon günleri aynı sütunlara (Ay=Tarih, Net boş) eklenir.
+     * Sıra: aylık satırlar, gerçekleşen toplam, boş satır, projeksiyon başlığı, projeksiyon
+     * günleri, projeksiyon özeti. Toplamlar satır dizisinin içinde olduğu için ayrı totals yoktur.
+     * Projeksiyon hesap süzgecinden bağımsız, tüm aktif hesaplar üzerindendir.
      */
     private function cashFlowTable(FinanceReportFilters $filters): array
     {
         $table = $this->cashFlow->table($filters);
         $projected = $this->projection->table($filters->days);
+        $rows = $table['rows'];
 
-        $table['rows'][] = ['', '', '', '', ''];
-        $table['rows'][] = ["Projeksiyon ({$filters->days} gün)", 'Tahsilat', 'Ödeme', '', 'Tahmini nakit'];
+        $totals = $table['totals'];
+        $totals[0] = 'Gerçekleşen toplam';
+        $rows[] = $totals;
+        $rows[] = ['', '', '', '', ''];
+        $rows[] = ["Projeksiyon ({$filters->days} gün, tüm aktif hesaplar)", 'Tahsilat', 'Ödeme', '', 'Tahmini nakit'];
 
         foreach ($projected['rows'] as [$date, $in, $out, $balance]) {
-            $table['rows'][] = [$date, $in, $out, '', $balance];
+            $rows[] = [$date, $in, $out, '', $balance];
         }
 
-        return $table;
+        [, $receivable, $payable, $last] = $projected['totals'];
+        $rows[] = ['Projeksiyon toplamı', $receivable, $payable, '', $last];
+
+        return ['headings' => $table['headings'], 'rows' => $rows, 'totals' => []];
     }
 
     private function agingTable(FinanceReportFilters $filters, CarbonImmutable $today): array

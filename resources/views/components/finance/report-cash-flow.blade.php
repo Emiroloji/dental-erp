@@ -41,7 +41,7 @@
         </table>
     </section>
 
-    <h2 class="mb-2 text-[15px] font-medium text-ink">Vade bazlı projeksiyon ({{ count($points) - 1 }} gün)</h2>
+    <h2 class="mb-2 text-[15px] font-medium text-ink">Vade bazlı projeksiyon ({{ count($points) - 1 }} gün, tüm aktif hesaplar)</h2>
     @if ($projection['first_negative'])
         <div class="mb-3 rounded-md bg-status-critical/10 border border-status-critical/30 text-status-critical text-[13px] px-4 py-3">Nakit {{ $fmt($projection['first_negative']) }}'de eksiye düşüyor.</div>
     @endif

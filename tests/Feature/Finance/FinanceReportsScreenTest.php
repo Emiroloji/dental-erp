@@ -194,4 +194,33 @@ class FinanceReportsScreenTest extends TestCase
     {
         $this->get(route('finance.accounts'))->assertOk()->assertSeeInOrder(['Kategoriler', 'Raporlar']);
     }
+
+    public function test_branch_filter_does_not_leak_into_cash_flow_tab_or_export(): void
+    {
+        Queue::fake();
+        $branch = Branch::create(['organization_id' => $this->organization->id, 'name' => 'Kuzey', 'status' => 'active']);
+
+        Livewire::test('pages::finance.reports')
+            ->set('branch', (string) $branch->id)
+            ->assertSet('branch', (string) $branch->id)
+            ->assertDontSee('Hasılat')
+            ->call('selectReport', 'cash_flow')
+            ->assertSet('branch', '')
+            ->assertSee('15.000,00 ₺')
+            ->set('branch', (string) $branch->id)
+            ->assertSet('branch', '')
+            ->call('export', 'xlsx');
+
+        $export = ReportExport::sole();
+        $this->assertNull($export->parameters['filters']['branch_id']);
+        $this->assertNull($export->parameters['filters']['direction']);
+    }
+
+    public function test_projection_is_labelled_as_all_active_accounts(): void
+    {
+        Livewire::test('pages::finance.reports')
+            ->call('selectReport', 'cash_flow')
+            ->set('account', (string) $this->bank->id)
+            ->assertSee('tüm aktif hesaplar');
+    }
 }
