@@ -8,6 +8,7 @@ use App\Domain\Finance\Models\FinanceParty;
 use App\Domain\Finance\Services\FinanceBalanceService;
 use App\Domain\Finance\Services\LedgerService;
 use App\Domain\Finance\Services\ObligationService;
+use App\Domain\Finance\Services\ObligationSummaryService;
 use App\Domain\Finance\Support\FinanceCalendar;
 use App\Domain\Finance\Support\Money;
 use App\Domain\Finance\Support\ObligationDirection;
@@ -272,7 +273,7 @@ new #[Layout('layouts::authenticated')] class extends Component
         session()->flash('status', 'Kayıt iptal edildi.');
     }
 
-    public function with(FinanceBalanceService $balances): array
+    public function with(FinanceBalanceService $balances, ObligationSummaryService $summary): array
     {
         $today = FinanceCalendar::today();
         $tab = in_array($this->tab, self::TABS, true) ? $this->tab : 'week';
@@ -289,22 +290,11 @@ new #[Layout('layouts::authenticated')] class extends Component
             ->orderBy('id')
             ->paginate(25);
 
-        $openAll = FinanceObligation::query()->tap($open)->get();
-        $paidAll = $balances->paidAmounts($openAll);
-        $sum = fn (callable $filter) => $openAll->filter($filter)->sum(fn (FinanceObligation $o) => $o->amount - $paidAll[$o->id]);
-        $isPayable = fn (FinanceObligation $o) => $o->direction === ObligationDirection::Payable;
-        $weekEnd = $today->addDays(7)->toDateString();
-
         return [
             'obligations' => $obligations,
             'paid' => $balances->paidAmounts($obligations->getCollection()),
             'today' => $today,
-            'summary' => [
-                'overduePayable' => $sum(fn ($o) => $isPayable($o) && $o->due_on->toDateString() < $today->toDateString()),
-                'overdueReceivable' => $sum(fn ($o) => ! $isPayable($o) && $o->due_on->toDateString() < $today->toDateString()),
-                'weekPayable' => $sum(fn ($o) => $isPayable($o) && $o->due_on->toDateString() <= $weekEnd),
-                'weekReceivable' => $sum(fn ($o) => ! $isPayable($o) && $o->due_on->toDateString() <= $weekEnd),
-            ],
+            'summary' => $summary->summarize(0, $today),
             'accounts' => FinanceAccount::where('status', 'active')->orderBy('name')->get(),
             'parties' => FinanceParty::where('status', 'active')->orderBy('name')->get(),
             'categories' => FinanceCategory::where('status', 'active')->orderBy('name')->get(),

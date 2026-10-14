@@ -117,7 +117,7 @@ class FinanceSetupScreensTest extends TestCase
 
     public function test_menu_shows_finance_link_only_with_permission(): void
     {
-        $this->actingAs($this->admin)->get('/dashboard')->assertSee(route('finance.entries'));
+        $this->actingAs($this->admin)->get('/dashboard')->assertSee(route('finance.overview'));
 
         $staff = User::factory()->create(['organization_id' => $this->organization->id, 'role' => User::ROLE_STAFF, 'status' => 'active']);
         $this->actingAs($staff)->get('/dashboard')->assertDontSee(route('finance.entries'));

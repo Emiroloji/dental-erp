@@ -123,6 +123,10 @@ Route::middleware('tenant')->group(function () {
         ->name('uts.verify');
 
     // Faz 5: Finans (ön muhasebe) — organizasyon geneli, şube kapsamı yok (karar 2.9).
+    Route::livewire('/finans', 'pages::finance.overview')
+        ->middleware(['auth', 'can:finance.viewAny'])
+        ->name('finance.overview');
+
     Route::livewire('/finans/hareketler', 'pages::finance.entries')
         ->middleware(['auth', 'can:finance.viewAny'])
         ->name('finance.entries');
