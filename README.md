@@ -27,6 +27,9 @@ kapıdan geçer.
   telefona kurulabilen arayüz.
 - **Faz 4:** istatistiksel stok tüketim tahmini, doğal dille rapor sorgulama,
   ilaç/medikal genişletmesi (ÜTS, seri no takibi, soğuk zincir, kontrollü ürün).
+- **Finans (Faz 5):** kasa/banka/POS hesapları, gelir-gider kategorileri, silinmez
+  finans defteri (gelir, gider, transfer, gerekçeli iptal). Tasarım:
+  `docs/superpowers/specs/2026-10-14-finans-modulu-design.md`.
 - **Tanıtım sitesi:** aynı repo içinde girişsiz sayfalar (`/`, `/neler-yapiyor`,
   `/talep`). Talep formu yalnızca bir `Lead` kaydı oluşturur — otomatik hesap
   veya organizasyon açılmaz; Platform Sahibi "Gelen Talepler" ekranından elle
