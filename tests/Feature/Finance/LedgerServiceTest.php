@@ -1,0 +1,170 @@
+<?php
+
+namespace Tests\Feature\Finance;
+
+use App\Domain\Finance\Exceptions\FinanceRuleException;
+use App\Domain\Finance\Models\FinanceAccount;
+use App\Domain\Finance\Models\FinanceCategory;
+use App\Domain\Finance\Models\FinanceEntry;
+use App\Domain\Finance\Services\FinanceBalanceService;
+use App\Domain\Finance\Services\LedgerService;
+use App\Domain\Finance\Support\AccountType;
+use App\Domain\Finance\Support\CategoryDirection;
+use App\Domain\Finance\Support\FinanceEntryType;
+use App\Domain\Organization\Models\Branch;
+use App\Domain\Organization\Models\Organization;
+use App\Models\User;
+use Carbon\CarbonImmutable;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+class LedgerServiceTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private LedgerService $ledger;
+
+    private FinanceBalanceService $balances;
+
+    private Organization $organization;
+
+    private FinanceAccount $cash;
+
+    private FinanceAccount $bank;
+
+    private FinanceCategory $revenue;
+
+    private FinanceCategory $rent;
+
+    private FinanceCategory $commission;
+
+    private User $actor;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-10-14 09:00:00', 'Europe/Istanbul'));
+
+        $this->ledger = app(LedgerService::class);
+        $this->balances = app(FinanceBalanceService::class);
+
+        $this->organization = Organization::create(['name' => 'Klinik', 'status' => 'active', 'plan' => 'starter']);
+        $this->actor = User::factory()->create(['organization_id' => $this->organization->id, 'role' => User::ROLE_ADMIN, 'status' => 'active']);
+        $this->actingAs($this->actor);
+
+        $this->cash = FinanceAccount::create(['name' => 'Kasa', 'type' => AccountType::Cash, 'opening_balance' => 1_000_000, 'opening_date' => '2026-10-01']);
+        $this->bank = FinanceAccount::create(['name' => 'Banka', 'type' => AccountType::Bank, 'opening_balance' => 0, 'opening_date' => '2026-10-01']);
+        $this->revenue = FinanceCategory::create(['name' => 'Hasılat', 'direction' => CategoryDirection::Income]);
+        $this->rent = FinanceCategory::create(['name' => 'Kira', 'direction' => CategoryDirection::Expense]);
+        $this->commission = FinanceCategory::create(['name' => 'Banka/POS Komisyonu', 'direction' => CategoryDirection::Expense]);
+    }
+
+    protected function tearDown(): void
+    {
+        CarbonImmutable::setTestNow();
+
+        parent::tearDown();
+    }
+
+    private function day(string $date): CarbonImmutable
+    {
+        return CarbonImmutable::parse($date);
+    }
+
+    public function test_income_and_expense_change_the_balance(): void
+    {
+        $this->ledger->income($this->cash, 250_000, $this->day('2026-10-10'), $this->revenue, $this->actor, 'Günlük hasılat');
+        $this->ledger->expense($this->cash, 100_000, $this->day('2026-10-11'), $this->rent, $this->actor);
+
+        $this->assertSame(1_150_000, $this->balances->balance($this->cash));
+        $this->assertSame(1_250_000, $this->balances->balance($this->cash, $this->day('2026-10-10')));
+    }
+
+    public function test_income_records_all_fields(): void
+    {
+        $branch = Branch::create(['organization_id' => $this->organization->id, 'name' => 'Merkez', 'status' => 'active']);
+
+        $entry = $this->ledger->income($this->cash, 5_000, $this->day('2026-10-14'), $this->revenue, $this->actor, 'Not', $branch, 'F-1');
+
+        $this->assertSame(FinanceEntryType::Income, $entry->type);
+        $this->assertSame(1, $entry->direction);
+        $this->assertSame($this->organization->id, $entry->organization_id);
+        $this->assertSame($branch->id, $entry->branch_id);
+        $this->assertSame('F-1', $entry->document_no);
+        $this->assertSame($this->actor->id, $entry->actor_id);
+    }
+
+    public function test_amount_must_be_positive(): void
+    {
+        $this->expectException(FinanceRuleException::class);
+
+        $this->ledger->income($this->cash, 0, $this->day('2026-10-14'), $this->revenue, $this->actor);
+    }
+
+    public function test_category_direction_must_match(): void
+    {
+        $this->expectException(FinanceRuleException::class);
+        $this->expectExceptionMessage('gelir kategorisi seçin');
+
+        $this->ledger->income($this->cash, 100, $this->day('2026-10-14'), $this->rent, $this->actor);
+    }
+
+    public function test_future_date_is_rejected(): void
+    {
+        $this->expectException(FinanceRuleException::class);
+        $this->expectExceptionMessage('İleri tarihli');
+
+        $this->ledger->expense($this->cash, 100, $this->day('2026-10-15'), $this->rent, $this->actor);
+    }
+
+    public function test_date_before_opening_is_rejected(): void
+    {
+        $this->expectException(FinanceRuleException::class);
+        $this->expectExceptionMessage('açılış tarihinden önce');
+
+        $this->ledger->expense($this->cash, 100, $this->day('2026-09-30'), $this->rent, $this->actor);
+    }
+
+    public function test_inactive_account_or_category_is_rejected(): void
+    {
+        $this->cash->update(['status' => 'passive']);
+
+        $this->expectException(FinanceRuleException::class);
+
+        $this->ledger->expense($this->cash, 100, $this->day('2026-10-14'), $this->rent, $this->actor);
+    }
+
+    public function test_inactive_category_is_rejected(): void
+    {
+        $this->rent->update(['status' => 'passive']);
+
+        $this->expectException(FinanceRuleException::class);
+
+        $this->ledger->expense($this->cash, 100, $this->day('2026-10-14'), $this->rent, $this->actor);
+    }
+
+    public function test_negative_balance_is_allowed(): void
+    {
+        $this->ledger->expense($this->bank, 50_000, $this->day('2026-10-14'), $this->rent, $this->actor);
+
+        $this->assertSame(-50_000, $this->balances->balance($this->bank));
+    }
+
+    public function test_balances_and_total(): void
+    {
+        $this->ledger->income($this->bank, 30_000, $this->day('2026-10-14'), $this->revenue, $this->actor);
+        $passive = FinanceAccount::create(['name' => 'Eski', 'type' => AccountType::Cash, 'opening_balance' => 99_999, 'opening_date' => '2026-01-01', 'status' => 'passive']);
+
+        $this->assertSame([$this->cash->id => 1_000_000, $this->bank->id => 30_000], $this->balances->balances([$this->cash, $this->bank]));
+        $this->assertSame(1_030_000, $this->balances->total());
+        $this->assertSame(99_999, $this->balances->balance($passive));
+    }
+
+    public function test_entries_are_written_only_inside_one_transaction_per_call(): void
+    {
+        $this->ledger->income($this->cash, 1, $this->day('2026-10-14'), $this->revenue, $this->actor);
+
+        $this->assertSame(1, FinanceEntry::count());
+    }
+}
