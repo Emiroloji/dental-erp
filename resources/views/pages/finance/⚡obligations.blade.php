@@ -235,7 +235,12 @@ new #[Layout('layouts::authenticated')] class extends Component
         try {
             $entry = $ledger->pay($obligation, FinanceAccount::findOrFail($this->payAccountId), $amount, CarbonImmutable::parse($this->payDate), auth()->user(), $this->payDescription);
         } catch (FinanceRuleException $e) {
-            $this->addError(str_contains($e->getMessage(), 'tarih') ? 'payDate' : 'payAmount', $e->getMessage());
+            $field = match (true) {
+                str_contains($e->getMessage(), 'tarih') => 'payDate',
+                str_contains($e->getMessage(), 'pasif bir hesap') => 'payAccountId',
+                default => 'payAmount',
+            };
+            $this->addError($field, $e->getMessage());
 
             return;
         }
@@ -281,7 +286,7 @@ new #[Layout('layouts::authenticated')] class extends Component
         $direction = ObligationDirection::tryFrom($this->direction);
         $open = fn ($query) => $query->whereIn('status', [ObligationStatus::Open, ObligationStatus::Partial]);
 
-        $obligations = FinanceObligation::with(['party', 'category'])
+        $obligations = FinanceObligation::with(['party', 'category'])->withExists('payments')
             ->when($direction, fn ($query) => $query->where('direction', $direction))
             ->when($tab !== 'all', $open)
             ->when($tab === 'overdue', fn ($query) => $query->whereDate('due_on', '<', $today->toDateString()))
@@ -429,8 +434,10 @@ new #[Layout('layouts::authenticated')] class extends Component
                                 @can('finance.update')
                                     @if ($paid[$obligation->id] === 0)
                                         <div class="mt-1">
-                                            <button wire:click="openForm({{ $obligation->id }})" class="text-[13px] text-ink-muted hover:text-ink hover:underline">Düzenle</button>
-                                            <button wire:click="startCancel({{ $obligation->id }})" class="ml-3 text-[13px] text-ink-muted hover:text-ink hover:underline">İptal</button>
+                                            @unless ($obligation->payments_exists)
+                                                <button wire:click="openForm({{ $obligation->id }})" class="mr-3 text-[13px] text-ink-muted hover:text-ink hover:underline">Düzenle</button>
+                                            @endunless
+                                            <button wire:click="startCancel({{ $obligation->id }})" class="text-[13px] text-ink-muted hover:text-ink hover:underline">İptal</button>
                                         </div>
                                     @endif
                                 @endcan

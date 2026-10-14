@@ -250,4 +250,46 @@ class FinanceObligationsScreenTest extends TestCase
         Livewire::withQueryParams(['tab' => 'zzz', 'direction' => 'x'])->test('pages::finance.obligations')
             ->assertSet('tab', 'week')->assertSet('direction', '');
     }
+
+    public function test_edit_is_hidden_once_a_payment_was_ever_linked(): void
+    {
+        $invoice = $this->invoice();
+        $plain = $this->invoice('2026-10-17', ['description' => 'Dokunulmamış fatura']);
+        $payment = app(LedgerService::class)->pay($invoice, $this->bank, 500_000, CarbonImmutable::parse('2026-10-14'), $this->admin);
+        app(LedgerService::class)->reverse($payment, 'Yanlış hesap', $this->admin);
+
+        Livewire::test('pages::finance.obligations')
+            ->assertSee('startCancel('.$invoice->id.')', false)
+            ->assertDontSee('openForm('.$invoice->id.')', false)
+            ->assertSee('openForm('.$plain->id.')', false);
+    }
+
+    public function test_passive_account_error_is_shown_on_the_account_field(): void
+    {
+        $invoice = $this->invoice();
+        $this->bank->update(['status' => 'passive']);
+
+        Livewire::test('pages::finance.obligations')
+            ->call('startPay', $invoice->id)
+            ->set('payAccountId', (string) $this->bank->id)
+            ->call('confirmPay')
+            ->assertHasErrors('payAccountId');
+    }
+
+    public function test_payment_can_be_reversed_from_entries_and_reopens_the_obligation(): void
+    {
+        $invoice = $this->invoice();
+        $payment = app(LedgerService::class)->pay($invoice, $this->bank, 500_000, CarbonImmutable::parse('2026-10-14'), $this->admin);
+        $this->assertSame(ObligationStatus::Partial, $invoice->fresh()->status);
+
+        Livewire::test('pages::finance.entries')
+            ->assertSee('Ödeme')
+            ->assertSee('startReverse('.$payment->id.')', false)
+            ->call('startReverse', $payment->id)
+            ->set('reverseReason', 'Yanlış hesap')
+            ->call('confirmReverse')
+            ->assertHasNoErrors();
+
+        $this->assertSame(ObligationStatus::Open, $invoice->fresh()->status);
+    }
 }

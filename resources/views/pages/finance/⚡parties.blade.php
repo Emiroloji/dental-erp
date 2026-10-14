@@ -121,7 +121,7 @@ new #[Layout('layouts::authenticated')] class extends Component
     public function with(FinanceBalanceService $balances): array
     {
         $parties = FinanceParty::query()
-            ->when(trim($this->search) !== '', fn ($query) => $query->where('name', 'like', '%'.trim($this->search).'%'))
+            ->when(trim($this->search) !== '', fn ($query) => $query->whereLike('name', '%'.trim($this->search).'%'))
             ->when(PartyKind::tryFrom($this->filterKind), fn ($query, $kind) => $query->where('kind', $kind))
             ->orderByRaw("status = 'active' desc")
             ->orderBy('name')

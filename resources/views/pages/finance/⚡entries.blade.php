@@ -154,7 +154,12 @@ new #[Layout('layouts::authenticated')] class extends Component
                 $touched = [$account];
             }
         } catch (FinanceRuleException $e) {
-            $this->addError(str_contains($e->getMessage(), 'tarih') ? 'date' : 'amount', $e->getMessage());
+            $field = match (true) {
+                str_contains($e->getMessage(), 'tarih') => 'date',
+                str_contains($e->getMessage(), 'cari') => 'partyId',
+                default => 'amount',
+            };
+            $this->addError($field, $e->getMessage());
 
             return;
         }

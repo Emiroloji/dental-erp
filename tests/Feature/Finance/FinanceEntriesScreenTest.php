@@ -202,4 +202,16 @@ class FinanceEntriesScreenTest extends TestCase
 
         $this->assertSame(0, FinanceEntry::count());
     }
+
+    public function test_passive_party_error_is_shown_on_the_party_field(): void
+    {
+        $party = FinanceParty::create(['name' => 'Depo Ltd.', 'kind' => PartyKind::Supplier, 'status' => 'passive']);
+
+        Livewire::test('pages::finance.entries')
+            ->call('openForm', 'expense')
+            ->set('accountId', $this->cash->id)->set('amount', '100')->set('categoryId', $this->rent->id)->set('partyId', (string) $party->id)
+            ->call('save')
+            ->assertHasErrors('partyId')
+            ->assertHasNoErrors('amount');
+    }
 }

@@ -147,4 +147,7 @@ new #[Layout('layouts::authenticated')] class extends Component
             </tbody>
         </table>
     </section>
+    @if ($entries->count() === 100)
+        <p class="mt-2 text-[12px] text-ink-muted">Son 100 hareket gösteriliyor.</p>
+    @endif
 </div>

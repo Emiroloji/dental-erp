@@ -6,10 +6,12 @@ use App\Domain\Access\Models\Permission;
 use App\Domain\Access\Support\Module;
 use App\Domain\Access\Support\PermissionScope;
 use App\Domain\Finance\Models\FinanceAccount;
+use App\Domain\Finance\Models\FinanceCategory;
 use App\Domain\Finance\Models\FinanceObligation;
 use App\Domain\Finance\Models\FinanceParty;
 use App\Domain\Finance\Services\LedgerService;
 use App\Domain\Finance\Support\AccountType;
+use App\Domain\Finance\Support\CategoryDirection;
 use App\Domain\Finance\Support\ObligationDirection;
 use App\Domain\Finance\Support\PartyKind;
 use App\Domain\Organization\Models\Organization;
@@ -112,5 +114,27 @@ class FinancePartiesScreenTest extends TestCase
 
         Livewire::test('pages::finance.parties')->call('activate', $party->id);
         $this->assertSame('active', $party->fresh()->status);
+    }
+
+    public function test_search_finds_party_regardless_of_case(): void
+    {
+        FinanceParty::create(['name' => 'ABC Sigorta', 'kind' => PartyKind::Customer]);
+        FinanceParty::create(['name' => 'Depo', 'kind' => PartyKind::Supplier]);
+
+        Livewire::test('pages::finance.parties')->set('search', 'abc')->assertSee('ABC Sigorta')->assertDontSee('Depo');
+    }
+
+    public function test_party_page_notes_when_movements_are_capped(): void
+    {
+        $party = FinanceParty::create(['name' => 'ABC Sigorta', 'kind' => PartyKind::Customer]);
+        $account = FinanceAccount::create(['name' => 'Banka', 'type' => AccountType::Bank, 'opening_balance' => 0, 'opening_date' => '2026-10-01']);
+        $category = FinanceCategory::create(['name' => 'Hasılat', 'direction' => CategoryDirection::Income]);
+        $ledger = app(LedgerService::class);
+
+        for ($i = 0; $i < 100; $i++) {
+            $ledger->income($account, 1_000, CarbonImmutable::parse('2026-10-10'), $category, $this->admin, null, null, null, $party);
+        }
+
+        $this->get('/finans/cariler/'.$party->id)->assertSee('Son 100 hareket gösteriliyor.');
     }
 }
