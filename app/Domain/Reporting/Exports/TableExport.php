@@ -6,6 +6,7 @@ use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\WithCustomValueBinder;
 use Maatwebsite\Excel\Concerns\WithHeadings;
+use Maatwebsite\Excel\Concerns\WithStrictNullComparison;
 use Maatwebsite\Excel\Concerns\WithTitle;
 use PhpOffice\PhpSpreadsheet\Cell\Cell;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
@@ -17,7 +18,7 @@ use PhpOffice\PhpSpreadsheet\Cell\DefaultValueBinder;
  *
  * @implements FromCollection<int, array<int, mixed>>
  */
-class TableExport extends DefaultValueBinder implements FromCollection, WithCustomValueBinder, WithHeadings, WithTitle
+class TableExport extends DefaultValueBinder implements FromCollection, WithCustomValueBinder, WithHeadings, WithStrictNullComparison, WithTitle
 {
     /**
      * @param  array<int, string>  $headings

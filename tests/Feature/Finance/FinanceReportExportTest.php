@@ -121,9 +121,26 @@ class FinanceReportExportTest extends TestCase
         $this->assertSame('Ekim 2026', $month[1]);
         $this->assertTrue(is_numeric($month[2]) && is_numeric($month[4]));
         $this->assertEquals(5000, $month[2]);
-        // Sıfır tutarlı hücre Excel'de boş okunur (indirici davranışı); sayı olarak sıfırdır.
+        // Sıfır tutar boş değil, sayı olarak 0 yazılır.
+        $this->assertNotNull($month[3]);
+        $this->assertTrue(is_numeric($month[3]));
         $this->assertEquals(0, $month[3]);
         $this->assertEquals(5000, $month[4]);
+    }
+
+    public function test_excel_writes_empty_month_as_zero_numbers(): void
+    {
+        $input = [...$this->filterInput(), 'from' => '2026-09-01'];
+        $export = app(ReportExportService::class)->request($this->admin, ReportType::FinanceIncomeExpense, 'xlsx', ['filters' => $input]);
+
+        $months = collect($this->sheet($export->refresh()))->filter(fn (array $row) => $row[0] === 'Ay')->values();
+
+        $this->assertSame('Eylül 2026', $months[0][1]);
+        foreach ([2, 3, 4] as $column) {
+            $this->assertNotNull($months[0][$column]);
+            $this->assertEquals(0, $months[0][$column]);
+        }
+        $this->assertEquals(5000, $months[1][2]);
     }
 
     public function test_income_expense_pdf_contains_month_label_and_formatted_amounts(): void
