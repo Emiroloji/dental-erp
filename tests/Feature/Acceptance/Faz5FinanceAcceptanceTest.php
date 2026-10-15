@@ -273,6 +273,8 @@ class Faz5FinanceAcceptanceTest extends TestCase
     private function step2_first_week_of_october(): void
     {
         $this->at('2026-10-02 10:00:00');
+        // Pozitif kontrol: adım 8'deki assertDontSee('+ Gelir') boşuna geçmesin.
+        $this->get('/finans/hareketler')->assertOk()->assertSee('+ Gelir');
         $this->entry('income', $this->cash, '12.000,00', 'Hasılat', $this->central);
 
         $this->at('2026-10-03 10:00:00');
@@ -659,7 +661,7 @@ class Faz5FinanceAcceptanceTest extends TestCase
         }
 
         $this->assertSame($entries, FinanceEntry::count());
-        $this->assertSame(18_375_000, app(FinanceBalanceService::class)->total());
+        $this->assertBooksAgree(18_375_000);
     }
 
     private function step9_other_organization_sees_nothing(): void

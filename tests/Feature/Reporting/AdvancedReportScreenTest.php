@@ -195,4 +195,20 @@ class AdvancedReportScreenTest extends TestCase
         $this->assertSame('s', $sheet->getCell('A3')->getDataType());
         $this->assertSame('n', $sheet->getCell('B2')->getDataType());
     }
+
+    public function test_table_export_writes_zero_as_numeric_cell_and_keeps_null_blank(): void
+    {
+        $export = new TableExport('Test', ['Ad', 'Sıfır', 'Boş', 'Sayı'], collect([['Satır', 0, null, 12.5]]));
+        $path = tempnam(sys_get_temp_dir(), 'xl').'.xlsx';
+        file_put_contents($path, Excel::raw($export, \Maatwebsite\Excel\Excel::XLSX));
+
+        $sheet = IOFactory::load($path)->getActiveSheet();
+        @unlink($path);
+
+        $this->assertSame('n', $sheet->getCell('B2')->getDataType());
+        $this->assertEquals(0, $sheet->getCell('B2')->getValue());
+        $this->assertNotNull($sheet->getCell('B2')->getValue());
+        $this->assertNull($sheet->getCell('C2')->getValue());
+        $this->assertEquals(12.5, $sheet->getCell('D2')->getValue());
+    }
 }
