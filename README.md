@@ -32,7 +32,8 @@ kapıdan geçer.
   ödeme/tahsilat (kısmi ödeme), tekrarlayan kalemler (günlük üretim), vade
   bildirimleri, hesap ekstresi ve banka mutabakatı, Finans Özeti (90 günlük nakit
   projeksiyonu) ve gelir-gider / nakit akışı / cari yaşlandırma raporları
-  (Excel/PDF). Tasarım:
+  (kategori süzgeci, aylık kırılım, Excel/PDF). Faz 5 uçtan uca kabul testiyle
+  tamamlandı (Aşama 37). Tasarım:
   `docs/superpowers/specs/2026-10-14-finans-modulu-design.md`.
 - **Tanıtım sitesi:** aynı repo içinde girişsiz sayfalar (`/`, `/neler-yapiyor`,
   `/talep`). Talep formu yalnızca bir `Lead` kaydı oluşturur — otomatik hesap
