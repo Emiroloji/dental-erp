@@ -26,3 +26,7 @@ Homestead.json
 Homestead.yaml
 Thumbs.db
 /.claude/worktrees
+
+# Canlı QA çıktıları (test hesabı şifreleri içerir)
+/qa-raporu.md
+/docs/qa-screenshots/
