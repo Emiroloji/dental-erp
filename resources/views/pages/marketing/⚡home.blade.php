@@ -18,13 +18,74 @@ new #[Layout('layouts::marketing')] class extends Component
 
     public function with(): array
     {
-        // Hero'daki lot tablosu ürünün kendi ekranından bir kesit: aynı ürünün
-        // üç lotu, FEFO sırasıyla ve gerçek gün sayılarıyla.
+        // Örnek ekranlar (components/marketing/screens) ekran görüntüsü değil,
+        // sitenin kendi token'larıyla çizilmiş HTML kopyalarıdır; veriler örnektir.
         return [
-            'lots' => [
-                ['no' => 'LOT-2291', 'days' => 12, 'quantity' => 18, 'level' => 'critical'],
-                ['no' => 'LOT-2310', 'days' => 164, 'quantity' => 40, 'level' => 'normal'],
-                ['no' => 'LOT-2344', 'days' => 426, 'quantity' => 60, 'level' => 'normal'],
+            'scenes' => [
+                ['Stok', 'Stok Durumu', 'lots'],
+                ['Uyarı', 'Bildirimler', 'alert'],
+                ['Finans', 'Finans', 'finance'],
+            ],
+            'journey' => [
+                ['Talep açılır', 'Ortodonti deposunda eldiven azalınca depo sorumlusu satın alma talebi açar.', 'Stok değişmez'],
+                ['Onaylanır', 'Klinik sahibi talebi onaylar, tedarikçiye sipariş verilir.', 'Stok değişmez'],
+                ['Teslim alınır', 'Gelen 8 kutu lot numarası, son kullanma tarihi ve fatura numarasıyla girilir; 2 kutu açık siparişte kalır.', 'Stok artar'],
+                ['Kullanılır', 'Klinikte kullanılan miktar çıkış olarak düşülür; parti seçilmezse tarihi önce dolan düşer.', 'Stok azalır'],
+                ['Fatura ödenir', 'Faturayı Finans\'ta tedarikçiye borç olarak girersiniz; vadesi yaklaşınca hatırlatılır, ödediğinizde bankadan düşer.', 'Para çıkar'],
+            ],
+            'modules' => [
+                ['stok', 'Stok', 'Lot, son kullanma tarihi ve seri numarasıyla, depo depo.', 'lots', [
+                    'Stok yalnızca kayıtlı bir hareketle değişir; eksiye düşmez.',
+                    'Yanlış kayıt silinmez, gerekçesiyle iptal edilir.',
+                    '"1 kutu = 50 adet" tanımlanır, kutu girip adet olarak tutulur.',
+                ]],
+                ['satinalma', 'Satın alma', 'Talepten teslime, kısmi teslimatla birlikte.', 'purchase', [
+                    'Talep, onay, sipariş ve teslim adımları ayrı ayrı izlenir.',
+                    'Teslim alınan miktar stoğa girer, kalanı açık siparişte bekler.',
+                    'Her tedarikçinin sipariş ve harcama geçmişi kendi kartında.',
+                ]],
+                ['transfer', 'Transfer', 'Şubeler ve depolar arası, adım adım.', 'transfer', [
+                    'Talep, onay, hazırlık, gönderim ve teslim.',
+                    'Stok gönderimde kaynaktan düşer, teslimde hedefe eklenir.',
+                    'Gönderilmeden iptal edilen transfer stoğa dokunmaz.',
+                ]],
+                ['sayim', 'Sayım ve iade', 'Farklar iz bırakır, iadeler takip edilir.', 'count', [
+                    'Sayan kişi gerçek miktarı girer, sistem farkı hesaplar.',
+                    'Onaylanan fark düzeltme hareketine dönüşür.',
+                    'Tedarikçiye iade; kargo, onay ve alacak dekontuyla izlenir.',
+                ]],
+                ['ilac', 'İlaç ve ÜTS', 'Seri numarası, soğuk zincir, kontrollü ürün.', 'medical', [
+                    'İmplant gibi ürünler tek tek seri numarasıyla izlenir.',
+                    'Soğuk zincir ürününde girişte ölçülen sıcaklık istenir.',
+                    'Lot ve seri numarası ÜTS\'de sorgulanıp kendi kaydınızla karşılaştırılır.',
+                ]],
+                ['finans', 'Finans', 'Kasa, banka, POS, cariler ve vadeler.', 'finance', [
+                    'Gelir ve gider kategorileriyle, şube etiketiyle kaydedilir.',
+                    'Ödenecek ve tahsil edilecekler vadesiyle takip edilir.',
+                    'Banka ekstresiyle mutabakat yapılır, fark düzeltme kaydıyla kapanır.',
+                ]],
+                ['rapor', 'Raporlar ve asistan', 'Filtreli raporlar, tahmin, düz Türkçe sorular.', 'report', [
+                    'Stok, hareket, kullanım, satın alma ve finans raporları.',
+                    'Geçmiş tüketimden ürünün yaklaşık bitiş günü tahmin edilir.',
+                    'Excel ve PDF olarak indirilir.',
+                ]],
+                ['yetki', 'Yetki ve denetim', 'Modül modül yetki, şube kapsamı, kayıt izi.', 'permissions', [
+                    'Her personele okuma, yazma, silme ayrı ayrı verilir.',
+                    'Kapsam: kendi şubesi, seçili şubeler ya da tüm şubeler.',
+                    'Kim neyi ne zaman değiştirdi, öncesi ve sonrasıyla yazılır.',
+                ]],
+            ],
+            'months' => collect(range(5, 0))->map(fn (int $ago) => now()->startOfMonth()->subMonths($ago)->translatedFormat('M'))->all(),
+            'income' => [42, 48, 45, 51, 50, 56],
+            'expense' => [38, 41, 44, 40, 61, 43],
+            'faq' => [
+                ['Hesabımı nasıl açarım?', 'Talep formunu doldurursunuz, sizi arayıp kurulumu konuşuruz. Kliniğinizi, şubelerinizi ve yönetici hesabınızı biz açar, giriş bilgilerinizi göndeririz. Form doldurmak hesap açmaz.'],
+                ['Fiyatlandırma nasıl?', 'Paketler yalnızca şube, kullanıcı ve dosya alanı sınırıyla ayrılır; en küçük pakette de bütün modüller açıktır. Sistemde ödeme alınmaz, paket değişikliği talep ve onayla yürür. Fiyat için talep gönderin.'],
+                ['Verilerimiz başka kliniklerle karışır mı?', 'Hayır. Her klinik kendi hesabında, diğerlerinden tamamen ayrı çalışır. Bu ayrım ekran ekran değil, verinin kendisine bağlı bir kural olarak uygulanır ve her sürümde test edilir.'],
+                ['Telefonda çalışır mı?', 'Evet. Program tarayıcıda çalışır ve telefonun ana ekranına eklenip uygulama gibi açılır. Barkodu telefonun kamerasıyla ya da el okuyucusuyla okutabilirsiniz.'],
+                ['Muhasebe programımın yerine geçer mi?', 'Hayır. Finans modülü ön muhasebedir: kliniğin parasını günlük olarak izlersiniz. KDV ve döviz tutulmaz; resmî defterler mali müşavirinizde kalır, ona Excel dökümü verirsiniz.'],
+                ['Yanlış girilen kaydı silebilir miyim?', 'Stok ve para hareketleri silinmez, gerekçesiyle iptal edilir. İptal de bir kayıt olarak durur; böylece geçmiş ay raporları sonradan değişmez.'],
+                ['Hasta ve randevu takibi var mı?', 'Yok, bilinçli olarak. Program kliniğin malzemesine ve parasına odaklanır; hasta, randevu ve tedavi planı kapsam dışıdır.'],
             ],
         ];
     }
@@ -32,225 +93,291 @@ new #[Layout('layouts::marketing')] class extends Component
 ?>
 
 <div>
-    <section class="bg-panel-900 text-white">
-        <div class="mx-auto max-w-[1120px] px-5 sm:px-6 pt-16 pb-20 sm:pt-24 sm:pb-28 lg:grid lg:grid-cols-12 lg:gap-14 lg:items-center">
-            <div class="lg:col-span-7">
-                <h1 class="text-[34px] sm:text-[44px] lg:text-[52px] leading-[1.08] tracking-[-0.03em] font-semibold max-w-[16ch]">
-                    Kliniğin stoğunda tek bir doğru sayı olsun.
+    {{-- Açılış: programın kendisi, üç sahnede. Sahne 6 saniyede bir değişir; üstüne gelince, odaklanınca ve sekme arka plandayken durur. "Hareketi azalt" tercihinde kendiliğinden değişmez. --}}
+    <section class="bg-panel-900 text-white overflow-hidden">
+        <div class="mx-auto max-w-[1180px] px-5 sm:px-6 pt-14 pb-20 sm:pt-20 sm:pb-24 lg:grid lg:grid-cols-12 lg:gap-12 lg:items-center">
+            <div class="lg:col-span-6">
+                <h1 class="text-[36px] sm:text-[48px] lg:text-[56px] leading-[1.04] tracking-[-0.035em] font-semibold max-w-[15ch]">
+                    Kliniğin stoğu da parası da tek doğru kayıtta.
                 </h1>
-                <p class="mt-6 text-[17px] leading-relaxed text-white/65 max-w-[54ch]">
-                    Dental ERP, çok şubeli diş kliniklerinin malzeme stoğunu lot ve son kullanma tarihi
-                    seviyesinde tutar. Hangi partinin ne zaman geldiğini, nerede durduğunu, ne zaman
-                    tükeneceğini ve kimin çıkardığını kaydın kendisinden okursunuz.
+                <p class="mt-6 text-[17px] leading-relaxed text-white/65 max-w-[52ch]">
+                    Dental ERP, çok şubeli diş kliniklerinin malzemesini lot ve son kullanma tarihiyle,
+                    parasını kasa, banka ve POS hesaplarıyla tutar. Hangi parti nerede, ne zaman bitecek,
+                    bu ay ne kazandınız, gelecek hafta ne ödeyeceksiniz: hepsi kaydın kendisinde.
                 </p>
 
                 <div class="mt-9 flex flex-wrap items-center gap-3">
-                    <a href="{{ route('marketing.contact') }}" class="bg-brand-500 text-white rounded-md px-5 py-3 text-[15px] font-medium hover:bg-brand-400 transition-colors">
+                    <a href="{{ route('marketing.contact') }}" class="bg-brand-500 text-white rounded-md px-5 py-3 text-[15px] font-medium hover:bg-brand-400 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-400">
                         Talep gönderin, size dönelim
                     </a>
-                    <a href="{{ route('marketing.features') }}" class="px-5 py-3 text-[15px] text-white/75 hover:text-white rounded-md border border-panel-line hover:border-white/30 transition-colors">
-                        Neler yapıyor
+                    <a href="{{ route('marketing.features') }}" class="px-5 py-3 text-[15px] text-white/75 hover:text-white rounded-md border border-panel-line hover:border-white/30 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-400">
+                        Bütün özellikler
                     </a>
                 </div>
             </div>
 
-            <div class="mt-14 lg:mt-0 lg:col-span-5">
-                <figure class="rounded-lg border border-panel-line bg-panel-800 overflow-hidden">
-                    <figcaption class="flex items-baseline justify-between gap-3 px-4 sm:px-5 py-4 border-b border-panel-line">
-                        <span class="text-[15px] font-medium text-white">Kompozit A</span>
-                        <span class="text-[12px] px-2 py-0.5 rounded border border-status-critical/40 bg-status-critical/15 text-[#e6938a] font-medium">Kırmızı</span>
-                    </figcaption>
+            <div class="mt-14 lg:mt-0 lg:col-span-6"
+                x-data="{
+                    scene: 0, elapsed: 0, duration: 6000, paused: false, still: false,
+                    init() {
+                        this.still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+                        if (this.still) return;
+                        setInterval(() => {
+                            if (this.paused || document.hidden) return;
+                            this.elapsed += 100;
+                            if (this.elapsed >= this.duration) this.go((this.scene + 1) % {{ count($scenes) }});
+                        }, 100);
+                    },
+                    go(i) { this.scene = i; this.elapsed = 0; },
+                    progress(i) { return this.scene !== i ? 0 : (this.still ? 1 : this.elapsed / this.duration); },
+                }"
+                x-on:mouseenter="paused = true" x-on:mouseleave="paused = false"
+                x-on:focusin="paused = true" x-on:focusout="paused = false">
+                <div class="flex gap-2 mb-3" role="tablist" aria-label="Programdan örnek ekranlar">
+                    @foreach ($scenes as $i => [$label])
+                        <button type="button" role="tab" class="flex-1 text-left group focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand-400 rounded-sm"
+                            aria-selected="{{ $i === 0 ? 'true' : 'false' }}"
+                            x-on:click="go({{ $i }})"
+                            x-bind:aria-selected="scene === {{ $i }}"
+                            aria-controls="hero-scene-{{ $i }}">
+                            <span class="block h-0.5 rounded-full bg-white/15 overflow-hidden">
+                                <span class="block h-full bg-brand-400 origin-left transition-transform duration-100 ease-linear" style="transform: scaleX(0)"
+                                    x-bind:style="`transform: scaleX(${progress({{ $i }})})`"></span>
+                            </span>
+                            <span @class(['block mt-2 text-[13px] transition-colors', 'text-white' => $i === 0, 'text-white/45 group-hover:text-white/75' => $i > 0])
+                                x-bind:class="{ 'text-white': scene === {{ $i }}, 'text-white/45 group-hover:text-white/75': scene !== {{ $i }} }">{{ $label }}</span>
+                        </button>
+                    @endforeach
+                </div>
 
-                    <table class="w-full text-[13px]">
-                        <caption class="sr-only">Kompozit A ürününün depodaki lotları</caption>
-                        <thead>
-                            <tr class="text-white/40 text-[12px]">
-                                <th scope="col" class="text-left font-normal pl-4 sm:pl-5 pr-2 pt-3 pb-1.5">Lot</th>
-                                <th scope="col" class="text-left font-normal px-2 pt-3 pb-1.5">Son kullanma</th>
-                                <th scope="col" class="text-right font-normal pl-2 pr-4 sm:pr-5 pt-3 pb-1.5">Miktar</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach ($lots as $lot)
-                                <tr class="border-t border-panel-line/70">
-                                    <td class="pl-4 sm:pl-5 pr-2 py-3 font-mono text-[12px] sm:text-[13px] text-white/80">{{ $lot['no'] }}</td>
-                                    <td class="px-2 py-3">
-                                        <span class="text-white/80 font-mono">{{ now()->addDays($lot['days'])->format('d.m.Y') }}</span>
-                                        <span class="block mt-0.5 {{ $lot['level'] === 'critical' ? 'text-status-critical' : 'text-white/40' }}">{{ $lot['days'] }} gün kaldı</span>
-                                    </td>
-                                    <td class="pl-2 pr-4 sm:pr-5 py-3 text-right tabular-nums text-white whitespace-nowrap">{{ $lot['quantity'] }} adet</td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-
-                    <p class="px-4 sm:px-5 py-3.5 border-t border-panel-line text-[13px] text-white/50 leading-relaxed">
-                        Çıkış yapıldığında önce LOT-2291 düşer: son kullanma tarihi önce dolan parti önce kullanılır.
-                    </p>
-                </figure>
+                <div class="grid">
+                    @foreach ($scenes as $i => [$label, $title, $screen])
+                        <div id="hero-scene-{{ $i }}" role="tabpanel" class="col-start-1 row-start-1 mk-scene"
+                            x-show="scene === {{ $i }}" @if ($i > 0) x-cloak @endif>
+                            <x-marketing.window :title="$title" path="dental-erp">
+                                <x-dynamic-component :component="'marketing.screens.'.$screen" :animate="true" />
+                            </x-marketing.window>
+                        </div>
+                    @endforeach
+                </div>
             </div>
         </div>
     </section>
 
-    <section class="mx-auto max-w-[1120px] px-5 sm:px-6 py-20 sm:py-24">
-        <h2 class="text-[26px] sm:text-[30px] leading-tight tracking-[-0.02em] font-semibold max-w-[20ch]">
-            Klinik stoğu üç soruya iner
-        </h2>
-        <p class="mt-4 text-[16px] text-ink-muted leading-relaxed max-w-[62ch]">
-            Excel tablosu bu üç soruyu birlikte cevaplayamaz: şubeye, depoya ve parti numarasına bölünmez,
-            kimin ne zaman ne çıkardığını tutmaz, geriye dönük değiştirildiğinde iz bırakmaz.
-        </p>
-
-        <dl class="mt-12 divide-y divide-line border-y border-line">
-            <div class="py-7 sm:grid sm:grid-cols-12 sm:gap-8">
-                <dt class="sm:col-span-4 text-[17px] font-medium">Elimde tam olarak ne var?</dt>
-                <dd class="sm:col-span-8 mt-2 sm:mt-0 text-[15px] text-ink-muted leading-relaxed max-w-[64ch]">
-                    Stok, deponun içinde parti parti durur. Her partinin kendi son kullanma tarihi ve alış fiyatı
-                    vardır; şube görünümü o şubeye bağlı depoların toplamıdır. Mevcut stok ile toplam kullanım
-                    ayrı ayrı raporlanır — 100 adet girip 20 kullandıysanız ikisi de görünür.
-                </dd>
+    {{-- Yolculuk: kaydırdıkça ulaşılan adım dolar. Gerçek bir sıra olduğu için numaralı. --}}
+    <section class="bg-canvas border-b border-line">
+        <div class="mx-auto max-w-[1180px] px-5 sm:px-6 py-20 sm:py-28 lg:grid lg:grid-cols-12 lg:gap-12">
+            <div class="lg:col-span-5">
+                <div class="lg:sticky lg:top-28">
+                    <h2 class="text-[28px] sm:text-[34px] leading-[1.1] tracking-[-0.025em] font-semibold max-w-[16ch]">
+                        Bir kutu eldivenin klinikteki yolu
+                    </h2>
+                    <p class="mt-4 text-[16px] text-ink-muted leading-relaxed max-w-[46ch]">
+                        Programdaki her adım klinikte gerçekten yapılan bir işe karşılık gelir. Stoğun ve paranın
+                        hangi adımda değiştiği bellidir; arada hiçbir rakam kendiliğinden oynamaz.
+                    </p>
+                </div>
             </div>
-            <div class="py-7 sm:grid sm:grid-cols-12 sm:gap-8">
-                <dt class="sm:col-span-4 text-[17px] font-medium">Ne zaman sipariş vermeliyim?</dt>
-                <dd class="sm:col-span-8 mt-2 sm:mt-0 text-[15px] text-ink-muted leading-relaxed max-w-[64ch]">
-                    Her ürün kendi uyarı eşiğini taşır: kimi ürün için "60 adedin altına inince",
-                    kimi için "son kullanma tarihine 50 gün kala", isterseniz ikisi birden. Eşiğe gelen ürün
-                    sarıya, kritik eşiğe gelen kırmızıya düşer ve ilgili personele bildirim gider.
-                </dd>
-            </div>
-            <div class="py-7 sm:grid sm:grid-cols-12 sm:gap-8">
-                <dt class="sm:col-span-4 text-[17px] font-medium">Bu kayıt kimin işi?</dt>
-                <dd class="sm:col-span-8 mt-2 sm:mt-0 text-[15px] text-ink-muted leading-relaxed max-w-[64ch]">
-                    Stok hareketi silinmez. Yanlış giriş iptal edilir, iptal de bir kayıt olarak durur; sayım farkı
-                    düzeltme hareketine dönüşür. Kimin ne zaman neyi değiştirdiği, öncesi ve sonrasıyla
-                    denetim kaydına yazılır.
-                </dd>
-            </div>
-        </dl>
-    </section>
 
-    <section class="bg-canvas border-y border-line">
-        <div class="mx-auto max-w-[1120px] px-5 sm:px-6 py-20 sm:py-24">
-            <h2 class="text-[26px] sm:text-[30px] leading-tight tracking-[-0.02em] font-semibold">
-                Bir kutu eldivenin klinikteki yolu
-            </h2>
-            <p class="mt-4 text-[16px] text-ink-muted leading-relaxed max-w-[62ch]">
-                Sistemdeki her adım gerçek bir işe karşılık gelir. Stoğun hangi adımda değiştiği bellidir;
-                arada kalan hiçbir yerde miktar kendiliğinden oynamaz.
-            </p>
-
-            <ol class="mt-12 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-px bg-line border border-line rounded-lg overflow-hidden">
-                @foreach ([
-                    ['1', 'Talep açılır', 'Ortodonti deposunda eldiven azalır; depo sorumlusu satın alma talebi açar.', 'Stok değişmez'],
-                    ['2', 'Onaylanır', 'Klinik sahibi talebi onaylar, tedarikçiye sipariş verilir.', 'Stok değişmez'],
-                    ['3', 'Teslim alınır', 'Gelen 8 kutu lot numarası, son kullanma tarihi ve fatura bilgisiyle girilir; 2 kutu açık sipariş kalır.', 'Stok artar'],
-                    ['4', 'Kullanılır', 'Klinikte kullanılan miktar çıkış olarak düşülür; başka şubeye transfer gönderim anında düşer.', 'Stok azalır'],
-                ] as [$step, $title, $text, $effect])
-                    <li class="bg-surface px-5 py-6 flex flex-col">
-                        <span class="text-[13px] text-ink-muted tabular-nums">Adım {{ $step }}</span>
-                        <h3 class="mt-2 text-[16px] font-medium">{{ $title }}</h3>
-                        <p class="mt-2 text-[14px] text-ink-muted leading-relaxed flex-1">{{ $text }}</p>
-                        <span class="mt-4 text-[13px] {{ $effect === 'Stok değişmez' ? 'text-ink-muted' : 'text-brand-600' }}">{{ $effect }}</span>
+            <ol class="mt-12 lg:mt-0 lg:col-span-7">
+                @foreach ($journey as $i => [$title, $text, $effect])
+                    <li class="mk-step flex gap-5" x-data="{ reached: false }" x-intersect.margin.-40%.0.-40%.0.once="reached = true" x-bind:class="reached && 'is-reached'">
+                        <div class="flex flex-col items-center" aria-hidden="true">
+                            <span class="mk-step-dot w-9 h-9 shrink-0 rounded-full border-2 border-line bg-surface flex items-center justify-center text-[14px] font-medium tabular-nums"
+                                x-bind:class="reached ? 'text-white' : 'text-ink-muted'">{{ $i + 1 }}</span>
+                            @unless ($loop->last)
+                                <span class="relative w-0.5 flex-1 bg-line my-2">
+                                    <span class="mk-step-line absolute inset-0 bg-brand-500"></span>
+                                </span>
+                            @endunless
+                        </div>
+                        <div @class(['pt-1.5', 'pb-12' => ! $loop->last])>
+                            <h3 class="text-[19px] font-medium tracking-[-0.01em]">{{ $title }}</h3>
+                            <p class="mt-2 text-[15px] text-ink-muted leading-relaxed max-w-[54ch]">{{ $text }}</p>
+                            <p @class([
+                                'mt-3 inline-block text-[13px] rounded px-2 py-0.5',
+                                'bg-surface border border-line text-ink-muted' => $effect === 'Stok değişmez',
+                                'bg-brand-100 text-brand-600' => in_array($effect, ['Stok artar', 'Stok azalır']),
+                                'bg-[#f3ebe5] text-finance-out' => $effect === 'Para çıkar',
+                            ])>{{ $effect }}</p>
+                        </div>
                     </li>
                 @endforeach
             </ol>
         </div>
     </section>
 
-    <section class="mx-auto max-w-[1120px] px-5 sm:px-6 py-20 sm:py-24">
-        <div class="lg:grid lg:grid-cols-12 lg:gap-14">
-            <div class="lg:col-span-5">
-                <h2 class="text-[26px] sm:text-[30px] leading-tight tracking-[-0.02em] font-semibold max-w-[18ch]">
-                    Uyarıyı ürünün kendisi belirler
-                </h2>
-                <p class="mt-4 text-[16px] text-ink-muted leading-relaxed max-w-[52ch]">
-                    Eldiven adede göre biter, anestezik tarihe göre bozulur, implantın ikisi de önemlidir.
-                    Bu yüzden eşik organizasyon geneli tek bir sayı değil, ürün kartında seçilen bir kural.
-                </p>
-                <p class="mt-4 text-[16px] text-ink-muted leading-relaxed max-w-[52ch]">
-                    Eşik girmezseniz ürün varsayılanla çalışmaya devam eder; hiçbir ürünü tek tek
-                    ayarlamak zorunda değilsiniz.
-                </p>
-            </div>
+    {{-- Modül gezgini: ziyaretçi seçer, ilgili ekranın örneği açılır. --}}
+    <section class="bg-surface" x-data="{ active: '{{ $modules[0][0] }}' }">
+        <div class="mx-auto max-w-[1180px] px-5 sm:px-6 py-20 sm:py-28">
+            <h2 class="text-[28px] sm:text-[34px] leading-[1.1] tracking-[-0.025em] font-semibold max-w-[20ch]">
+                Programda neler var
+            </h2>
+            <p class="mt-4 text-[16px] text-ink-muted leading-relaxed max-w-[60ch]">
+                Sekiz bölüm, tek kayıt. Bir bölüm seçin, o ekranın örneğini görün. Paketler modülleri kısıtlamaz;
+                en küçük pakette de hepsi açıktır.
+            </p>
 
-            <div class="mt-10 lg:mt-0 lg:col-span-7 space-y-3">
-                <article class="rounded-lg border border-line bg-surface px-5 py-5">
-                    <div class="flex items-baseline justify-between gap-4">
-                        <h3 class="text-[16px] font-medium">Miktara göre</h3>
-                        <span class="text-[13px] text-ink-muted">Muayene eldiveni</span>
+            <div class="mt-12 lg:grid lg:grid-cols-12 lg:gap-10">
+                <div class="lg:col-span-4 -mx-5 px-5 sm:mx-0 sm:px-0 overflow-x-auto lg:overflow-visible">
+                    <div class="flex lg:flex-col gap-1.5 min-w-max lg:min-w-0" role="tablist" aria-label="Programın bölümleri" aria-orientation="vertical">
+                        {{-- İlk durum sunucuda basılır; Alpine nesne sözdizimiyle yalnızca değişeni açıp kapar (yüklenirken titreme olmaz). --}}
+                        @foreach ($modules as $i => [$key, $name, $summary])
+                            <button type="button" role="tab" id="module-tab-{{ $key }}" aria-controls="module-panel-{{ $key }}"
+                                @class(['text-left rounded-lg px-4 py-2.5 lg:py-3.5 border transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500', 'bg-panel-900 border-panel-900 text-white' => $i === 0, 'border-transparent hover:bg-canvas text-ink' => $i > 0])
+                                aria-selected="{{ $i === 0 ? 'true' : 'false' }}"
+                                x-on:click="active = '{{ $key }}'"
+                                x-bind:aria-selected="active === '{{ $key }}'"
+                                x-bind:class="{ 'bg-panel-900 border-panel-900 text-white': active === '{{ $key }}', 'border-transparent hover:bg-canvas text-ink': active !== '{{ $key }}' }">
+                                <span class="block text-[15px] font-medium whitespace-nowrap">{{ $name }}</span>
+                                <span @class(['hidden lg:block mt-0.5 text-[13px] leading-snug', 'text-white/60' => $i === 0, 'text-ink-muted' => $i > 0])
+                                    x-bind:class="{ 'text-white/60': active === '{{ $key }}', 'text-ink-muted': active !== '{{ $key }}' }">{{ $summary }}</span>
+                            </button>
+                        @endforeach
                     </div>
-                    <p class="mt-2.5 text-[14px] text-ink-muted leading-relaxed">
-                        60 adedin altına inince sarı, 30 adedin altına inince kırmızı. Son kullanma tarihi
-                        uzak olduğu sürece yalnızca adet konuşur.
-                    </p>
-                </article>
-                <article class="rounded-lg border border-line bg-surface px-5 py-5">
-                    <div class="flex items-baseline justify-between gap-4">
-                        <h3 class="text-[16px] font-medium">Son kullanma tarihine göre</h3>
-                        <span class="text-[13px] text-ink-muted">Lokal anestezik</span>
-                    </div>
-                    <p class="mt-2.5 text-[14px] text-ink-muted leading-relaxed">
-                        Tarihe 50 gün kala sarı, 30 gün kala kırmızı. Depoda yüz kutu olsa bile yaklaşan
-                        parti uyarı verir.
-                    </p>
-                </article>
-                <article class="rounded-lg border border-brand-500/30 bg-brand-100/60 px-5 py-5">
-                    <div class="flex items-baseline justify-between gap-4">
-                        <h3 class="text-[16px] font-medium">İkisi birden</h3>
-                        <span class="text-[13px] text-ink-muted">İmplant, kompozit</span>
-                    </div>
-                    <p class="mt-2.5 text-[14px] text-ink-muted leading-relaxed">
-                        Hem adet hem tarih izlenir; hangisi önce eşiğe ulaşırsa ürün o seviyeye geçer.
-                        Miktar sarıdayken tarih kırmızıya girdiyse ürün kırmızı görünür.
-                    </p>
-                </article>
+                </div>
+
+                <div class="mt-8 lg:mt-0 lg:col-span-8 grid">
+                    @foreach ($modules as $i => [$key, $name, $summary, $screen, $facts])
+                        <div id="module-panel-{{ $key }}" role="tabpanel" aria-labelledby="module-tab-{{ $key }}"
+                            class="col-start-1 row-start-1 mk-scene md:grid md:grid-cols-12 md:gap-8 md:items-start"
+                            x-show="active === '{{ $key }}'" @if ($i > 0) x-cloak @endif>
+                            <x-marketing.window :title="$name" class="md:col-span-7">
+                                <x-dynamic-component :component="'marketing.screens.'.$screen" />
+                            </x-marketing.window>
+                            <div class="mt-6 md:mt-2 md:col-span-5">
+                                <p class="lg:hidden text-[15px] text-ink-muted">{{ $summary }}</p>
+                                <ul class="mt-4 lg:mt-0 space-y-3">
+                                    @foreach ($facts as $fact)
+                                        <li class="flex gap-3 text-[15px] leading-relaxed">
+                                            <span class="mt-[9px] w-1.5 h-1.5 rounded-full bg-brand-500 shrink-0" aria-hidden="true"></span>
+                                            <span>{{ $fact }}</span>
+                                        </li>
+                                    @endforeach
+                                </ul>
+                                <a href="{{ route('marketing.features') }}#{{ $key }}" class="mt-6 inline-block text-[15px] text-brand-600 hover:text-brand-500 underline underline-offset-4 decoration-brand-500/30 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 rounded-sm">
+                                    {{ $name }} bölümünün ayrıntısı
+                                </a>
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
             </div>
         </div>
     </section>
 
-    <section class="bg-canvas border-y border-line">
-        <div class="mx-auto max-w-[1120px] px-5 sm:px-6 py-20 sm:py-24">
-            <h2 class="text-[26px] sm:text-[30px] leading-tight tracking-[-0.02em] font-semibold">
-                Sistemde neler var
+    {{-- Finans vitrini: grafik görünür olunca bir kez çizilir. --}}
+    <section class="bg-panel-900 text-white">
+        <div class="mx-auto max-w-[1180px] px-5 sm:px-6 py-20 sm:py-28 lg:grid lg:grid-cols-12 lg:gap-14 lg:items-center">
+            <div class="lg:col-span-5">
+                <h2 class="text-[28px] sm:text-[34px] leading-[1.1] tracking-[-0.025em] font-semibold max-w-[18ch]">
+                    Stoğun yanında, kliniğin parası da
+                </h2>
+                <p class="mt-4 text-[16px] text-white/60 leading-relaxed max-w-[50ch]">
+                    Finans bölümü kliniğin ön muhasebesidir. Kasa, banka ve POS hesaplarınızı, gelir ve
+                    giderinizi, kime ne borçlu olduğunuzu ve kimden ne alacağınızı aynı programda tutarsınız.
+                </p>
+
+                <dl class="mt-10 grid sm:grid-cols-2 gap-x-8 gap-y-6">
+                    @foreach ([
+                        ['Kasa, banka, POS', 'Her hesabın bakiyesi hareketlerden hesaplanır; POS\'tan bankaya geçişte komisyon ayrı gider olur.'],
+                        ['Cariler ve vadeler', 'Sigorta kurumu, depo, laboratuvar. Vade boşsa carinin vade süresiyle dolar, yaklaşınca hatırlatılır.'],
+                        ['Tekrarlayan kalemler', 'Kira, maaş, abonelik bir kez tanımlanır; her dönemin ödemesi kendiliğinden listeye düşer.'],
+                        ['Mutabakat', 'Banka ekstresindeki bakiyeyi girersiniz; fark varsa düzeltme kaydıyla kapanır.'],
+                    ] as [$title, $text])
+                        <div>
+                            <dt class="text-[15px] font-medium">{{ $title }}</dt>
+                            <dd class="mt-1.5 text-[14px] text-white/55 leading-relaxed">{{ $text }}</dd>
+                        </div>
+                    @endforeach
+                </dl>
+            </div>
+
+            <div class="mt-14 lg:mt-0 lg:col-span-7">
+                <figure class="mk-reveal rounded-xl border border-panel-line bg-panel-800 p-5 sm:p-7"
+                    x-data="{ seen: false }" x-intersect.once="seen = true" x-bind:class="seen && 'is-visible'">
+                    <figcaption class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
+                        <span class="text-[15px] font-medium">Gelir-Gider, son 6 ay</span>
+                        <span class="flex gap-4 text-[12px] text-white/55">
+                            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-brand-400" aria-hidden="true"></span>Gelir</span>
+                            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-[#c98a63]" aria-hidden="true"></span>Gider</span>
+                            <span class="flex items-center gap-1.5"><span class="w-3 h-0.5 bg-white/80" aria-hidden="true"></span>Toplam nakit</span>
+                        </span>
+                    </figcaption>
+
+                    @php
+                        $plotH = 160;
+                        $max = 70;
+                        $slot = 100;
+                        $cash = [150, 154, 155, 166, 155, 168];
+                        $points = collect($cash)->map(fn ($v, $i) => ($i * $slot + 50).','.round(185 - ($v - 140) / 40 * 150))->implode(' ');
+                    @endphp
+                    <svg viewBox="0 0 600 200" class="mt-6 w-full h-auto" role="img"
+                        aria-label="Son altı ayın örnek gelir ve gider çubukları; toplam nakit çizgisi yükseliyor. Beşinci ayda gider gelirden fazla.">
+                        @foreach ([0, 0.5, 1] as $grid)
+                            <line x1="0" x2="600" y1="{{ 180 - $grid * $plotH }}" y2="{{ 180 - $grid * $plotH }}" stroke="rgb(255 255 255 / 0.08)" />
+                        @endforeach
+                        @foreach ($income as $i => $value)
+                            <rect class="mk-bar" style="--d: {{ $i * 0.08 }}s" x="{{ $i * $slot + 26 }}" y="{{ 180 - $value / $max * $plotH }}" width="22" height="{{ $value / $max * $plotH }}" rx="2" fill="#4fb3a9" />
+                            <rect class="mk-bar" style="--d: {{ $i * 0.08 + 0.04 }}s" x="{{ $i * $slot + 52 }}" y="{{ 180 - $expense[$i] / $max * $plotH }}" width="22" height="{{ $expense[$i] / $max * $plotH }}" rx="2" fill="#c98a63" />
+                        @endforeach
+                        <polyline class="mk-line" points="{{ $points }}" pathLength="1" fill="none" stroke="rgb(255 255 255 / 0.85)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
+                    </svg>
+                    <div class="mt-2 grid grid-cols-6 text-center text-[12px] text-white/45">
+                        @foreach ($months as $month)
+                            <span>{{ $month }}</span>
+                        @endforeach
+                    </div>
+
+                    <p class="mt-6 pt-5 border-t border-panel-line text-[13px] text-white/50 leading-relaxed">
+                        Raporlar sekmesinde Gelir-Gider, Nakit Akışı ve Yaşlandırma; şube, kategori ve hesap
+                        süzgeçleriyle, Excel ve PDF olarak. Rakamlar örnektir.
+                    </p>
+                </figure>
+            </div>
+        </div>
+    </section>
+
+    {{-- Sık sorulanlar --}}
+    <section class="bg-canvas border-b border-line">
+        <div class="mx-auto max-w-[1180px] px-5 sm:px-6 py-20 sm:py-28 lg:grid lg:grid-cols-12 lg:gap-12">
+            <h2 class="lg:col-span-4 text-[28px] sm:text-[34px] leading-[1.1] tracking-[-0.025em] font-semibold">
+                Sık sorulanlar
             </h2>
 
-            <ul class="mt-10 divide-y divide-line border-y border-line">
-                @foreach ([
-                    ['Ürün ve katalog', 'Kategori, tedarikçi, ürün kartı ve birim çevrimi: "1 kutu = 50 adet" tanımlarsınız, kutu girip adet olarak kaydedilir.'],
-                    ['Lot, son kullanma tarihi, seri no', 'Her parti ayrı satır; çıkışta parti seçmezseniz tarihi önce dolan düşer. İmplant gibi ürünler tek tek seri numarasıyla izlenir.'],
-                    ['Şube ve depo', 'Bir şubenin altında merkezi depo, cerrahi depo, ortodonti deposu ayrı ayrı tutulur; küçük klinik tek depo gibi çalışır.'],
-                    ['Transfer', 'Şubeler ve depolar arası talep, onay, hazırlık, gönderim, teslim. Stok gönderimde kaynaktan düşer, teslimde hedefe eklenir.'],
-                    ['Satın alma', 'Talep, onay, sipariş ve kısmi teslimat; teslim alınan miktar stoğa girer, kalanı açık sipariş olarak görünür.'],
-                    ['Sayım ve iade', 'Sayım farkı onaylanınca iz bırakan düzeltme hareketine dönüşür; tedarikçiye iade ayrı bir süreç olarak takip edilir.'],
-                    ['Raporlar ve tahmin', 'Tarih, şube, depo, kategori ve tedarikçi filtreleri, Excel ve PDF çıktısı, geçmiş tüketimden tükenme tahmini.'],
-                    ['Barkod ve telefon', 'Barkodu kamerayla ya da el okuyucusuyla okutup giriş-çıkış yaparsınız; uygulama telefona kurulabilir.'],
-                    ['Yetki ve denetim', 'Her personele modül modül okuma, yazma, silme kutucukları ve şube kapsamı verilir; kritik işlemler denetim kaydına yazılır.'],
-                ] as [$title, $text])
-                    <li class="py-6 sm:grid sm:grid-cols-12 sm:gap-8">
-                        <h3 class="sm:col-span-4 text-[16px] font-medium">{{ $title }}</h3>
-                        <p class="sm:col-span-8 mt-1.5 sm:mt-0 text-[15px] text-ink-muted leading-relaxed max-w-[66ch]">{{ $text }}</p>
-                    </li>
+            <div class="mt-10 lg:mt-0 lg:col-span-8 divide-y divide-line border-y border-line">
+                @foreach ($faq as $i => [$question, $answer])
+                    <div x-data="{ open: false }">
+                        <h3>
+                            <button type="button" class="w-full flex items-center justify-between gap-6 py-5 text-left text-[17px] font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 rounded-sm"
+                                x-on:click="open = ! open" x-bind:aria-expanded="open" aria-controls="faq-{{ $i }}">
+                                {{ $question }}
+                                <svg viewBox="0 0 16 16" class="w-4 h-4 shrink-0 text-ink-muted transition-transform duration-300" x-bind:class="open && 'rotate-45'" aria-hidden="true">
+                                    <path d="M8 2v12M2 8h12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+                                </svg>
+                            </button>
+                        </h3>
+                        <div id="faq-{{ $i }}" x-show="open" x-collapse x-cloak>
+                            <p class="pb-6 text-[15px] text-ink-muted leading-relaxed max-w-[66ch]">{{ $answer }}</p>
+                        </div>
+                    </div>
                 @endforeach
-            </ul>
-
-            <a href="{{ route('marketing.features') }}" class="mt-10 inline-block text-[15px] text-brand-600 hover:text-brand-500 underline underline-offset-4 decoration-brand-500/30">
-                Hepsinin ayrıntısı
-            </a>
+            </div>
         </div>
     </section>
 
-    <section class="mx-auto max-w-[1120px] px-5 sm:px-6 py-20 sm:py-24">
-        <div class="rounded-lg bg-panel-900 text-white px-8 py-12 sm:px-12 sm:py-14 lg:flex lg:items-center lg:gap-12">
+    <section class="mx-auto max-w-[1180px] px-5 sm:px-6 py-20 sm:py-24">
+        <div class="rounded-xl bg-panel-900 text-white px-8 py-12 sm:px-12 sm:py-14 lg:flex lg:items-center lg:gap-12">
             <div class="lg:flex-1">
-                <h2 class="text-[24px] sm:text-[28px] leading-tight tracking-[-0.02em] font-semibold max-w-[24ch]">
+                <h2 class="text-[24px] sm:text-[30px] leading-tight tracking-[-0.02em] font-semibold max-w-[24ch]">
                     Kliniğinize uyar mı, konuşarak bakalım
                 </h2>
                 <p class="mt-4 text-[16px] text-white/60 leading-relaxed max-w-[58ch]">
-                    Kaç şubeniz ve deponuz olduğunu yazın, size dönelim. Form doldurmak hesap açmaz:
-                    görüştükten sonra kliniğinizi ve yönetici hesabınızı biz kurar, giriş bilgilerinizi göndeririz.
+                    Kaç şubeniz ve deponuz olduğunu, bugün stoğu ve kasayı nasıl tuttuğunuzu yazın, size dönelim.
+                    Görüştükten sonra kliniğinizi ve yönetici hesabınızı biz kurarız.
                 </p>
             </div>
-            <a href="{{ route('marketing.contact') }}" class="mt-8 lg:mt-0 inline-block shrink-0 bg-brand-500 text-white rounded-md px-6 py-3 text-[15px] font-medium hover:bg-brand-400 transition-colors">
+            <a href="{{ route('marketing.contact') }}" class="mt-8 lg:mt-0 inline-block shrink-0 bg-brand-500 text-white rounded-md px-6 py-3 text-[15px] font-medium hover:bg-brand-400 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-400">
                 Talep gönder
             </a>
         </div>

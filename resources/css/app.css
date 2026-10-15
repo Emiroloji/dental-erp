@@ -44,9 +44,71 @@
 }
 
 @layer base {
+    /* Alpine başlayana kadar gizli kalacak öğeler (sekme panelleri, açılır cevaplar). */
+    [x-cloak] {
+        display: none !important;
+    }
+
     body {
         background-color: var(--color-canvas);
         color: var(--color-ink);
         font-feature-settings: 'tnum' 1;
     }
+}
+
+/*
+ * Tanıtım sitesi hareketleri (mk-*). Yalnızca layouts/marketing sayfalarında
+ * kullanılır. Hepsi Alpine'ın eklediği sınıflarla tetiklenir; "hareketi azalt"
+ * tercihinde son hâliyle, hareketsiz görünür.
+ */
+@keyframes mk-enter {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: none; }
+}
+@keyframes mk-leave {
+    to { opacity: 0; transform: translateY(-4px); }
+}
+@keyframes mk-draw {
+    to { stroke-dashoffset: 0; }
+}
+@keyframes mk-grow {
+    from { transform: scaleY(0); }
+    to { transform: scaleY(1); }
+}
+@keyframes mk-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgb(184 68 58 / 0); }
+    50% { box-shadow: 0 0 0 4px rgb(184 68 58 / 0.18); }
+}
+
+@layer components {
+    .mk-scene { animation: mk-enter 0.45s ease-out both; }
+
+    /* Sahne içinde gecikmeli olaylar: --d gecikmeyi verir. */
+    .mk-in { opacity: 0; animation: mk-enter 0.4s ease-out var(--d, 0s) forwards; }
+    .mk-out { animation: mk-leave 0.3s ease-in var(--d, 0s) forwards; }
+    .mk-pulse { animation: mk-pulse 1.6s ease-in-out var(--d, 0s) 2; }
+
+    .mk-draw { stroke-dasharray: 1; stroke-dashoffset: 1; animation: mk-draw 1.4s ease-out var(--d, 0.2s) forwards; }
+
+    /* Görünür olunca çizilen grafikler (x-intersect.once → .is-visible). */
+    .mk-reveal .mk-bar { transform: scaleY(0); transform-origin: bottom; transform-box: fill-box; }
+    .mk-reveal.is-visible .mk-bar { animation: mk-grow 0.7s cubic-bezier(.2, .7, .2, 1) var(--d, 0s) forwards; }
+    .mk-reveal .mk-line { stroke-dasharray: 1; stroke-dashoffset: 1; }
+    .mk-reveal.is-visible .mk-line { animation: mk-draw 1.6s ease-out 0.5s forwards; }
+
+    /* Yolculuk zaman çizelgesi: kaydırdıkça ulaşılan adım dolar. */
+    .mk-step-dot { transition: background-color .4s, border-color .4s, transform .4s; }
+    .mk-step.is-reached .mk-step-dot { background-color: var(--color-brand-500); border-color: var(--color-brand-500); transform: scale(1.15); }
+    .mk-step-line { transform-origin: top; transform: scaleY(0); transition: transform .6s ease-out; }
+    .mk-step.is-reached .mk-step-line { transform: scaleY(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mk-scene, .mk-in, .mk-pulse, .mk-draw,
+    .mk-reveal.is-visible .mk-bar, .mk-reveal.is-visible .mk-line { animation: none; }
+    .mk-in { opacity: 1; }
+    .mk-out { animation: none; display: none; }
+    .mk-draw, .mk-reveal .mk-line { stroke-dashoffset: 0; }
+    .mk-reveal .mk-bar { transform: none; }
+    .mk-step-dot, .mk-step-line { transition: none; }
 }

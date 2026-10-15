@@ -4,8 +4,8 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-        <title>{{ $title ?? 'Dental ERP — Diş kliniği stok yönetimi' }}</title>
-        <meta name="description" content="Çok şubeli diş klinikleri ve hastaneler için lot ve son kullanma tarihi takipli stok yönetimi: depolar arası transfer, satın alma, sayım, iade, uyarılar ve raporlar tek sistemde.">
+        <title>{{ $title ?? 'Dental ERP — Diş kliniği stok ve ön muhasebe programı' }}</title>
+        <meta name="description" content="Çok şubeli diş klinikleri ve hastaneler için lot ve son kullanma tarihi takipli stok yönetimi ve ön muhasebe: transfer, satın alma, sayım, iade, ÜTS sorgulama, kasa-banka-POS, cariler, vadeler ve raporlar tek sistemde.">
 
         @include('partials.pwa-head')
 
@@ -50,7 +50,7 @@
                             <span class="font-semibold tracking-[-0.02em] text-[15px]">Dental ERP</span>
                         </div>
                         <p class="mt-3 text-[13px] leading-relaxed">
-                            Diş klinikleri ve hastaneleri için lot ve son kullanma tarihi takipli stok yönetim sistemi.
+                            Diş klinikleri ve hastaneleri için stok yönetimi ve ön muhasebe programı.
                         </p>
                     </div>
 
