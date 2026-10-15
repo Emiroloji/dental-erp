@@ -2,31 +2,46 @@
 
 namespace Tests\Feature\Acceptance;
 
+use App\Domain\Access\Exceptions\StaffRuleException;
+use App\Domain\Access\Models\Permission;
+use App\Domain\Access\Services\StaffService;
+use App\Domain\Access\Support\Module;
+use App\Domain\Access\Support\PermissionScope;
 use App\Domain\Finance\Models\FinanceAccount;
 use App\Domain\Finance\Models\FinanceCategory;
 use App\Domain\Finance\Models\FinanceEntry;
 use App\Domain\Finance\Models\FinanceObligation;
 use App\Domain\Finance\Models\FinanceParty;
 use App\Domain\Finance\Models\FinanceRecurring;
+use App\Domain\Finance\Notifications\FinanceDueNotification;
 use App\Domain\Finance\Reports\AccountStatementService;
+use App\Domain\Finance\Reports\AgingReportService;
 use App\Domain\Finance\Reports\CashFlowReportService;
 use App\Domain\Finance\Reports\FinanceReportFilters;
 use App\Domain\Finance\Reports\IncomeExpenseReportService;
 use App\Domain\Finance\Services\FinanceBalanceService;
+use App\Domain\Finance\Services\LedgerService;
 use App\Domain\Finance\Services\ObligationSummaryService;
 use App\Domain\Finance\Support\FinanceCalendar;
 use App\Domain\Finance\Support\FinanceEntryType;
 use App\Domain\Finance\Support\Money;
 use App\Domain\Finance\Support\ObligationDirection;
 use App\Domain\Finance\Support\ObligationStatus;
+use App\Domain\Organization\Exceptions\ReadOnlyOrganizationException;
 use App\Domain\Organization\Models\Branch;
 use App\Domain\Organization\Models\Organization;
+use App\Domain\Organization\Support\OrganizationStatus;
+use App\Domain\Reporting\Models\ReportExport;
+use App\Domain\Reporting\Support\ReportExportStatus;
+use App\Domain\Reporting\Support\ReportType;
 use App\Models\User;
 use Carbon\Carbon;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 use Tests\TestCase;
 
 /**
@@ -72,6 +87,10 @@ class Faz5FinanceAcceptanceTest extends TestCase
 
     private FinanceObligation $depotPayable;
 
+    private FinanceObligation $novemberRent;
+
+    private ReportExport $export;
+
     protected function tearDown(): void
     {
         CarbonImmutable::setTestNow();
@@ -86,6 +105,11 @@ class Faz5FinanceAcceptanceTest extends TestCase
         $this->step2_first_week_of_october();
         $this->step3_mid_month_supplier_is_paid_in_two_parts();
         $this->step4_month_end_bank_reconciliation_and_reports();
+        $this->step5_income_expense_excel_export();
+        $this->step6_november_overdue_and_collection();
+        $this->step7_staff_permissions();
+        $this->step8_read_only_organization();
+        $this->step9_other_organization_sees_nothing();
     }
 
     private function at(string $datetime): void
@@ -378,8 +402,8 @@ class Faz5FinanceAcceptanceTest extends TestCase
 
         // Ufuk 31.10 + 35 gün = 05.12: Kasım kirası üretilir.
         Artisan::call('finance:generate-recurring');
-        $novemberRent = FinanceObligation::where('description', 'Kira — Kasım 2026')->sole();
-        $this->assertSame('2026-11-06', $novemberRent->due_on->toDateString());
+        $this->novemberRent = FinanceObligation::where('description', 'Kira — Kasım 2026')->sole();
+        $this->assertSame('2026-11-06', $this->novemberRent->due_on->toDateString());
         $this->assertSame(2, FinanceObligation::whereNotNull('recurring_id')->count());
 
         // Gelir-Gider (Ekim), ekrandan
@@ -442,5 +466,233 @@ class Faz5FinanceAcceptanceTest extends TestCase
         $this->assertSame(2_500_000, $summary['weekReceivable']);
 
         $this->assertBooksAgree(15_875_000);
+    }
+
+    private function step5_income_expense_excel_export(): void
+    {
+        $this->at('2026-10-31 10:00:00');
+        Storage::fake('local');
+        $before = ReportExport::count();
+
+        Livewire::test('pages::finance.reports')
+            ->call('selectReport', 'income_expense')
+            ->set('from', '2026-10-01')
+            ->set('to', '2026-10-31')
+            ->call('export', 'xlsx')
+            ->assertHasNoErrors();
+
+        $this->assertSame($before + 1, ReportExport::count());
+        $this->export = ReportExport::latest('id')->firstOrFail();
+        $this->assertSame(ReportType::FinanceIncomeExpense, $this->export->report);
+        $this->assertSame(ReportExportStatus::Completed, $this->export->status);
+        Storage::disk('local')->assertExists($this->export->file_path);
+        $this->get(route('reports.exports.download', $this->export))->assertOk();
+
+        $rows = IOFactory::load(Storage::disk('local')->path($this->export->file_path))->getActiveSheet()->toArray();
+        $this->assertSame(['Tür', 'Kategori / Ay', 'Gelir', 'Gider', 'Net'], $rows[0]);
+
+        // Ay satırı ve toplam satırı lira cinsinden sayılardır (kuruş değil).
+        $month = collect($rows)->first(fn (array $row) => $row[0] === 'Ay');
+        $this->assertNotNull($month);
+        $this->assertSame('Ekim 2026', $month[1]);
+        foreach ([2 => 50000, 3 => 61100, 4 => -11100] as $column => $lira) {
+            $this->assertTrue(is_numeric($month[$column]), "Ay satırı sütun {$column} sayı olmalı");
+            $this->assertEquals($lira, $month[$column]);
+        }
+
+        $total = end($rows);
+        $this->assertSame('Toplam', $total[0]);
+        foreach ([2 => 50000, 3 => 61100, 4 => -11100] as $column => $lira) {
+            $this->assertTrue(is_numeric($total[$column]), "Toplam satırı sütun {$column} sayı olmalı");
+            $this->assertEquals($lira, $total[$column]);
+        }
+    }
+
+    private function step6_november_overdue_and_collection(): void
+    {
+        $this->at('2026-11-10 10:00:00');
+        $balances = app(FinanceBalanceService::class);
+
+        Artisan::call('finance:scan-due');
+        $notices = $this->admin->notifications()->where('type', FinanceDueNotification::class)->get();
+        foreach ([$this->novemberRent, $this->insuranceReceivable] as $overdue) {
+            $notice = $notices->firstWhere('data.obligation_id', $overdue->id);
+            $this->assertNotNull($notice, "{$overdue->description} için bildirim");
+            $this->assertSame('overdue', $notice->data['state']);
+        }
+
+        Livewire::test('pages::finance.overview')
+            ->assertSee('40.000,00 ₺')
+            ->assertSee('25.000,00 ₺')
+            ->assertSee('(2 kayıt)');
+        $summary = app(ObligationSummaryService::class)->summarize(0);
+        $this->assertSame(4_000_000, $summary['overduePayable']);
+        $this->assertSame(2_500_000, $summary['overdueReceivable']);
+        $this->assertSame(2, $summary['overdueCount']);
+
+        $aging = Livewire::test('pages::finance.reports')
+            ->call('selectReport', 'aging')
+            ->set('direction', 'receivable')
+            ->viewData('aging');
+        $this->assertCount(1, $aging['rows']);
+        $this->assertSame('Anadolu Sigorta', $aging['rows'][0]['party']);
+        $firstOverdueBucket = AgingReportService::BUCKETS[1];
+        $this->assertSame('1–30 gün', app(AgingReportService::class)->bucketLabel($firstOverdueBucket));
+        $this->assertSame(2_500_000, $aging['rows'][0]['buckets'][$firstOverdueBucket]);
+        $this->assertSame(2_500_000, $aging['total']);
+
+        // Gecikenler bugüne yığılır: 15.875.000 − 4.000.000 + 2.500.000
+        $projection = Livewire::test('pages::finance.reports')
+            ->call('selectReport', 'cash_flow')
+            ->set('days', '90')
+            ->viewData('projection');
+        $this->assertSame(15_875_000, $projection['start']);
+        $this->assertSame('2026-11-10', $projection['points'][0]['date']);
+        $this->assertSame(14_375_000, $projection['points'][0]['balance']);
+
+        $this->pay($this->insuranceReceivable, $this->bank, '25.000,00');
+        $this->assertSame(ObligationStatus::Paid, $this->insuranceReceivable->fresh()->status);
+        $this->assertSame(14_625_000, $balances->balance($this->bank));
+
+        $october = $this->incomeExpense('2026-10-01', '2026-10-31');
+        $this->assertSame(5_000_000, $october['income_total']);
+        $this->assertSame(6_110_000, $october['expense_total']);
+
+        $november = $this->incomeExpense('2026-11-01', '2026-11-10');
+        $this->assertSame(2_500_000, $november['income_total']);
+        $this->assertSame([['category' => 'Kurum Tahsilatı', 'total' => 2_500_000]], $november['income']);
+        $this->assertSame(0, $november['expense_total']);
+
+        $this->assertBooksAgree(18_375_000);
+    }
+
+    private function step7_staff_permissions(): void
+    {
+        $this->at('2026-11-10 10:00:00');
+
+        $outsider = User::factory()->create(['organization_id' => $this->clinic->id, 'branch_id' => $this->central->id, 'role' => User::ROLE_STAFF, 'status' => 'active']);
+        $reader = User::factory()->create(['organization_id' => $this->clinic->id, 'branch_id' => $this->central->id, 'role' => User::ROLE_STAFF, 'status' => 'active']);
+        Permission::create([
+            'user_id' => $reader->id, 'module' => Module::Finance->value,
+            'can_read' => true, 'can_write' => false, 'can_delete' => false,
+            'scope' => PermissionScope::All->value,
+        ]);
+
+        $this->actingAs($outsider);
+        foreach ([
+            '/finans', '/finans/hareketler', '/finans/odemeler', '/finans/cariler', '/finans/cariler/'.$this->insurer->id,
+            '/finans/tekrarlayanlar', '/finans/hesaplar', '/finans/hesaplar/'.$this->bank->id, '/finans/raporlar', '/finans/kategoriler',
+        ] as $uri) {
+            $this->get($uri)->assertForbidden();
+        }
+
+        $this->actingAs($reader);
+        $this->get('/finans')->assertOk()->assertSee('183.750,00 ₺');
+        Livewire::test('pages::finance.overview')->assertSee('183.750,00 ₺');
+
+        $entries = FinanceEntry::count();
+        Livewire::test('pages::finance.entries')->call('openForm', 'income')->assertForbidden();
+        Livewire::test('pages::finance.entries')
+            ->set('formType', 'income')
+            ->set('accountId', (string) $this->cash->id)
+            ->set('amount', '1.000,00')
+            ->set('date', '2026-11-10')
+            ->set('categoryId', (string) $this->category('Hasılat'))
+            ->call('save')
+            ->assertForbidden();
+        $this->assertSame($entries, FinanceEntry::count());
+
+        Livewire::test('pages::finance.obligations')
+            ->set('payingId', $this->novemberRent->id)
+            ->set('payAccountId', (string) $this->bank->id)
+            ->set('payAmount', '40.000,00')
+            ->set('payDate', '2026-11-10')
+            ->call('confirmPay')
+            ->assertForbidden();
+        $this->assertSame($entries, FinanceEntry::count());
+        $this->assertSame(ObligationStatus::Open, $this->novemberRent->fresh()->status);
+
+        // Şube kapsamlı finans yetkisi verilemez.
+        $this->actingAs($this->admin);
+        try {
+            app(StaffService::class)->createStaff(
+                ['name' => 'Ayşe', 'email' => 'ayse@gulus.test', 'password' => 'gizli-sifre', 'branch_id' => $this->central->id],
+                [Module::Finance->value => ['read' => true, 'write' => false, 'delete' => false]],
+                PermissionScope::OwnBranch,
+            );
+            $this->fail('Şube kapsamlı finans yetkisi reddedilmeliydi.');
+        } catch (StaffRuleException $e) {
+            $this->assertSame('Finans yetkisi yalnızca "Tüm şubeler" kapsamıyla verilebilir.', $e->getMessage());
+        }
+        $this->assertFalse(User::where('email', 'ayse@gulus.test')->exists());
+    }
+
+    private function step8_read_only_organization(): void
+    {
+        $this->at('2026-11-10 10:00:00');
+
+        $this->clinic->update(['status' => OrganizationStatus::ReadOnly]);
+        $this->admin->refresh();
+        $this->actingAs($this->admin);
+        $entries = FinanceEntry::count();
+
+        $this->get('/finans')->assertOk()->assertSee('183.750,00 ₺');
+        Livewire::test('pages::finance.overview')->assertSee('183.750,00 ₺');
+        $this->get('/finans/raporlar')->assertOk();
+        $this->assertFalse($this->admin->can('finance.create'));
+        $this->get('/finans/hareketler')->assertOk()->assertDontSee('+ Gelir');
+
+        Livewire::test('pages::finance.entries')
+            ->set('formType', 'income')
+            ->set('accountId', (string) $this->cash->id)
+            ->set('amount', '1.000,00')
+            ->set('date', '2026-11-10')
+            ->set('categoryId', (string) $this->category('Hasılat'))
+            ->call('save')
+            ->assertForbidden();
+
+        try {
+            app(LedgerService::class)->income($this->cash, 100_000, CarbonImmutable::parse('2026-11-10'), FinanceCategory::findOrFail($this->category('Hasılat')), $this->admin);
+            $this->fail('Salt-okunur organizasyonda deftere yazılmamalıydı.');
+        } catch (ReadOnlyOrganizationException) {
+            // beklenen
+        }
+
+        $this->assertSame($entries, FinanceEntry::count());
+        $this->assertSame(18_375_000, app(FinanceBalanceService::class)->total());
+    }
+
+    private function step9_other_organization_sees_nothing(): void
+    {
+        $this->at('2026-11-10 10:00:00');
+
+        // Kurulum oturumsuz yapılır: salt-okunur kliniğin Admin'i oturumdayken
+        // ReadOnlyGuard her model yazımını (başka organizasyonunki dahil) reddeder.
+        auth()->logout();
+
+        $other = Organization::create(['name' => 'Başka Klinik', 'status' => 'active', 'plan' => 'professional']);
+        $this->actingAs(User::factory()->create(['organization_id' => $other->id, 'role' => User::ROLE_ADMIN, 'status' => 'active']));
+
+        Livewire::test('pages::finance.overview')
+            ->assertSee('Önce bir kasa veya banka hesabı tanımla')
+            ->assertDontSee('183.750,00 ₺');
+        $this->get('/finans')->assertOk()->assertDontSee('183.750,00 ₺');
+
+        $this->get(route('finance.accounts.show', $this->bank))->assertNotFound();
+        $this->get(route('finance.parties.show', $this->insurer))->assertNotFound();
+        $this->assertContains($this->get(route('reports.exports.download', $this->export))->status(), [403, 404]);
+
+        foreach ([FinanceAccount::class, FinanceEntry::class, FinanceObligation::class, FinanceParty::class, FinanceCategory::class, FinanceRecurring::class] as $model) {
+            $this->assertSame(0, $model::count(), class_basename($model));
+        }
+
+        $report = Livewire::test('pages::finance.reports')
+            ->call('selectReport', 'income_expense')
+            ->set('from', '2026-10-01')
+            ->set('to', '2026-11-10')
+            ->viewData('income');
+        $this->assertSame(0, $report['income_total']);
+        $this->assertSame(0, $report['expense_total']);
+        $this->assertSame(0, $report['net']);
     }
 }
