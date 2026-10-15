@@ -38,6 +38,8 @@ class IncomeExpenseReportTest extends TestCase
 
     private FinanceCategory $revenue;
 
+    private FinanceCategory $rent;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -53,13 +55,13 @@ class IncomeExpenseReportTest extends TestCase
         $this->cash = FinanceAccount::create(['name' => 'Kasa', 'type' => AccountType::Cash, 'opening_balance' => 1_000_000, 'opening_date' => '2026-09-01']);
         $this->bank = FinanceAccount::create(['name' => 'Banka', 'type' => AccountType::Bank, 'opening_balance' => 0, 'opening_date' => '2026-09-01']);
         $this->revenue = FinanceCategory::create(['name' => 'Hasılat', 'direction' => CategoryDirection::Income]);
-        $rent = FinanceCategory::create(['name' => 'Kira', 'direction' => CategoryDirection::Expense]);
+        $this->rent = FinanceCategory::create(['name' => 'Kira', 'direction' => CategoryDirection::Expense]);
         $material = FinanceCategory::create(['name' => 'Malzeme', 'direction' => CategoryDirection::Expense]);
         $commission = FinanceCategory::create(['name' => 'Banka/POS Komisyonu', 'direction' => CategoryDirection::Expense]);
 
         $ledger = app(LedgerService::class);
         $ledger->income($this->cash, 500_000, $this->day('2026-10-02'), $this->revenue, $this->actor);
-        $ledger->expense($this->cash, 200_000, $this->day('2026-10-03'), $rent, $this->actor);
+        $ledger->expense($this->cash, 200_000, $this->day('2026-10-03'), $this->rent, $this->actor);
         $toReverse = $ledger->expense($this->cash, 100_000, $this->day('2026-10-04'), $material, $this->actor);
         $ledger->transfer($this->cash, $this->bank, 300_000, $this->day('2026-10-05'), $this->actor, null, 5_000, $commission);
 
@@ -184,5 +186,41 @@ class IncomeExpenseReportTest extends TestCase
         $this->assertSame(['Gider', 'Kira', 200_000], $table['rows'][2]);
         $this->assertCount(5, $table['rows']);
         $this->assertSame(['', 'Net', 215_000], $table['totals']);
+    }
+
+    public function test_describe_names_the_category(): void
+    {
+        $this->assertStringContainsString('Kategori: Hasılat', $this->filters(extra: ['category_id' => (string) $this->revenue->id])->describe());
+    }
+
+    public function test_category_filter_limits_report_to_that_category(): void
+    {
+        $report = $this->reports->report($this->filters(extra: ['category_id' => $this->rent->id]));
+
+        $this->assertSame([], $report['income']);
+        $this->assertSame(0, $report['income_total']);
+        $this->assertSame([['category' => 'Kira', 'total' => 200_000]], $report['expense']);
+        $this->assertSame(200_000, $report['expense_total']);
+        $this->assertSame([['month' => 'Ekim 2026', 'income' => 0, 'expense' => 200_000, 'net' => -200_000]], $report['months']);
+    }
+
+    public function test_category_filter_covers_payments_and_reversals(): void
+    {
+        // Malzeme: 100.000 gider + onun iptali (net 0) ve yükümlülük kategorisiyle yazılan 150.000 ödeme.
+        $material = FinanceCategory::where('name', 'Malzeme')->firstOrFail();
+
+        $report = $this->reports->report($this->filters(extra: ['category_id' => $material->id]));
+
+        $this->assertSame([['category' => 'Malzeme', 'total' => 150_000]], $report['expense']);
+        $this->assertSame(0, $report['income_total']);
+    }
+
+    public function test_category_filter_on_income_category_shows_only_income(): void
+    {
+        $report = $this->reports->report($this->filters(extra: ['category_id' => $this->revenue->id]));
+
+        $this->assertSame([['category' => 'Hasılat', 'total' => 500_000]], $report['income']);
+        $this->assertSame([], $report['expense']);
+        $this->assertSame(500_000, $report['net']);
     }
 }

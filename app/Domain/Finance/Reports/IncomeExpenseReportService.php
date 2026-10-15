@@ -108,6 +108,7 @@ class IncomeExpenseReportService
             ->whereDate('finance_entries.occurred_on', '<=', $filters->to->toDateString())
             ->when($filters->branchId !== null, fn ($q) => $q->where('finance_entries.branch_id', $filters->branchId))
             ->when($filters->accountId !== null, fn ($q) => $q->where('finance_entries.account_id', $filters->accountId))
+            ->when($filters->categoryId !== null, fn ($q) => $q->where('finance_entries.category_id', $filters->categoryId))
             ->selectRaw('finance_entries.occurred_on as occurred_on, finance_entries.category_id as category_id, COALESCE(original.direction, finance_entries.direction) as bucket, SUM(finance_entries.direction * finance_entries.amount) as signed')
             ->groupBy('finance_entries.occurred_on', 'finance_entries.category_id')
             ->groupByRaw('COALESCE(original.direction, finance_entries.direction)')

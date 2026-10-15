@@ -203,7 +203,7 @@ class FinanceReportsScreenTest extends TestCase
         Livewire::test('pages::finance.reports')
             ->set('branch', (string) $branch->id)
             ->assertSet('branch', (string) $branch->id)
-            ->assertDontSee('Hasılat')
+            ->assertDontSee('5.000,00 ₺')
             ->call('selectReport', 'cash_flow')
             ->assertSet('branch', '')
             ->assertSee('15.000,00 ₺')
@@ -222,5 +222,36 @@ class FinanceReportsScreenTest extends TestCase
             ->call('selectReport', 'cash_flow')
             ->set('account', (string) $this->bank->id)
             ->assertSee('tüm aktif hesaplar');
+    }
+
+    public function test_category_filter_narrows_income_expense_and_is_cleared_on_tab_change(): void
+    {
+        $rent = FinanceCategory::create(['name' => 'Kira', 'direction' => CategoryDirection::Expense]);
+        app(LedgerService::class)->expense($this->bank, 200_000, CarbonImmutable::parse('2026-10-06'), $rent, $this->admin);
+
+        $component = Livewire::test('pages::finance.reports')
+            ->set('category', (string) $rent->id)
+            ->assertSet('category', (string) $rent->id);
+        $this->assertSame([], $component->viewData('income')['income']);
+        $this->assertSame([['category' => 'Kira', 'total' => 200_000]], $component->viewData('income')['expense']);
+
+        $component->call('selectReport', 'cash_flow')->assertSet('category', '');
+    }
+
+    public function test_foreign_or_unknown_category_is_ignored(): void
+    {
+        $other = Organization::create(['name' => 'Başka', 'status' => 'active', 'plan' => 'starter']);
+        $foreign = FinanceCategory::withoutGlobalScopes()->create(['organization_id' => $other->id, 'name' => 'Yabancı', 'direction' => CategoryDirection::Income]);
+
+        Livewire::test('pages::finance.reports')
+            ->set('category', (string) $foreign->id)
+            ->assertSet('category', '');
+        Livewire::withQueryParams(['category' => '99999'])->test('pages::finance.reports')->assertSet('category', '');
+    }
+
+    public function test_category_select_is_shown_only_on_income_expense(): void
+    {
+        Livewire::test('pages::finance.reports')->assertSee('Tüm kategoriler');
+        Livewire::test('pages::finance.reports')->call('selectReport', 'aging')->assertDontSee('Tüm kategoriler');
     }
 }

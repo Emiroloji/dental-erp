@@ -1,6 +1,7 @@
 <?php
 
 use App\Domain\Finance\Models\FinanceAccount;
+use App\Domain\Finance\Models\FinanceCategory;
 use App\Domain\Finance\Reports\AgingReportService;
 use App\Domain\Finance\Reports\CashFlowProjectionService;
 use App\Domain\Finance\Reports\CashFlowReportService;
@@ -38,6 +39,9 @@ new #[Layout('layouts::authenticated')] class extends Component
     public string $branch = '';
 
     #[Url]
+    public string $category = '';
+
+    #[Url]
     public string $account = '';
 
     #[Url]
@@ -63,6 +67,7 @@ new #[Layout('layouts::authenticated')] class extends Component
         $this->from = '';
         $this->to = '';
         $this->branch = '';
+        $this->category = '';
         $this->normalize();
     }
 
@@ -88,6 +93,7 @@ new #[Layout('layouts::authenticated')] class extends Component
             'from' => $this->from,
             'to' => $this->to,
             'branch_id' => $this->branch,
+            'category_id' => $this->category,
             'account_id' => $this->account,
             'days' => $this->days,
             'direction' => $this->direction,
@@ -96,14 +102,17 @@ new #[Layout('layouts::authenticated')] class extends Component
         // Kapsamlı listede olmayan şube/hesap kimliği süzgeci sessizce kaldırır.
         // Şube yalnızca Gelir-Gider'de bir süzgeçtir; diğer sekmelerde görünmez olduğundan uygulanmaz.
         $branchId = $this->report === 'income_expense' && $filters->branchId !== null && Branch::where('organization_id', auth()->user()->organization_id)->whereKey($filters->branchId)->exists() ? $filters->branchId : null;
+        // Kategori de yalnızca Gelir-Gider süzgecidir; kapsamlı sorguda bulunmayan kimlik sessizce düşer.
+        $categoryId = $this->report === 'income_expense' && $filters->categoryId !== null && FinanceCategory::whereKey($filters->categoryId)->exists() ? $filters->categoryId : null;
         $accountId = $filters->accountId !== null && FinanceAccount::whereKey($filters->accountId)->exists() ? $filters->accountId : null;
 
-        $filters = new FinanceReportFilters($filters->from, $filters->to, $branchId, $accountId, $this->report === 'aging' ? ($filters->direction ?? ObligationDirection::Receivable) : null, $filters->days);
+        $filters = new FinanceReportFilters($filters->from, $filters->to, $branchId, $accountId, $this->report === 'aging' ? ($filters->direction ?? ObligationDirection::Receivable) : null, $filters->days, $categoryId);
 
         $this->from = $filters->from->toDateString();
         $this->to = $filters->to->toDateString();
         $this->branch = (string) $branchId;
         $this->account = (string) $accountId;
+        $this->category = (string) $categoryId;
         $this->days = (string) $filters->days;
         $this->direction = (ObligationDirection::tryFrom($this->direction) ?? ObligationDirection::Receivable)->value;
 
@@ -140,6 +149,7 @@ new #[Layout('layouts::authenticated')] class extends Component
 
         return $data + [
             'branches' => Branch::where('organization_id', auth()->user()->organization_id)->where('status', 'active')->orderBy('name')->get(),
+            'categories' => FinanceCategory::orderBy('direction')->orderBy('name')->get(['id', 'name', 'direction']),
             'accounts' => FinanceAccount::orderBy('name')->get(['id', 'name']),
         ];
     }
@@ -198,6 +208,15 @@ new #[Layout('layouts::authenticated')] class extends Component
                         <option value="">Tüm şubeler</option>
                         @foreach ($branches as $b)
                             <option value="{{ $b->id }}">{{ $b->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[12px] text-ink-muted mb-1">Kategori</label>
+                    <select wire:model.live="category" class="border border-line rounded-md px-3 py-1.5 text-[14px] bg-surface">
+                        <option value="">Tüm kategoriler</option>
+                        @foreach ($categories as $c)
+                            <option value="{{ $c->id }}">{{ $c->name }} ({{ $c->direction->label() }})</option>
                         @endforeach
                     </select>
                 </div>

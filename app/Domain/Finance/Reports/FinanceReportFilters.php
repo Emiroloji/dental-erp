@@ -3,6 +3,7 @@
 namespace App\Domain\Finance\Reports;
 
 use App\Domain\Finance\Models\FinanceAccount;
+use App\Domain\Finance\Models\FinanceCategory;
 use App\Domain\Finance\Support\ObligationDirection;
 use App\Domain\Organization\Models\Branch;
 use Carbon\CarbonImmutable;
@@ -20,6 +21,7 @@ final readonly class FinanceReportFilters
         public ?int $accountId = null,
         public ?ObligationDirection $direction = null,
         public int $days = 90,
+        public ?int $categoryId = null,
     ) {}
 
     /**
@@ -45,13 +47,14 @@ final readonly class FinanceReportFilters
             accountId: self::parseId($input['account_id'] ?? null),
             direction: is_string($input['direction'] ?? null) ? ObligationDirection::tryFrom($input['direction']) : null,
             days: in_array($days, [30, 60, 90], true) ? $days : 90,
+            categoryId: self::parseId($input['category_id'] ?? null),
         );
     }
 
     /**
      * Kuyruğa yazılacak düz değerler; fromArray ile aynen geri kurulur.
      *
-     * @return array{from: string, to: string, branch_id: ?int, account_id: ?int, direction: ?string, days: int}
+     * @return array{from: string, to: string, branch_id: ?int, account_id: ?int, direction: ?string, days: int, category_id: ?int}
      */
     public function toArray(): array
     {
@@ -62,6 +65,7 @@ final readonly class FinanceReportFilters
             'account_id' => $this->accountId,
             'direction' => $this->direction?->value,
             'days' => $this->days,
+            'category_id' => $this->categoryId,
         ];
     }
 
@@ -78,6 +82,10 @@ final readonly class FinanceReportFilters
 
         if ($this->accountId !== null) {
             $parts[] = 'Hesap: '.(FinanceAccount::find($this->accountId)?->name ?? '—');
+        }
+
+        if ($this->categoryId !== null) {
+            $parts[] = 'Kategori: '.(FinanceCategory::find($this->categoryId)?->name ?? '—');
         }
 
         if ($this->direction !== null) {

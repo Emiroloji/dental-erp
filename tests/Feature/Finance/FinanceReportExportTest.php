@@ -232,4 +232,32 @@ class FinanceReportExportTest extends TestCase
 
         $this->get(route('reports.exports.download', $export))->assertNotFound();
     }
+
+    public function test_category_filter_reaches_income_expense_export_but_not_cash_flow(): void
+    {
+        $rent = FinanceCategory::create(['name' => 'Kira', 'direction' => CategoryDirection::Expense]);
+        app(LedgerService::class)->expense($this->bank, 200_000, CarbonImmutable::parse('2026-10-06'), $rent, $this->admin);
+        $input = [...$this->filterInput(), 'category_id' => $rent->id];
+        $service = app(ReportExportService::class);
+
+        $export = $service->request($this->admin, ReportType::FinanceIncomeExpense, 'xlsx', ['filters' => $input])->refresh();
+        $cells = array_merge(...$this->sheet($export));
+        $this->assertContains('Kira', $cells);
+        $this->assertNotContains('Hasılat', $cells);
+
+        $descriptions = [];
+        $this->mock(ReportDownloader::class, function ($mock) use (&$descriptions) {
+            $mock->shouldReceive('pdfContentWithDescription')->twice()
+                ->andReturnUsing(function (string $title, array $table, string $description) use (&$descriptions) {
+                    $descriptions[] = $description;
+
+                    return 'pdf';
+                });
+        });
+        $service->request($this->admin, ReportType::FinanceIncomeExpense, 'pdf', ['filters' => $input]);
+        $service->request($this->admin, ReportType::FinanceCashFlow, 'pdf', ['filters' => $input]);
+
+        $this->assertStringContainsString('Kategori: Kira', $descriptions[0]);
+        $this->assertStringNotContainsString('Kategori:', $descriptions[1]);
+    }
 }

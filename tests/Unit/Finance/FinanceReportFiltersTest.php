@@ -57,4 +57,19 @@ class FinanceReportFiltersTest extends TestCase
 
         $this->assertEquals($f, $this->make($f->toArray()));
     }
+
+    public function test_category_id_round_trips_and_rejects_garbage(): void
+    {
+        $from = CarbonImmutable::parse('2026-10-01');
+        $to = CarbonImmutable::parse('2026-10-31');
+
+        $filters = FinanceReportFilters::fromArray(['category_id' => '7'], $from, $to);
+        $this->assertSame(7, $filters->categoryId);
+        $this->assertSame(7, $filters->toArray()['category_id']);
+        $this->assertSame(7, FinanceReportFilters::fromArray($filters->toArray(), $from, $to)->categoryId);
+
+        $this->assertNull(FinanceReportFilters::fromArray(['category_id' => 'abc'], $from, $to)->categoryId);
+        $this->assertNull(FinanceReportFilters::fromArray(['category_id' => '-3'], $from, $to)->categoryId);
+        $this->assertNull(FinanceReportFilters::fromArray([], $from, $to)->categoryId);
+    }
 }

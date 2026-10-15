@@ -60,7 +60,7 @@ class FinanceReportExporter
         $from = $type === ReportType::FinanceCashFlow ? $today->subMonthsNoOverflow(5)->startOfMonth() : $today->startOfMonth();
         $filters = FinanceReportFilters::fromArray($input, $from, $today);
 
-        // Her süzgeç yalnızca kendi raporunda geçerlidir: şube Gelir-Gider'e, yön Yaşlandırma'ya aittir.
+        // Her süzgeç yalnızca kendi raporunda geçerlidir: şube ve kategori Gelir-Gider'e, yön Yaşlandırma'ya aittir.
         $filters = new FinanceReportFilters(
             $filters->from,
             $filters->to,
@@ -68,6 +68,7 @@ class FinanceReportExporter
             $filters->accountId,
             $type === ReportType::FinanceAging ? $filters->direction : null,
             $filters->days,
+            $type === ReportType::FinanceIncomeExpense ? $filters->categoryId : null,
         );
 
         return match ($type) {
