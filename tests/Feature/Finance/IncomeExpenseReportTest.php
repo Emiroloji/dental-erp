@@ -235,4 +235,18 @@ class IncomeExpenseReportTest extends TestCase
         $this->assertSame([], $report['expense']);
         $this->assertSame(500_000, $report['net']);
     }
+
+    public function test_same_name_income_and_expense_categories_stay_in_their_own_buckets(): void
+    {
+        $otherIncome = FinanceCategory::create(['name' => 'Diğer', 'direction' => CategoryDirection::Income]);
+        $otherExpense = FinanceCategory::create(['name' => 'Diğer', 'direction' => CategoryDirection::Expense]);
+        $ledger = app(LedgerService::class);
+        $ledger->income($this->cash, 7_000, $this->day('2026-10-10'), $otherIncome, $this->actor);
+        $ledger->expense($this->cash, 3_000, $this->day('2026-10-10'), $otherExpense, $this->actor);
+
+        $report = $this->reports->report($this->filters());
+
+        $this->assertContains(['category' => 'Diğer', 'total' => 7_000], $report['income']);
+        $this->assertContains(['category' => 'Diğer', 'total' => 3_000], $report['expense']);
+    }
 }

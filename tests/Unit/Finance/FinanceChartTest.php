@@ -80,4 +80,21 @@ class FinanceChartTest extends TestCase
         $this->assertEqualsWithDelta(184.0, $c['bars'][1]['height'], 0.01);
         $this->assertEqualsWithDelta(192.0, $c['bars'][0]['y'], 0.01);
     }
+
+    public function test_tiny_non_zero_bar_stays_visible(): void
+    {
+        $chart = FinanceChart::bars([['in' => 10_000_000, 'out' => 100]], 720, 200, 8);
+
+        [$in, $out] = $chart['bars'];
+        $this->assertSame(184.0, $in['height']);
+        $this->assertSame(2.0, $out['height']);
+        $this->assertSame(round($chart['zero_y'] - 2.0, 2), $out['y']);
+    }
+
+    public function test_zero_bar_keeps_zero_height(): void
+    {
+        $chart = FinanceChart::bars([['in' => 5_000, 'out' => 0]]);
+
+        $this->assertSame(0.0, $chart['bars'][1]['height']);
+    }
 }

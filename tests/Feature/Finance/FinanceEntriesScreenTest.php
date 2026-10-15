@@ -282,4 +282,10 @@ class FinanceEntriesScreenTest extends TestCase
         $this->transferForm()->call('save')
             ->assertHasErrors('toAccountId')->assertHasNoErrors(['accountId', 'amount']);
     }
+
+    public function test_same_account_transfer_error_lands_on_target_account_field(): void
+    {
+        $this->transferForm()->set('toAccountId', $this->cash->id)->call('save')
+            ->assertHasErrors('toAccountId')->assertHasNoErrors(['accountId', 'amount']);
+    }
 }

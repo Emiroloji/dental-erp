@@ -8,6 +8,8 @@ namespace App\Domain\Finance\Support;
  */
 final class FinanceChart
 {
+    private const MIN_BAR_HEIGHT = 2.0; // sıfırdan büyük tutar her zaman görünür
+
     /**
      * @param  list<int>  $values
      * @return array{path: string, area: string, zero_y: float, min: int, max: int, points: list<array{x: float, y: float}>}
@@ -88,7 +90,7 @@ final class FinanceChart
         foreach ($groups as $i => $g) {
             $left = $padding + $i * $slot + ($slot - (2 * $barW + $gap)) / 2;
             foreach (['in', 'out'] as $k => $kind) {
-                $h = $max === 0 ? 0.0 : $g[$kind] / $max * $plotH;
+                $h = $max === 0 || $g[$kind] === 0 ? 0.0 : max(self::MIN_BAR_HEIGHT, $g[$kind] / $max * $plotH);
                 $bars[] = [
                     'x' => round($left + $k * ($barW + $gap), 2),
                     'y' => round($zeroY - $h, 2),
