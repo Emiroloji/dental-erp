@@ -177,15 +177,27 @@ class IncomeExpenseReportTest extends TestCase
         $this->assertNotContains('Yabancı', array_column($report['income'], 'category'));
     }
 
-    public function test_table_lists_income_then_expense_with_net_total(): void
+    public function test_table_lists_categories_then_months_with_one_total_row(): void
     {
         $table = $this->reports->table($this->filters());
 
-        $this->assertSame(['Tür', 'Kategori', 'Tutar'], $table['headings']);
-        $this->assertSame(['Gelir', 'Hasılat', 500_000], $table['rows'][0]);
-        $this->assertSame(['Gider', 'Kira', 200_000], $table['rows'][2]);
-        $this->assertCount(5, $table['rows']);
-        $this->assertSame(['', 'Net', 215_000], $table['totals']);
+        $this->assertSame(['Tür', 'Kategori / Ay', 'Gelir', 'Gider', 'Net'], $table['headings']);
+        $this->assertSame(['Gelir', 'Hasılat', 500_000, '', ''], $table['rows'][0]);
+        $this->assertSame(['Gider', 'Kira', '', 200_000, ''], $table['rows'][2]);
+
+        $this->assertSame(['Gider', 'Banka/POS Komisyonu', '', 5_000, ''], $table['rows'][4]);
+        $this->assertSame(['', '', '', '', ''], $table['rows'][5]);
+        $this->assertSame(['Ay', 'Ekim 2026', 570_000, 355_000, 215_000], $table['rows'][6]);
+        $this->assertCount(7, $table['rows']);
+        $this->assertSame(['Toplam', '', 570_000, 355_000, 215_000], $table['totals']);
+    }
+
+    public function test_table_lists_every_month_of_a_multi_month_period(): void
+    {
+        $table = $this->reports->table($this->filters('2026-09-01'));
+
+        $this->assertSame(['Ay', 'Eylül 2026', 0, 0, 0], $table['rows'][6]);
+        $this->assertSame(['Ay', 'Ekim 2026', 570_000, 355_000, 215_000], $table['rows'][7]);
     }
 
     public function test_describe_names_the_category(): void

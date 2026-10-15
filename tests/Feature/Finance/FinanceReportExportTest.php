@@ -11,6 +11,7 @@ use App\Domain\Finance\Reports\FinanceReportFilters;
 use App\Domain\Finance\Services\LedgerService;
 use App\Domain\Finance\Support\AccountType;
 use App\Domain\Finance\Support\CategoryDirection;
+use App\Domain\Finance\Support\Money;
 use App\Domain\Organization\Models\Branch;
 use App\Domain\Organization\Models\Organization;
 use App\Domain\Reporting\Models\ReportExport;
@@ -101,11 +102,47 @@ class FinanceReportExportTest extends TestCase
 
         $rows = $this->sheet($export->refresh());
 
-        $this->assertSame(['Tür', 'Kategori', 'Tutar'], $rows[0]);
+        $this->assertSame(['Tür', 'Kategori / Ay', 'Gelir', 'Gider', 'Net'], $rows[0]);
         $this->assertSame(['Gelir', 'Hasılat'], array_slice($rows[1], 0, 2));
         $this->assertEquals(5000, $rows[1][2]);
-        // Net satırı (toplam) da liradır.
-        $this->assertEquals(5000, $rows[2][2]);
+        // Toplam satırı (en altta) da liradır.
+        $total = end($rows);
+        $this->assertSame('Toplam', $total[0]);
+        $this->assertEquals(5000, $total[2]);
+    }
+
+    public function test_excel_has_monthly_breakdown_rows_with_lira_numbers(): void
+    {
+        $export = app(ReportExportService::class)->request($this->admin, ReportType::FinanceIncomeExpense, 'xlsx', ['filters' => $this->filterInput()]);
+
+        $month = collect($this->sheet($export->refresh()))->first(fn (array $row) => $row[0] === 'Ay');
+
+        $this->assertNotNull($month);
+        $this->assertSame('Ekim 2026', $month[1]);
+        $this->assertTrue(is_numeric($month[2]) && is_numeric($month[4]));
+        $this->assertEquals(5000, $month[2]);
+        // Sıfır tutarlı hücre Excel'de boş okunur (indirici davranışı); sayı olarak sıfırdır.
+        $this->assertEquals(0, $month[3]);
+        $this->assertEquals(5000, $month[4]);
+    }
+
+    public function test_income_expense_pdf_contains_month_label_and_formatted_amounts(): void
+    {
+        $captured = null;
+        $this->mock(ReportDownloader::class, function ($mock) use (&$captured) {
+            $mock->shouldReceive('pdfContentWithDescription')->once()
+                ->andReturnUsing(function (string $title, array $table) use (&$captured) {
+                    $captured = $table;
+
+                    return 'pdf';
+                });
+        });
+
+        app(ReportExportService::class)->request($this->admin, ReportType::FinanceIncomeExpense, 'pdf', ['filters' => $this->filterInput()]);
+
+        $month = collect($captured['rows'])->first(fn (array $row) => $row[0] === 'Ay');
+        $this->assertSame('Ekim 2026', $month[1]);
+        $this->assertSame(Money::format(500_000), $month[2]);
     }
 
     public function test_pdf_exports_for_every_finance_report_type(): void

@@ -66,7 +66,8 @@ class IncomeExpenseReportService
     }
 
     /**
-     * Dışa aktarım için düz tablo; tutarlar kuruş.
+     * Dışa aktarım için düz tablo; tutarlar kuruş. Önce kategori satırları, bir boş
+     * satır, sonra dönemin her ayı; tek toplam satırı iki bölümün de toplamıdır.
      *
      * @return array{headings: list<string>, rows: list<list<string|int>>, totals: list<string|int>}
      */
@@ -76,14 +77,24 @@ class IncomeExpenseReportService
         $rows = [];
 
         foreach ($report['income'] as $line) {
-            $rows[] = ['Gelir', $line['category'], $line['total']];
+            $rows[] = ['Gelir', $line['category'], $line['total'], '', ''];
         }
 
         foreach ($report['expense'] as $line) {
-            $rows[] = ['Gider', $line['category'], $line['total']];
+            $rows[] = ['Gider', $line['category'], '', $line['total'], ''];
         }
 
-        return ['headings' => ['Tür', 'Kategori', 'Tutar'], 'rows' => $rows, 'totals' => ['', 'Net', $report['net']]];
+        $rows[] = ['', '', '', '', ''];
+
+        foreach ($report['months'] as $month) {
+            $rows[] = ['Ay', $month['month'], $month['income'], $month['expense'], $month['net']];
+        }
+
+        return [
+            'headings' => ['Tür', 'Kategori / Ay', 'Gelir', 'Gider', 'Net'],
+            'rows' => $rows,
+            'totals' => ['Toplam', '', $report['income_total'], $report['expense_total'], $report['net']],
+        ];
     }
 
     /**
