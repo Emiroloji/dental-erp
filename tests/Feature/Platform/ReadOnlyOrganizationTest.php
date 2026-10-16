@@ -119,7 +119,7 @@ class ReadOnlyOrganizationTest extends TestCase
             'satın alma' => fn () => Livewire::test('pages::purchasing.index')->call('create')->set('supplier_id', (string) $this->supplier->id)->set('warehouse_id', (string) $this->warehouse->id)->set('lines.0.product_id', (string) $this->product->id)->set('lines.0.quantity', '5')->call('save', true),
             'sayım' => fn () => Livewire::test('pages::inventory.index')->call('openStart')->set('warehouse_id', (string) $this->warehouse->id)->call('start'),
             'iade' => fn () => Livewire::test('pages::returns.index')->call('openForm')->set('warehouse_id', (string) $this->warehouse->id)->set('product_id', (string) $this->product->id)->set('lot_id', (string) StockLot::where('lot_no', 'LOT-1')->sole()->id)->set('quantity', '1')->set('reason', 'damaged')->call('save'),
-            'personel' => fn () => Livewire::test('pages::access.staff')->call('openForm')->set('name', 'X')->set('email', 'x@x.test')->set('password', 'guclu-sifre-1')->set('branch_id', (string) $this->branch->id)->call('save'),
+            'personel' => fn () => Livewire::test('pages::access.staff')->call('openForm')->set('name', 'X')->set('email', 'x@x.test')->set('branch_id', (string) $this->branch->id)->call('save'),
             'şube' => fn () => Livewire::test('pages::organization.branches')->call('create')->set('name', 'Yeni Şube')->call('save'),
             'depo' => fn () => Livewire::test('pages::organization.warehouses')->call('create')->set('branch_id', (string) $this->branch->id)->set('name', 'Yeni Depo')->call('save'),
         ];

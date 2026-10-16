@@ -2,8 +2,10 @@
 
 namespace App\Domain\Access\Services;
 
+use App\Domain\Access\Exceptions\InviteNotSentException;
 use App\Domain\Access\Exceptions\StaffRuleException;
 use App\Domain\Access\Models\Permission;
+use App\Domain\Access\Notifications\StaffAccountCreated;
 use App\Domain\Access\Support\Module;
 use App\Domain\Access\Support\PermissionScope;
 use App\Domain\Organization\Models\Organization;
@@ -12,13 +14,18 @@ use App\Models\User;
 use App\Support\Notifications\WorkflowNotification;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
+use Throwable;
 
 class StaffService
 {
     public function __construct(private readonly PlanLimitService $limits) {}
 
     /**
-     * @param  array{name: string, email: string, password: string, branch_id: int}  $attributes
+     * Personele geçici şifre üretilir ve e-postalanır (Aşama 39); ilk girişte
+     * kendi şifresini belirlemesi istenir. Admin şifreyi bilmez, iletmez.
+     *
+     * @param  array{name: string, email: string, branch_id: int}  $attributes
      * @param  array<string, array{read: bool, write: bool, delete: bool}>  $modulePermissions
      * @param  array<int>  $branchIds
      */
@@ -36,7 +43,9 @@ class StaffService
             throw new StaffRuleException('Finans yetkisi yalnızca "Tüm şubeler" kapsamıyla verilebilir.');
         }
 
-        return DB::transaction(function () use ($attributes, $modulePermissions, $scope, $branchIds) {
+        $password = $this->temporaryPassword();
+
+        $user = DB::transaction(function () use ($attributes, $modulePermissions, $scope, $branchIds, $password) {
             // Paket limiti (Faz 3): aktif kullanıcı sayısı; organizasyon satırı kilitlenir.
             $this->limits->ensureCanAddUser(Organization::whereKey(auth()->user()->organization_id)->lockForUpdate()->firstOrFail());
 
@@ -45,7 +54,8 @@ class StaffService
                 'branch_id' => $attributes['branch_id'],
                 'name' => $attributes['name'],
                 'email' => $attributes['email'],
-                'password' => Hash::make($attributes['password']),
+                'password' => Hash::make($password),
+                'must_change_password' => true,
                 'role' => User::ROLE_STAFF,
                 'status' => 'active',
             ]);
@@ -71,6 +81,43 @@ class StaffService
 
             return $user;
         });
+
+        // Kayıt transaction dışında e-postalanır: gönderim başarısız olsa da personel kalır.
+        $this->mailPassword($user, $password, isReset: false);
+
+        return $user;
+    }
+
+    /**
+     * Personele yeni geçici şifre üretip e-postalar (Aşama 39); ilk girişte
+     * yine değiştirmesi istenir. Yalnızca aktif personel için.
+     */
+    public function resendInvite(User $staff): void
+    {
+        if ($staff->role !== User::ROLE_STAFF || $staff->status !== 'active') {
+            throw new StaffRuleException('Yeni geçici şifre yalnızca aktif personele gönderilebilir.');
+        }
+
+        $password = $this->temporaryPassword();
+        $staff->update(['password' => Hash::make($password), 'must_change_password' => true]);
+
+        $this->mailPassword($staff, $password, isReset: true);
+    }
+
+    private function mailPassword(User $user, string $password, bool $isReset): void
+    {
+        try {
+            $user->notify(new StaffAccountCreated($user->organization->name, $password, $isReset));
+        } catch (Throwable $e) {
+            report($e);
+
+            throw new InviteNotSentException('Geçici şifre e-postası gönderilemedi.', previous: $e);
+        }
+    }
+
+    private function temporaryPassword(): string
+    {
+        return Str::password(12, symbols: false);
     }
 
     /**

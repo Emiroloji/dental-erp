@@ -42,7 +42,7 @@ class ReturnAcceptanceTest extends TestCase
         $product = Product::sole();
 
         Livewire::test('pages::access.staff')->call('openForm')
-            ->set('name', 'Depo Görevlisi')->set('email', 'depo@dental-erp.test')->set('password', 'guclu-sifre-1')
+            ->set('name', 'Depo Görevlisi')->set('email', 'depo@dental-erp.test')
             ->set('branch_id', (string) $warehouse->branch_id)
             ->set('modules.stock_movement.read', true)->set('modules.stock_movement.write', true)
             ->call('save')->assertHasNoErrors();

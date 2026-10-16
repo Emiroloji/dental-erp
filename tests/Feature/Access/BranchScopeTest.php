@@ -242,7 +242,6 @@ class BranchScopeTest extends TestCase
             ->call('openForm')
             ->set('name', 'Ayşe')
             ->set('email', 'ayse@example.com')
-            ->set('password', 'password123')
             ->set('modules.stock_movement.read', true);
 
         $form()->call('save')->assertHasErrors(['branch_id' => 'required']);
@@ -267,7 +266,6 @@ class BranchScopeTest extends TestCase
             ->call('openForm')
             ->set('name', 'Yeni')
             ->set('email', 'yeni@example.com')
-            ->set('password', 'password123')
             ->set('branch_id', (string) $this->branchA->id);
 
         // Kendisinde olmayan "yazma" yetkisini veremez.
@@ -299,7 +297,6 @@ class BranchScopeTest extends TestCase
             ->call('openForm')
             ->set('name', 'Yeni')
             ->set('email', 'yeni@example.com')
-            ->set('password', 'password123')
             ->set('branch_id', (string) $this->branchB->id)
             ->call('save')
             ->assertHasErrors('branch_id');

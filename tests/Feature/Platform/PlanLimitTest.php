@@ -54,7 +54,7 @@ class PlanLimitTest extends TestCase
     private function createStaff(int $index)
     {
         return Livewire::test('pages::access.staff')->call('openForm')
-            ->set('name', "Personel {$index}")->set('email', "personel{$index}@klinik.test")->set('password', 'guclu-sifre-1')
+            ->set('name', "Personel {$index}")->set('email', "personel{$index}@klinik.test")
             ->set('branch_id', (string) $this->branch->id)->set('modules.stock_movement.read', true)
             ->call('save');
     }
@@ -170,6 +170,7 @@ class PlanLimitTest extends TestCase
             ->assertSee('Kurumsal');
 
         $staff = User::where('email', 'personel1@klinik.test')->sole();
+        $staff->forceFill(['must_change_password' => false])->save();
         Permission::where('user_id', $staff->id)->update(['module' => Module::Reports->value]);
         $this->actingAs($staff->fresh());
         $this->get('/paket')->assertForbidden();

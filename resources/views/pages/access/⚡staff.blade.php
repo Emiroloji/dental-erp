@@ -1,5 +1,6 @@
 <?php
 
+use App\Domain\Access\Exceptions\InviteNotSentException;
 use App\Domain\Access\Exceptions\StaffRuleException;
 use App\Domain\Access\Services\StaffService;
 use App\Domain\Platform\Exceptions\PlanLimitException;
@@ -21,8 +22,6 @@ new #[Layout('layouts::authenticated')] class extends Component
     public string $name = '';
 
     public string $email = '';
-
-    public string $password = '';
 
     public string $branch_id = '';
 
@@ -53,7 +52,7 @@ new #[Layout('layouts::authenticated')] class extends Component
     public function closeForm(): void
     {
         $this->showForm = false;
-        $this->reset(['name', 'email', 'password', 'branch_id', 'scope', 'selectedBranches']);
+        $this->reset(['name', 'email', 'branch_id', 'scope', 'selectedBranches']);
         $this->resetModules();
         $this->resetValidation();
     }
@@ -74,7 +73,6 @@ new #[Layout('layouts::authenticated')] class extends Component
         $validated = $this->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'unique:users,email'],
-            'password' => ['required', 'string', 'min:8'],
             'branch_id' => ['required', $branchRule],
             'scope' => ['required', Rule::in(array_column(PermissionScope::cases(), 'value')), $this->grantableScopeRule()],
             'selectedBranches' => ['required_if:scope,selected_branches', 'array'],
@@ -87,7 +85,6 @@ new #[Layout('layouts::authenticated')] class extends Component
             attributes: [
                 'name' => $validated['name'],
                 'email' => $validated['email'],
-                'password' => $validated['password'],
                 'branch_id' => (int) $validated['branch_id'],
             ],
             modulePermissions: $this->modules,
@@ -98,10 +95,38 @@ new #[Layout('layouts::authenticated')] class extends Component
             $this->addError('name', $e->getMessage());
 
             return;
+        } catch (InviteNotSentException) {
+            $this->closeForm();
+            session()->flash('error', 'Personel oluşturuldu ancak e-posta gönderilemedi. "Yeni şifre gönder" ile tekrar deneyin.');
+
+            return;
         }
 
         $this->closeForm();
-        session()->flash('status', 'Personel oluşturuldu.');
+        session()->flash('status', "Personel oluşturuldu. Geçici şifre {$validated['email']} adresine gönderildi.");
+    }
+
+    /**
+     * Aşama 39: personele yeni geçici şifre e-postalanır; eski şifresi geçersiz olur.
+     */
+    public function resendInvite(int $userId, StaffService $staffService): void
+    {
+        Gate::authorize('staff_management.update');
+        $staff = $this->findStaff($userId);
+
+        try {
+            $staffService->resendInvite($staff);
+        } catch (StaffRuleException $e) {
+            session()->flash('error', $e->getMessage());
+
+            return;
+        } catch (InviteNotSentException) {
+            session()->flash('error', 'E-posta gönderilemedi. Biraz sonra tekrar deneyin.');
+
+            return;
+        }
+
+        session()->flash('status', "Yeni geçici şifre {$staff->email} adresine gönderildi.");
     }
 
     public function deactivate(int $userId, StaffService $staffService): void
@@ -309,6 +334,9 @@ new #[Layout('layouts::authenticated')] class extends Component
                                 @if ($member->is(auth()->user()))
                                     <span class="text-[12px] text-ink-muted">Siz</span>
                                 @elseif ($member->status === 'active')
+                                    <button wire:click="resendInvite({{ $member->id }})" wire:confirm="{{ $member->name }} için yeni geçici şifre üretilip e-postasına gönderilsin mi? Eski şifresi geçersiz olur." class="text-[13px] text-brand-600 hover:underline mr-3">
+                                        Yeni şifre gönder
+                                    </button>
                                     <button wire:click="deactivate({{ $member->id }})" wire:confirm="{{ $member->name }} pasife alınsın mı? Pasif personel sisteme giriş yapamaz; geçmiş kayıtları korunur." class="text-[13px] text-status-critical hover:underline">
                                         Pasife Al
                                     </button>
@@ -349,11 +377,7 @@ new #[Layout('layouts::authenticated')] class extends Component
                     <input type="email" wire:model="email" class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
                     @error('email') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
                 </div>
-                <div>
-                    <label class="block text-[13px] text-ink-muted mb-1.5">Şifre</label>
-                    <input type="password" wire:model="password" class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
-                    @error('password') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
-                </div>
+                <p class="text-[13px] text-ink-muted sm:col-span-2">Geçici şifre personelin e-postasına gönderilir; ilk girişte kendi şifresini belirler.</p>
             </div>
 
             <div>

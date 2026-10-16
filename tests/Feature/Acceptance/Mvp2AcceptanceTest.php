@@ -381,7 +381,7 @@ class Mvp2AcceptanceTest extends TestCase
     private function createStaff(string $name, string $email, Branch $branch, array $modules): User
     {
         $form = Livewire::test('pages::access.staff')->call('openForm')
-            ->set('name', $name)->set('email', $email)->set('password', 'guclu-sifre-1')
+            ->set('name', $name)->set('email', $email)
             ->set('branch_id', (string) $branch->id);
 
         foreach ($modules as $module) {
@@ -390,6 +390,10 @@ class Mvp2AcceptanceTest extends TestCase
 
         $form->call('save')->assertHasNoErrors();
 
-        return User::where('email', $email)->sole();
+        // Aşama 39: personel geçici şifreyle açılır; bu senaryo ilk giriş akışını sınamaz.
+        $staff = User::where('email', $email)->sole();
+        $staff->forceFill(['must_change_password' => false])->save();
+
+        return $staff;
     }
 }

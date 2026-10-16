@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Acceptance;
 
+use App\Domain\Access\Notifications\StaffAccountCreated;
 use App\Domain\Catalog\Models\Product;
 use App\Domain\Organization\Models\Branch;
 use App\Domain\Organization\Models\Organization;
@@ -13,6 +14,7 @@ use App\Domain\Stock\Services\StockMovementService;
 use App\Domain\Stock\Support\StockMovementType;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Notification;
 use Livewire\Livewire;
 use Tests\TestCase;
 
@@ -70,12 +72,14 @@ class Mvp1AcceptanceTest extends TestCase
     private function step2_admin_adds_staff_with_limited_permission(): void
     {
         $this->actingAs($this->admin);
+        // Sahte bildirim yalnızca personel açılışı için: senaryonun devamındaki stok uyarıları gerçek yazılmalı.
+        $notifications = Notification::getFacadeRoot();
+        Notification::fake();
 
         Livewire::test('pages::access.staff')
             ->call('openForm')
             ->set('name', 'Depo Görevlisi')
             ->set('email', 'depo@dental-erp.test')
-            ->set('password', 'guclu-sifre-1')
             ->set('branch_id', (string) $this->warehouse->branch_id)
             ->set('modules.stock_movement.read', true)
             ->set('modules.stock_movement.write', true)
@@ -85,12 +89,32 @@ class Mvp1AcceptanceTest extends TestCase
         $this->staff = User::where('email', 'depo@dental-erp.test')->sole();
         $this->assertCount(1, $this->staff->permissions);
 
+        // Aşama 39: Admin şifre belirlemez; geçici şifre personelin e-postasına gider.
+        $temporaryPassword = null;
+        Notification::assertSentTo($this->staff, StaffAccountCreated::class, function (StaffAccountCreated $mail) use (&$temporaryPassword) {
+            $temporaryPassword = $mail->temporaryPassword;
+
+            return true;
+        });
+        Notification::swap($notifications);
+
         $this->app['auth']->forgetGuards();
 
         Livewire::test('pages::access.login')
             ->set('email', 'depo@dental-erp.test')
-            ->set('password', 'guclu-sifre-1')
+            ->set('password', $temporaryPassword)
             ->call('login')
+            ->assertHasNoErrors();
+
+        // İlk girişte kendi şifresini belirlemeden hiçbir ekrana geçemez.
+        $this->actingAs($this->staff->fresh());
+        $this->get('/stok-durumu')->assertRedirect();
+
+        Livewire::test('pages::access.change-password')
+            ->set('current_password', $temporaryPassword)
+            ->set('password', 'guclu-sifre-1')
+            ->set('password_confirmation', 'guclu-sifre-1')
+            ->call('save')
             ->assertHasNoErrors();
 
         $this->actingAs($this->staff->fresh());

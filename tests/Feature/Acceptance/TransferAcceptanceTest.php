@@ -113,7 +113,7 @@ class TransferAcceptanceTest extends TestCase
     private function createStaff(string $name, string $email, Branch $branch): User
     {
         Livewire::test('pages::access.staff')->call('openForm')
-            ->set('name', $name)->set('email', $email)->set('password', 'guclu-sifre-1')
+            ->set('name', $name)->set('email', $email)
             ->set('branch_id', (string) $branch->id)
             ->set('modules.transfer.read', true)->set('modules.transfer.write', true)
             ->call('save')->assertHasNoErrors();

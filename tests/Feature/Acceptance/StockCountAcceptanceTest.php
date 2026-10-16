@@ -39,7 +39,7 @@ class StockCountAcceptanceTest extends TestCase
             ->call('save')->assertHasNoErrors();
 
         Livewire::test('pages::access.staff')->call('openForm')
-            ->set('name', 'Sayım Görevlisi')->set('email', 'sayim@dental-erp.test')->set('password', 'guclu-sifre-1')
+            ->set('name', 'Sayım Görevlisi')->set('email', 'sayim@dental-erp.test')
             ->set('branch_id', (string) $warehouse->branch_id)
             ->set('modules.stock_movement.read', true)->set('modules.stock_movement.write', true)
             ->call('save')->assertHasNoErrors();

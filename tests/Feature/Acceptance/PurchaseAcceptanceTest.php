@@ -44,7 +44,7 @@ class PurchaseAcceptanceTest extends TestCase
         $gloves = Product::sole();
 
         Livewire::test('pages::access.staff')->call('openForm')
-            ->set('name', 'Satınalma Sorumlusu')->set('email', 'satinalma@dental-erp.test')->set('password', 'guclu-sifre-1')
+            ->set('name', 'Satınalma Sorumlusu')->set('email', 'satinalma@dental-erp.test')
             ->set('branch_id', (string) $branch->id)
             ->set('modules.purchasing.read', true)->set('modules.purchasing.write', true)
             ->call('save')->assertHasNoErrors();
