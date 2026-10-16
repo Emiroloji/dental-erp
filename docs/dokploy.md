@@ -52,6 +52,7 @@ APP_DEBUG=false
 APP_URL=https://dental.91-151-88-152.sslip.io
 APP_LOCALE=tr
 APP_FALLBACK_LOCALE=en
+# APP_TIMEZONE verilmezse Europe/Istanbul (16.10.2026'dan beri; öncesinde UTC'ydi)
 
 LOG_CHANNEL=stderr
 LOG_LEVEL=info

@@ -65,7 +65,9 @@ return [
     |
     */
 
-    'timezone' => 'UTC',
+    // Klinikler Türkiye'de: tarihler İstanbul saatiyle yazılır ve gösterilir
+    // (16.10.2026'ya kadar UTC'ydi; eski kayıtlar migration ile kaydırıldı).
+    'timezone' => env('APP_TIMEZONE', 'Europe/Istanbul'),
 
     /*
     |--------------------------------------------------------------------------

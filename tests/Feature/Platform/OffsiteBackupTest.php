@@ -6,6 +6,7 @@ use App\Domain\Platform\Backup\NullOffsiteBackupSync;
 use App\Domain\Platform\Backup\RcloneOffsiteBackupSync;
 use App\Domain\Platform\Contracts\OffsiteBackupSync;
 use App\Domain\Platform\Notifications\OffsiteBackupAlert;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Process;
@@ -126,20 +127,20 @@ class OffsiteBackupTest extends TestCase
 
     public function test_check_passes_when_the_remote_backup_is_recent(): void
     {
-        $this->travelTo('2026-09-23 06:00:00');
+        $this->travelTo(CarbonImmutable::parse('2026-09-23 06:00:00', 'UTC'));
         $this->fakeRemoteListing([
             ['Name' => 'dental_erp-2026-09-23-023000.sql.gz', 'ModTime' => '2026-09-23T02:30:05Z'],
             ['Name' => 'dental_erp-2026-09-22-023000.sql.gz', 'ModTime' => '2026-09-22T02:30:04Z'],
         ]);
 
         $this->artisan('backup:check-offsite')
-            ->expectsOutputToContain('Sunucu dışı yedek güncel: 23.09.2026 02:30')
+            ->expectsOutputToContain('Sunucu dışı yedek güncel: 23.09.2026 05:30')
             ->assertSuccessful();
     }
 
     public function test_check_fails_when_the_newest_remote_backup_is_too_old(): void
     {
-        $this->travelTo('2026-09-23 06:00:00');
+        $this->travelTo(CarbonImmutable::parse('2026-09-23 06:00:00', 'UTC'));
         $this->fakeRemoteListing([
             ['Name' => 'dental_erp-2026-09-20-023000.sql.gz', 'ModTime' => '2026-09-20T02:30:05Z'],
         ]);
@@ -237,7 +238,7 @@ class OffsiteBackupTest extends TestCase
         $this->fakeRemoteListing([]);
         $this->artisan('backup:check-offsite')->assertFailed();
 
-        $this->travelTo('2026-09-23 06:00:00');
+        $this->travelTo(CarbonImmutable::parse('2026-09-23 06:00:00', 'UTC'));
         $this->fakeRemoteListing([
             ['Name' => 'dental_erp-2026-09-23-023000.sql.gz', 'ModTime' => '2026-09-23T02:30:05Z'],
         ]);
@@ -260,7 +261,7 @@ class OffsiteBackupTest extends TestCase
     {
         Notification::fake();
         Cache::flush();
-        $this->travelTo('2026-09-23 06:00:00');
+        $this->travelTo(CarbonImmutable::parse('2026-09-23 06:00:00', 'UTC'));
         $this->fakeRemoteListing([
             ['Name' => 'dental_erp-2026-09-23-023000.sql.gz', 'ModTime' => '2026-09-23T02:30:05Z'],
         ]);

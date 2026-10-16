@@ -73,7 +73,7 @@ class BackupCheckOffsiteCommand extends Command
                 '%s hedefindeki en yeni yedek %d saatlik (%s); sınır %d saat.',
                 $offsite->describe(),
                 $ageHours,
-                $latest->translatedFormat('d.m.Y H:i'),
+                $latest->setTimezone(config('app.timezone'))->translatedFormat('d.m.Y H:i'),
                 $maxAgeHours,
             ));
         }
@@ -82,7 +82,7 @@ class BackupCheckOffsiteCommand extends Command
 
         $message = sprintf(
             'Sunucu dışı yedek güncel: %s (%d saat önce, %s).',
-            $latest->translatedFormat('d.m.Y H:i'),
+            $latest->setTimezone(config('app.timezone'))->translatedFormat('d.m.Y H:i'),
             $ageHours,
             $offsite->describe(),
         );

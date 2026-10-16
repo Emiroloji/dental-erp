@@ -126,7 +126,7 @@ class DatabaseBackupService
             ->map(fn (string $file) => [
                 'name' => basename($file),
                 'size' => (int) $this->disk()->size($file),
-                'modified_at' => CarbonImmutable::createFromTimestamp($this->disk()->lastModified($file)),
+                'modified_at' => CarbonImmutable::createFromTimestamp($this->disk()->lastModified($file), config('app.timezone')),
             ])
             ->sortByDesc('modified_at')
             ->values();
