@@ -2,6 +2,8 @@
 
 namespace App\Domain\Inventory\Services;
 
+use App\Domain\Access\Support\Module;
+use App\Domain\Catalog\Models\Product;
 use App\Domain\Inventory\Exceptions\StockCountException;
 use App\Domain\Inventory\Models\StockCount;
 use App\Domain\Inventory\Models\StockCountLine;
@@ -10,8 +12,10 @@ use App\Domain\Inventory\Support\CountDifferenceReason;
 use App\Domain\Inventory\Support\StockCountPermissions;
 use App\Domain\Inventory\Support\StockCountStatus;
 use App\Domain\Organization\Models\Warehouse;
+use App\Domain\Stock\Exceptions\ScanException;
 use App\Domain\Stock\Exceptions\SerialException;
 use App\Domain\Stock\Models\StockLot;
+use App\Domain\Stock\Services\ScanResolver;
 use App\Domain\Stock\Services\SerialRegistry;
 use App\Domain\Stock\Services\StockMovementService;
 use App\Models\User;
@@ -33,6 +37,7 @@ class StockCountService
         private readonly StockMovementService $stock,
         private readonly StockCountPermissions $permissions,
         private readonly StockCountNotifier $notifier,
+        private readonly ScanResolver $scanner,
     ) {}
 
     /**
@@ -86,6 +91,109 @@ class StockCountService
 
             return $count;
         });
+    }
+
+    /**
+     * Aşama 40: okutulan barkod/QR sayımın ilgili satırını bir birim artırır.
+     * Satır sırasıyla lot etiketinden, GS1 kodundaki lot numarasından ya da
+     * ürünün sayımdaki tek satırından bulunur; ürünün birden çok lotu varsa
+     * tahmin yapılmaz. Seri takipli üründe okutulan seri bulunan seriler
+     * listesine eklenir ve sayılan miktar liste uzunluğudur.
+     *
+     * @return array{line: StockCountLine, counted: float}
+     */
+    public function scan(StockCount $count, string $code, User $actor): array
+    {
+        $this->ensureCanCount($actor, $count);
+
+        try {
+            $scanned = $this->scanner->resolve($code, $actor->accessibleBranchIds(Module::StockMovement));
+        } catch (ScanException $e) {
+            throw new StockCountException($e->getMessage());
+        }
+
+        return DB::transaction(function () use ($count, $scanned) {
+            $locked = $this->lockForCounting($count);
+            $line = $this->lineFor($locked, $scanned['product'], $scanned['lot'], $scanned['gs1']['lot_no'] ?? null);
+            $line = StockCountLine::whereKey($line->id)->lockForUpdate()->firstOrFail();
+
+            if ($line->product->tracks_serials) {
+                $serial = $scanned['gs1']['serial'] ?? null;
+
+                if (blank($serial)) {
+                    throw new StockCountException("{$line->product->name} seri takipli: seri numarası içeren kareyi (GS1 DataMatrix) okutun ya da seriyi satıra yazın.");
+                }
+
+                $serials = $line->counted_serials ?? [];
+
+                if (in_array($serial, $serials, true)) {
+                    throw new StockCountException("{$this->lineLabel($line)}: {$serial} zaten sayıldı.");
+                }
+
+                $serials[] = $serial;
+                $line->update(['counted_serials' => $serials, 'counted_quantity' => count($serials)]);
+            } else {
+                $line->update(['counted_quantity' => (float) $line->counted_quantity + 1]);
+            }
+
+            return ['line' => $line, 'counted' => (float) $line->counted_quantity];
+        });
+    }
+
+    /**
+     * Son okutmayı geri alır: bir birim düşer (sıfırda "sayılmadı"ya döner);
+     * seri takipli satırda verilen seri listeden çıkar.
+     */
+    public function undoScan(StockCount $count, int $lineId, ?string $serial, User $actor): StockCountLine
+    {
+        $this->ensureCanCount($actor, $count);
+
+        return DB::transaction(function () use ($count, $lineId, $serial) {
+            $locked = $this->lockForCounting($count);
+            $line = $locked->lines()->whereKey($lineId)->lockForUpdate()->first()
+                ?? throw new StockCountException('Girilen satır bu sayıma ait değil.');
+
+            if ($line->product->tracks_serials) {
+                $serials = array_values(array_diff($line->counted_serials ?? [], [$serial]));
+                $line->update(['counted_serials' => $serials ?: null, 'counted_quantity' => $serials === [] ? null : count($serials)]);
+            } else {
+                $remaining = (float) $line->counted_quantity - 1;
+                $line->update(['counted_quantity' => $remaining > self::EPSILON ? $remaining : null]);
+            }
+
+            return $line;
+        });
+    }
+
+    private function lockForCounting(StockCount $count): StockCount
+    {
+        $locked = StockCount::whereKey($count->id)->lockForUpdate()->firstOrFail();
+
+        if ($locked->status !== StockCountStatus::Counting) {
+            throw new StockCountException('Yalnızca "Sayılıyor" durumundaki bir sayım düzenlenebilir.');
+        }
+
+        return $locked;
+    }
+
+    private function lineFor(StockCount $count, Product $product, ?StockLot $lot, ?string $lotNo): StockCountLine
+    {
+        $lines = $count->lines()->with(['product', 'lot'])->where('product_id', $product->id)->get();
+
+        if ($lot) {
+            return $lines->firstWhere('stock_lot_id', $lot->id)
+                ?? throw new StockCountException("{$product->name} / {$lot->lot_no} lotu bu sayımda yok (başka bir depoya ait olabilir).");
+        }
+
+        if (filled($lotNo)) {
+            $lines = $lines->filter(fn (StockCountLine $line) => $line->lot?->lot_no === $lotNo);
+        }
+
+        return match ($lines->count()) {
+            1 => $lines->first(),
+            0 => throw new StockCountException("{$product->name} bu sayımda yok".(filled($lotNo) ? " ({$lotNo} lotu)" : '').'. Sayım başlarken depoda stoğu olmayan ürünler sayıma girmez.'),
+            default => throw new StockCountException("{$product->name} ürününün sayımda {$lines->count()} lotu var: lot etiketini okutun ya da miktarı satıra elle girin."),
+        };
     }
 
     /**

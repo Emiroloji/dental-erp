@@ -12,6 +12,7 @@ use App\Domain\Reporting\Services\StockCountReportService;
 use App\Domain\Reporting\Support\ReportFilters;
 use App\Domain\Stock\Exceptions\InactiveLocationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Support\Number;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -28,6 +29,14 @@ new #[Layout('layouts::authenticated')] class extends Component
     public array $entries = [];
 
     public string $actionNote = '';
+
+    /** Aşama 40: barkod okutarak sayma. */
+    public string $scanCode = '';
+
+    public string $scanError = '';
+
+    /** @var array{line_id: int, label: string, counted: string, serial: ?string}|null son okutma (geri almak için) */
+    public ?array $lastScan = null;
 
     public function mount(int $count): void
     {
@@ -63,6 +72,58 @@ new #[Layout('layouts::authenticated')] class extends Component
         }
 
         $this->attempt(fn () => $counts->submit($this->count(), auth()->user()), 'Sayım onaya gönderildi.');
+    }
+
+    /**
+     * Okutulan kod ilgili satırı bir artırır. Önce görünen sayfadaki elle
+     * girişler kaydedilir; okutma onları ezmez.
+     */
+    public function scan(StockCountService $counts): void
+    {
+        $code = trim($this->scanCode);
+        $this->reset(['scanCode', 'scanError']);
+
+        if ($code === '' || ! $this->persistEntries($counts)) {
+            return;
+        }
+
+        try {
+            ['line' => $line, 'counted' => $counted] = $counts->scan($this->count(), $code, auth()->user());
+        } catch (StockCountException $e) {
+            $this->scanError = $e->getMessage();
+            $this->dispatch('count-scanned');
+
+            return;
+        }
+
+        $line->loadMissing('product', 'lot');
+        $serials = $line->counted_serials ?? [];
+        $this->lastScan = [
+            'line_id' => $line->id,
+            'label' => $line->product->name.' · '.($line->lot->lot_no ?? 'Lot #'.$line->lot->id),
+            'counted' => Number::format($counted, maxPrecision: 2),
+            'serial' => $line->product->tracks_serials ? end($serials) : null,
+        ];
+        $this->loadEntries();
+        $this->dispatch('count-scanned');
+    }
+
+    public function undoScan(StockCountService $counts): void
+    {
+        if (! $this->lastScan) {
+            return;
+        }
+
+        $this->persistEntries($counts);
+
+        if ($this->attempt(fn () => $counts->undoScan($this->count(), $this->lastScan['line_id'], $this->lastScan['serial'], auth()->user()), null)) {
+            $this->scanError = '';
+            $this->lastScan = null;
+            session()->flash('status', 'Son okutma geri alındı.');
+        }
+
+        $this->loadEntries();
+        $this->dispatch('count-scanned');
     }
 
     public function refreshSystem(StockCountService $counts): void
@@ -201,6 +262,46 @@ new #[Layout('layouts::authenticated')] class extends Component
 };
 ?>
 
+@script
+<script>
+    // Aşama 40: kamera sayım boyunca açık kalır; aynı kod 1,5 sn içinde tekrar okunursa yok sayılır.
+    Alpine.data('countScan', () => ({
+        cameraOpen: false,
+        cameraError: '',
+        controls: null,
+        last: { text: '', at: 0 },
+        focusInput() {
+            if (! this.cameraOpen) {
+                this.$nextTick(() => this.$refs.scanInput?.focus());
+            }
+        },
+        async openCamera() {
+            this.cameraError = '';
+            this.cameraOpen = true;
+            try {
+                this.controls = await window.startBarcodeScanner(this.$refs.video, (text) => {
+                    const now = Date.now();
+                    if (text === this.last.text && now - this.last.at < 1500) {
+                        return;
+                    }
+                    this.last = { text, at: now };
+                    $wire.set('scanCode', text, false);
+                    $wire.scan();
+                });
+            } catch (error) {
+                this.cameraError = 'Kamera açılamadı: ' + (error?.message ?? error) + ' (Kamera yalnızca HTTPS veya localhost üzerinde çalışır.)';
+            }
+        },
+        closeCamera() {
+            this.controls?.stop();
+            this.controls = null;
+            this.cameraOpen = false;
+            this.focusInput();
+        },
+    }));
+</script>
+@endscript
+
 <div>
     <div class="mb-6">
         <a href="{{ route('inventory.index') }}" class="text-[13px] text-ink-muted hover:text-ink">← Stok Sayımı</a>
@@ -233,6 +334,36 @@ new #[Layout('layouts::authenticated')] class extends Component
         <div class="bg-surface px-5 py-4"><p class="text-[12px] text-ink-muted">Farklı Satır</p><p class="text-[20px] font-medium tabular-nums {{ $summary['differences'] ? 'text-status-warn' : '' }}">{{ $summary['differences'] }}</p></div>
         <div class="bg-surface px-5 py-4"><p class="text-[12px] text-ink-muted">Net Fark</p><p class="text-[20px] font-medium tabular-nums {{ $summary['net'] < 0 ? 'text-status-critical' : ($summary['net'] > 0 ? 'text-status-good' : '') }}">{{ $summary['net'] > 0 ? '+' : '' }}{{ Number::format($summary['net'], precision: 2) }}</p></div>
     </div>
+
+    @if ($canCount)
+        <section x-data="countScan" x-on:count-scanned.window="focusInput()" class="mb-6 border border-line rounded-lg bg-surface p-4">
+            <h2 class="text-[14px] font-medium text-ink">Barkod okutarak say</h2>
+            <p class="text-[13px] text-ink-muted mt-0.5">Her okutma ilgili satırın sayılan miktarını 1 artırır. Ürünün birden çok lotu varsa lot etiketini okutun.</p>
+            <form wire:submit="scan" class="mt-3 flex gap-2">
+                <input x-ref="scanInput" type="text" wire:model="scanCode" autocomplete="off" inputmode="text" placeholder="Barkodu okutun veya yazın"
+                    class="flex-1 min-w-0 border border-line rounded-md px-3 py-2.5 text-[15px] font-mono bg-surface focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+                <button type="submit" wire:loading.attr="disabled" wire:target="scan" class="border border-line rounded-md px-4 text-[14px] bg-surface hover:bg-canvas">Say</button>
+                <button type="button" x-on:click="cameraOpen ? closeCamera() : openCamera()" class="bg-panel-900 text-white rounded-md px-3 text-[14px]" title="Kamerayla okut">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V5a1 1 0 0 1 1-1h2M17 4h2a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M7 20H5a1 1 0 0 1-1-1v-2M7 12h10"/></svg>
+                </button>
+            </form>
+
+            <div x-show="cameraOpen" x-cloak class="mt-3 rounded-lg overflow-hidden border border-line bg-black relative">
+                <video x-ref="video" class="w-full max-h-[40vh] object-cover" playsinline muted></video>
+                <button type="button" x-on:click="closeCamera()" class="absolute top-2 right-2 bg-white/90 text-ink rounded-md px-3 py-1.5 text-[13px]">Kapat</button>
+                <p x-show="cameraError" x-text="cameraError" class="absolute bottom-0 inset-x-0 bg-status-critical text-white text-[13px] px-3 py-2"></p>
+            </div>
+
+            @if ($scanError)
+                <p class="mt-3 text-[13px] text-status-critical">{{ $scanError }}</p>
+            @elseif ($lastScan)
+                <div class="mt-3 flex items-center justify-between gap-3 rounded-md bg-brand-100 border border-brand-500/20 px-3 py-2">
+                    <p class="text-[14px] text-brand-600 min-w-0 truncate">{{ $lastScan['label'] }}: {{ $lastScan['counted'] }} sayıldı</p>
+                    <button type="button" wire:click="undoScan" wire:loading.attr="disabled" class="text-[13px] text-ink-muted hover:text-ink shrink-0">Geri al</button>
+                </div>
+            @endif
+        </section>
+    @endif
 
     <section class="border border-line rounded-lg bg-surface overflow-x-auto">
         <table class="w-full text-[14px]">
