@@ -79,5 +79,11 @@ class AuthServiceProvider extends ServiceProvider
         // Depo stokları stok verisidir: stok veya rapor okuma yetkisi yeterli.
         Gate::define('warehouse_stock.viewAny', fn (User $user) => $user->canModule(Module::StockMovement, 'read')
             || $user->canModule(Module::Reports, 'read'));
+
+        // Toplu veri aktarımı (Aşama 38): ürün veya stok yazma yetkisi yeterli;
+        // her sekme kendi modül yetkisiyle ayrıca denetlenir. ".create" soneki
+        // salt-okunur organizasyonda kapatır.
+        Gate::define('data_import.create', fn (User $user) => $user->canModule(Module::ProductManagement, 'write')
+            || $user->canModule(Module::StockMovement, 'write'));
     }
 }

@@ -253,6 +253,10 @@ Route::middleware('tenant')->group(function () {
         ->middleware(['auth', 'can:subscription.view'])
         ->name('subscription.show');
 
+    Route::livewire('/veri-aktarimi', 'pages::import.index')
+        ->middleware(['auth', 'can:data_import.create'])
+        ->name('import.index');
+
     Route::livewire('/ayarlar', 'pages::settings.index')
         ->middleware(['auth', 'can:system_settings.viewAny'])
         ->name('settings.index');

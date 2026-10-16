@@ -11,7 +11,7 @@ final class ImportRow
     /** @var array<string, mixed> */
     public array $values = [];
 
-    /** @var array<int, string> */
+    /** @var array<int, array{column: string, message: string}> */
     public array $errors = [];
 
     /**
@@ -24,7 +24,7 @@ final class ImportRow
 
     public function fail(string $column, string $message): void
     {
-        $this->errors[] = "{$column}: {$message}";
+        $this->errors[] = ['column' => $column, 'message' => $message];
     }
 
     public function isValid(): bool

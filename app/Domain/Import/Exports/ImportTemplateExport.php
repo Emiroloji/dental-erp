@@ -3,13 +3,14 @@
 namespace App\Domain\Import\Exports;
 
 use App\Domain\Reporting\Exports\TableExport;
+use Maatwebsite\Excel\Concerns\Export;
 use Maatwebsite\Excel\Concerns\WithMultipleSheets;
 
 /**
  * İndirilebilir şablon: ilk sayfa doldurulacak tablo (başlıklar + örnek satır),
  * ikinci sayfa sütun açıklamaları. Okuyucu yalnızca ilk sayfayı okur.
  */
-class ImportTemplateExport implements WithMultipleSheets
+class ImportTemplateExport implements Export, WithMultipleSheets
 {
     /**
      * @param  array<int, string>  $headings

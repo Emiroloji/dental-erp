@@ -34,18 +34,28 @@ final class ImportResult
     }
 
     /**
-     * @return array<int, string>
+     * Ekranda tablo olarak gösterilen hatalar, satır sırasıyla.
+     *
+     * @return array<int, array{line: int, column: string, message: string}>
      */
-    public function errorMessages(): array
+    public function errors(): array
     {
-        $messages = [];
+        $errors = [];
 
         foreach ($this->rows as $row) {
             foreach ($row->errors as $error) {
-                $messages[] = "Satır {$row->line} · {$error}";
+                $errors[] = ['line' => $row->line, ...$error];
             }
         }
 
-        return $messages;
+        return $errors;
+    }
+
+    /**
+     * @return array<int, string> "Satır 14 · Ürün Kodu: ..." biçiminde
+     */
+    public function errorMessages(): array
+    {
+        return array_map(fn (array $error) => "Satır {$error['line']} · {$error['column']}: {$error['message']}", $this->errors());
     }
 }
