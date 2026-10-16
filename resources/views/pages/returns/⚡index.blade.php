@@ -405,7 +405,7 @@ new #[Layout('layouts::authenticated')] class extends Component
             </div>
             <p class="text-[12px] text-ink-muted">Talep Admin onayından sonra kargoya verilir; stok ancak "Kargoya Verildi" anında lottan düşer.</p>
             <div class="flex items-center gap-3 pt-2">
-                <button type="submit" class="bg-panel-900 text-white rounded-md px-4 py-2.5 text-[14px] font-medium hover:bg-panel-800 transition-colors">Talep Oluştur</button>
+                <button type="submit" wire:loading.attr="disabled" class="bg-panel-900 text-white rounded-md px-4 py-2.5 text-[14px] font-medium hover:bg-panel-800 transition-colors disabled:opacity-60">Talep Oluştur</button>
                 <button type="button" wire:click="closeForm" class="text-[14px] text-ink-muted hover:text-ink">Vazgeç</button>
             </div>
         </form>
