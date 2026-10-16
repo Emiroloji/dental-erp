@@ -1,6 +1,7 @@
 <?php
 
 use App\Domain\Stock\Notifications\StockLevelAlert;
+use App\Support\Notifications\NotificationKind;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -13,17 +14,6 @@ new #[Layout('layouts::authenticated')] class extends Component
     public string $statusFilter = '';
 
     public string $kindFilter = '';
-
-    /** Bildirim türleri: stok uyarıları + iş akışı bildirimleri (WorkflowNotification::kind). */
-    public const KINDS = [
-        'stock' => 'Stok Uyarıları',
-        'transfer' => 'Transfer',
-        'purchase' => 'Satın Alma',
-        'stock_count' => 'Stok Sayımı',
-        'return' => 'İade',
-        'plan' => 'Paket',
-        'finance' => 'Finans',
-    ];
 
     public function updatingStatusFilter(): void
     {
@@ -76,7 +66,7 @@ new #[Layout('layouts::authenticated')] class extends Component
 
         if ($this->kindFilter === 'stock') {
             $query->where('type', StockLevelAlert::class);
-        } elseif (array_key_exists($this->kindFilter, self::KINDS)) {
+        } elseif (array_key_exists($this->kindFilter, NotificationKind::LABELS)) {
             $query->where('data->kind', $this->kindFilter);
         }
 
@@ -89,7 +79,7 @@ new #[Layout('layouts::authenticated')] class extends Component
         return [
             'notifications' => $query->latest()->paginate(15),
             'unreadCount' => auth()->user()->unreadNotifications()->count(),
-            'kinds' => self::KINDS,
+            'kinds' => NotificationKind::LABELS,
         ];
     }
 };
