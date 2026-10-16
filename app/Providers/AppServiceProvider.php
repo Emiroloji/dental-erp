@@ -15,12 +15,15 @@ use App\Domain\Platform\Reporting\LogErrorReporter;
 use App\Domain\Platform\Reporting\NullErrorReporter;
 use App\Domain\Platform\Reporting\SentryErrorReporter;
 use App\Domain\Platform\Services\DatabaseBackupService;
+use App\Domain\Platform\Services\SystemStatus;
 use App\Domain\Uts\Clients\HttpUtsClient;
 use App\Domain\Uts\Clients\UnconfiguredUtsClient;
 use App\Domain\Uts\Contracts\UtsClient;
 use App\Domain\Uts\Models\UtsConnection;
 use App\Http\Middleware\EnsurePlatformOwner;
 use App\Http\Middleware\EnsureTenantAccess;
+use Illuminate\Console\Events\ScheduledTaskFailed;
+use Illuminate\Console\Events\ScheduledTaskFinished;
 use Illuminate\Http\Client\Factory as HttpClient;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Storage;
@@ -137,6 +140,10 @@ class AppServiceProvider extends ServiceProvider
     {
         // Ekrandaki tüm sayılar uygulama diliyle biçimlenir (tr: 1.234,50).
         Number::useLocale($this->app->getLocale());
+
+        // Aşama 41: zamanlanmış görevlerin son çalışması Platform panelindeki sistem durumuna yazılır.
+        Event::listen(ScheduledTaskFinished::class, fn (ScheduledTaskFinished $event) => app(SystemStatus::class)->recordTaskRun($event->task, $event->task->exitCode === 0));
+        Event::listen(ScheduledTaskFailed::class, fn (ScheduledTaskFailed $event) => app(SystemStatus::class)->recordTaskRun($event->task, false, $event->exception->getMessage()));
 
         // Livewire'ın sonraki (update) istekleri de sayfanın route middleware'inden geçer.
         Livewire::addPersistentMiddleware([EnsureTenantAccess::class, EnsurePlatformOwner::class]);

@@ -6,6 +6,7 @@ use App\Domain\Platform\Contracts\ErrorReporter;
 use App\Domain\Platform\Contracts\OffsiteBackupSync;
 use App\Domain\Platform\Exceptions\BackupException;
 use App\Domain\Platform\Notifications\OffsiteBackupAlert;
+use App\Domain\Platform\Services\SystemStatus;
 use Carbon\CarbonImmutable;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
@@ -79,12 +80,14 @@ class BackupCheckOffsiteCommand extends Command
 
         $this->reportRecovery($offsite);
 
-        $this->info(sprintf(
+        $message = sprintf(
             'Sunucu dışı yedek güncel: %s (%d saat önce, %s).',
             $latest->translatedFormat('d.m.Y H:i'),
             $ageHours,
             $offsite->describe(),
-        ));
+        );
+        $this->info($message);
+        app(SystemStatus::class)->recordOffsiteCheck(true, $message);
 
         return self::SUCCESS;
     }
@@ -93,6 +96,7 @@ class BackupCheckOffsiteCommand extends Command
     {
         $this->error($message);
         Log::error('[yedek] '.$message);
+        app(SystemStatus::class)->recordOffsiteCheck(false, $message);
         $errors->report($exception ?? new BackupException($message), ['kaynak' => 'backup:check-offsite']);
 
         $this->sendAlert($offsite, $message);
