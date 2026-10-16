@@ -6,6 +6,7 @@ use App\Domain\Catalog\Models\Product;
 use App\Domain\Catalog\Models\Supplier;
 use App\Domain\Catalog\Services\ProductService;
 use App\Domain\Catalog\Support\Gs1;
+use App\Domain\Catalog\Support\ProductRules;
 use App\Domain\Catalog\Support\ProductType;
 use App\Domain\Stock\Support\AlertMode;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -257,7 +258,6 @@ new #[Layout('layouts::authenticated')] class extends Component
         Gate::authorize($this->editingId ? 'product_management.update' : 'product_management.create');
 
         $organizationId = auth()->user()->organization_id;
-        $unique = fn (string $column) => Rule::unique('products', $column)->where('organization_id', $organizationId)->ignore($this->editingId);
 
         // Hangi eksenin eşiği zorunlu: seçilen uyarı moduna göre (Aşama 29.1).
         $selectedMode = $this->alert_mode ? AlertMode::tryFrom($this->alert_mode) : null;
@@ -265,17 +265,7 @@ new #[Layout('layouts::authenticated')] class extends Component
         $tracksExpiry = $selectedMode?->tracksExpiry() ?? false;
 
         $validated = $this->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'code' => ['nullable', 'string', 'max:255'],
-            // Barkod organizasyon içinde tekil: okutulan barkod tek bir ürüne çözülmeli (Aşama 20).
-            'barcode' => ['nullable', 'string', 'max:255', $unique('barcode')],
-            'category_id' => ['nullable', 'exists:categories,id'],
-            'supplier_id' => ['nullable', 'exists:suppliers,id'],
-            'base_unit' => ['required', 'string', 'max:50'],
-            'purchase_price' => ['required', 'numeric', 'min:0'],
-            'min_stock' => ['required', 'integer', 'min:0'],
-            'max_stock' => ['nullable', 'integer', 'min:0'],
-            'product_type' => ['required', Rule::in(array_column(ProductType::cases(), 'value'))],
+            ...ProductRules::fields($organizationId, $this->editingId),
             'alert_mode' => ['nullable', Rule::in(array_column(AlertMode::cases(), 'value'))],
             'alert_quantity_low' => ['nullable', Rule::requiredIf($tracksQuantity), 'numeric', 'min:0'],
             'alert_quantity_critical' => ['nullable', Rule::requiredIf($tracksQuantity), 'numeric', 'min:0', 'lt:alert_quantity_low'],
@@ -283,26 +273,14 @@ new #[Layout('layouts::authenticated')] class extends Component
             'alert_expiry_critical_days' => ['nullable', Rule::requiredIf($tracksExpiry), 'integer', 'min:0', 'max:3650', 'lt:alert_expiry_low_days'],
             'conversionRules.*.unit' => ['required_with:conversionRules.*.factor', 'nullable', 'string', 'max:50'],
             'conversionRules.*.factor' => ['required_with:conversionRules.*.unit', 'nullable', 'numeric', 'min:0.01'],
-            'gtin' => ['nullable', 'string', 'max:20'],
-            'uts_number' => ['nullable', 'string', 'max:255'],
-            'license_number' => ['nullable', 'string', 'max:255'],
-            'manufacturer' => ['nullable', 'string', 'max:255'],
-            'storage_condition' => ['nullable', 'string', 'max:255'],
-            'cold_chain' => ['boolean'],
-            'storage_min_temp' => ['nullable', 'required_if:cold_chain,true', 'numeric', 'between:-100,100'],
-            'storage_max_temp' => ['nullable', 'required_if:cold_chain,true', 'numeric', 'between:-100,100', 'gte:storage_min_temp'],
-            'is_controlled' => ['boolean'],
-            'tracks_serials' => ['boolean'],
         ], [
+            ...ProductRules::messages(),
             'alert_quantity_low.required' => 'Miktar eşiği seçildiğinde sarı miktar girilmeli.',
             'alert_quantity_critical.required' => 'Miktar eşiği seçildiğinde kırmızı miktar girilmeli.',
             'alert_quantity_critical.lt' => 'Kırmızı miktar sarı miktardan küçük olmalı.',
             'alert_expiry_low_days.required' => 'SKT eşiği seçildiğinde sarı gün sayısı girilmeli.',
             'alert_expiry_critical_days.required' => 'SKT eşiği seçildiğinde kırmızı gün sayısı girilmeli.',
             'alert_expiry_critical_days.lt' => 'Kırmızı gün sayısı sarı gün sayısından küçük olmalı (daha az gün = daha kritik).',
-            'storage_min_temp.required_if' => 'Soğuk zincir ürününde en düşük saklama sıcaklığı girilmeli.',
-            'storage_max_temp.required_if' => 'Soğuk zincir ürününde en yüksek saklama sıcaklığı girilmeli.',
-            'storage_max_temp.gte' => 'En yüksek sıcaklık en düşükten küçük olamaz.',
         ]);
 
         $gtin = null;
