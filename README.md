@@ -13,14 +13,17 @@ kapıdan geçer.
 ## Neler var
 
 - **Organizasyon / şube / depo** hiyerarşisi, modül × okuma-yazma-silme kutucuk
-  bazlı personel yetkileri ve şube kapsamı.
+  bazlı personel yetkileri ve şube kapsamı. Yeni personele geçici şifre
+  e-postayla gönderilir; ilk girişte kendi şifresini belirler (Aşama 39).
 - **Katalog:** kategori, tedarikçi, ürün, birim çevrimi ("1 Kutu = 50 Adet").
 - **Stok:** lot ve son kullanma tarihi (FEFO), giriş/çıkış/iptal, çoklu depo,
   şubeler arası transfer, satın alma/sipariş ve kısmi teslimat, stok sayımı,
   iade yönetimi.
 - **Uyarılar ve raporlar:** ürün bazlı sarı/kırmızı eşik (miktar veya SKT'ye
   kalan gün), kritik stok / SKT taraması, bildirimler, filtreli raporlar,
-  Excel/PDF dışa aktarım, denetim kaydı (audit log).
+  Excel/PDF dışa aktarım, denetim kaydı (audit log). Okunmamış bildirimler her
+  sabah 07:30'da gruplu bir günlük özet e-postasıyla gönderilir; her kullanıcı
+  Bildirimler sayfasından kapatabilir (Aşama 39).
 - **Platform paneli:** organizasyon yönetimi, paket limitleri ve manuel
   talep → onay akışı (ödeme entegrasyonu bilinçli olarak yoktur).
 - **Barkod/QR ve PWA:** kamera veya el terminaliyle hızlı stok giriş/çıkışı,

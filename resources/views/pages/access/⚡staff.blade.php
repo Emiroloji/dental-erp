@@ -366,7 +366,7 @@ new #[Layout('layouts::authenticated')] class extends Component
 
     <x-modal :show="$showForm" title="Yeni Personel" on-close="closeForm">
         <form wire:submit="save" class="space-y-7">
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                     <label class="block text-[13px] text-ink-muted mb-1.5">Ad Soyad</label>
                     <input type="text" wire:model="name" autofocus class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">

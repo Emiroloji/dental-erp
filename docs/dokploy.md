@@ -13,7 +13,7 @@ imajı (`Dockerfile`) kullanır, rol `CONTAINER_ROLE` ile seçilir:
 | Servis | Ne yapar | Eski kurulumdaki karşılığı |
 | --- | --- | --- |
 | `dental-app` | Web (FrankenPHP, port 8080). Açılışta `migrate --force` + `optimize` | nginx + PHP-FPM, `deploy.sh` |
-| `dental-worker` | `queue:work` (rapor dışa aktarımı, stok taraması) | Supervisor |
+| `dental-worker` | `queue:work` (rapor dışa aktarımı, stok taraması, günlük özet e-postaları) | Supervisor |
 | `dental-scheduler` | `schedule:work` (`routes/console.php`) | cron satırı |
 | `dental-db` | PostgreSQL 16 | sunucudaki PostgreSQL |
 | `dental-redis` | Redis 7 (oturum, önbellek) | sunucudaki Redis |
@@ -83,6 +83,13 @@ BACKUP_OFFSITE_DRIVER=none
 BACKUP_ALERT_EMAIL=
 SENTRY_DSN=
 ```
+
+E-posta şunlar için kullanılır: şifre sıfırlama, Ana Klinik Sahibi ve personel
+hesap açılışı (geçici şifre) ve her sabah 07:30'daki (İstanbul) günlük özet
+(Aşama 39, `notifications:send-digest`). Özetler kuyrukta gönderilir, yani
+`dental-worker` çalışıyor olmalı. Gmail SMTP'nin günlük gönderim sınırı
+yaklaşık 500 e-postadır; kullanıcı sayısı bunu aşarsa (ör. 400+ aktif
+kullanıcı) bir e-posta servisine (SES, Postmark vb.) geçilmeli.
 
 `DB_DATABASE`, `DB_USERNAME` ve `DB_PASSWORD` hem uygulamaya hem de
 `dental-db` servisinin ilk kurulumuna gider. **Veritabanı volume'u oluştuktan
