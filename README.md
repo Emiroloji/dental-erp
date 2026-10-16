@@ -35,6 +35,12 @@ kapıdan geçer.
   (kategori süzgeci, aylık kırılım, Excel/PDF). Faz 5 uçtan uca kabul testiyle
   tamamlandı (Aşama 37). Tasarım:
   `docs/superpowers/specs/2026-10-14-finans-modulu-design.md`.
+- **Veri Aktarımı (Aşama 38):** ürün kartları ve açılış stoğu Excel/CSV
+  şablonlarıyla içeri alınır. Dosya önce doğrulanır ve satır satır hatalar
+  gösterilir; tek hata varsa hiçbir satır yazılmaz. Ürün kodu zorunlu ve tekil,
+  olmayan kategori/tedarikçi adıyla açılır; açılış stoğu soğuk zincir ve seri
+  kurallarıyla "Açılış stoğu" gerekçeli stok girişi olarak yazılır. Tasarım:
+  `docs/superpowers/specs/2026-10-16-toplu-veri-aktarimi-design.md`.
 - **Tanıtım sitesi:** aynı repo içinde girişsiz sayfalar (`/`, `/neler-yapiyor`,
   `/talep`). Talep formu yalnızca bir `Lead` kaydı oluşturur — otomatik hesap
   veya organizasyon açılmaz; Platform Sahibi "Gelen Talepler" ekranından elle
