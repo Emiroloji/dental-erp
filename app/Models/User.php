@@ -34,6 +34,11 @@ class User extends Authenticatable
 
     public const ROLE_STAFF = 'staff';
 
+    /** Yeni kullanıcıda günlük özet e-postası açık (Aşama 39); veritabanı varsayılanıyla aynı. */
+    protected $attributes = [
+        'daily_digest' => true,
+    ];
+
     /**
      * Get the attributes that should be cast.
      *
@@ -45,6 +50,8 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'must_change_password' => 'boolean',
+            'daily_digest' => 'boolean',
+            'digest_sent_at' => 'datetime',
         ];
     }
 

@@ -55,6 +55,13 @@ new #[Layout('layouts::authenticated')] class extends Component
         $notification->markAsRead();
     }
 
+    /** Kullanıcının kendi günlük özet e-postası tercihi (Aşama 39). */
+    public function toggleDigest(): void
+    {
+        $user = auth()->user();
+        $user->forceFill(['daily_digest' => ! $user->daily_digest])->save();
+    }
+
     public function markAllAsRead(): void
     {
         auth()->user()->unreadNotifications->markAsRead();
@@ -90,6 +97,14 @@ new #[Layout('layouts::authenticated')] class extends Component
         <div>
             <h1 class="text-[22px] font-medium tracking-tight text-ink">Bildirimler</h1>
             <p class="text-[14px] text-ink-muted mt-1">Stok uyarıları ile transfer, satın alma, sayım ve iade bildirimlerini görüntüle.</p>
+            <p class="text-[13px] text-ink-muted mt-3">
+                @if (auth()->user()->daily_digest)
+                    Günlük özet e-postası açık: okunmamış bildirimleriniz her sabah 07:30'da e-postanıza gelir.
+                @else
+                    Günlük özet e-postası kapalı.
+                @endif
+                <button type="button" wire:click="toggleDigest" class="text-brand-600 hover:underline">{{ auth()->user()->daily_digest ? 'Kapat' : 'Aç' }}</button>
+            </p>
         </div>
         @if ($unreadCount > 0)
             <button wire:click="markAllAsRead" class="text-[13px] text-brand-600 hover:underline shrink-0">Tümünü okundu işaretle</button>

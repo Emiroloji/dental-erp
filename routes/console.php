@@ -35,3 +35,7 @@ Schedule::command('finance:generate-recurring')->dailyAt('03:15');
 // Faz 5 (Aşama 35): vadesi yaklaşan/geçmiş ödeme ve tahsilat bildirimi. Tekrarlayan
 // kalem üretiminden sonra çalışır ki yeni üretilen yükümlülükler de görülsün.
 Schedule::command('finance:scan-due')->dailyAt('05:00');
+
+// Günlük özet e-postası (Aşama 39): stok taraması saatlik, finans vade taraması
+// 05:00'te çalıştığı için özet o sabahın uyarılarını da içerir.
+Schedule::command('notifications:send-digest')->dailyAt('07:30')->timezone('Europe/Istanbul')->withoutOverlapping();
