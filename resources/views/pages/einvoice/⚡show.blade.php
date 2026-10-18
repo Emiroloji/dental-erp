@@ -1,10 +1,13 @@
 <?php
 
 use App\Domain\Catalog\Services\SupplierService;
+use App\Domain\EInvoice\Exceptions\EInvoiceException;
 use App\Domain\EInvoice\Models\EInvoice;
+use App\Domain\EInvoice\Services\EInvoiceFinanceService;
 use App\Domain\EInvoice\Services\EInvoiceMatcher;
 use App\Domain\Uts\Contracts\UtsClient;
 use App\Domain\Uts\Exceptions\UtsException;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -14,11 +17,16 @@ use Livewire\Component;
  * cihaz kalemlerinde GTIN, lot, seri ve tarih. Eşleşmeler (Aşama 45):
  * tedarikçi, satın alma teslimi, kalem ürün kartı ve ÜTS'de bu faturaya ait
  * kabul bekleyenler. Kabul yine ÜTS ekranının onay panelinden geçer.
+ * Finans yazma yetkisiyle fatura cari borç olarak aktarılır (Aşama 46).
  * Başka organizasyonun faturası 404 döner.
  */
 new #[Layout('layouts::authenticated')] class extends Component
 {
     public int $invoiceId;
+
+    public bool $transferring = false;
+
+    public string $dueOn = '';
 
     public function mount(int $invoice, EInvoiceMatcher $matcher): void
     {
@@ -44,12 +52,45 @@ new #[Layout('layouts::authenticated')] class extends Component
         }
     }
 
-    public function with(): array
+    public function openTransfer(): void
     {
-        $invoice = EInvoice::with(['lines.identities', 'lines.product', 'supplier', 'purchaseReceipt'])->findOrFail($this->invoiceId);
+        Gate::authorize('finance.create');
+
+        $this->dueOn = EInvoice::findOrFail($this->invoiceId)->issue_date->toDateString();
+        $this->transferring = true;
+    }
+
+    public function closeTransfer(): void
+    {
+        $this->transferring = false;
+        $this->resetValidation();
+    }
+
+    public function transfer(EInvoiceFinanceService $finance): void
+    {
+        Gate::authorize('finance.create');
+
+        $this->validate(['dueOn' => ['required', 'date']], ['dueOn.required' => 'Vade tarihini girin.']);
+
+        try {
+            $finance->transfer(EInvoice::findOrFail($this->invoiceId), Carbon::parse($this->dueOn));
+        } catch (EInvoiceException $e) {
+            $this->addError('dueOn', $e->getMessage());
+
+            return;
+        }
+
+        $this->transferring = false;
+        session()->flash('status', 'Fatura Finans\'a ödenecek olarak aktarıldı.');
+    }
+
+    public function with(EInvoiceFinanceService $finance): array
+    {
+        $invoice = EInvoice::with(['lines.identities', 'lines.product', 'supplier', 'purchaseReceipt', 'financeObligation.party'])->findOrFail($this->invoiceId);
 
         return [
             'invoice' => $invoice,
+            'transferred' => $finance->hasOpenTransfer($invoice),
             ...$this->utsPending($invoice),
         ];
     }
@@ -125,6 +166,23 @@ new #[Layout('layouts::authenticated')] class extends Component
                     @endif
                 </dd>
             </div>
+            <div class="px-5 py-3 sm:flex sm:items-center gap-4">
+                <dt class="text-ink-muted sm:w-48 shrink-0">Finans</dt>
+                <dd class="flex-1 flex flex-wrap items-center justify-between gap-2">
+                    @if ($transferred)
+                        <span class="text-ink">Ödenecek olarak aktarıldı: {{ $invoice->financeObligation->party?->name }}, vade {{ $invoice->financeObligation->due_on->format('d.m.Y') }}.
+                            @can('finance.viewAny') <a href="{{ route('finance.obligations') }}" class="underline ml-1">Ödemeler ve tahsilatlar</a> @endcan
+                        </span>
+                    @elseif ($invoice->currency !== 'TRY' || $invoice->type === 'IADE')
+                        <span class="text-ink-muted">{{ $invoice->type === 'IADE' ? 'İade faturası borç olarak aktarılmaz.' : 'TL dışı fatura Finans\'a aktarılmaz.' }}</span>
+                    @else
+                        <span class="text-ink-muted">Finans'a aktarılmadı.</span>
+                        @can('finance.create')
+                            <button type="button" wire:click="openTransfer" class="border border-line rounded-md px-3 py-1.5 text-[13px] text-ink hover:border-panel-900">Cari borç olarak aktar</button>
+                        @endcan
+                    @endif
+                </dd>
+            </div>
             @if ($utsRows !== null || $utsError)
                 <div class="px-5 py-3 sm:flex gap-4">
                     <dt class="text-ink-muted sm:w-48 shrink-0">ÜTS</dt>
@@ -192,4 +250,19 @@ new #[Layout('layouts::authenticated')] class extends Component
             </tbody>
         </table>
     </section>
+
+    <x-modal :show="$transferring" title="Cari borç olarak aktar" on-close="closeTransfer">
+        <form wire:submit="transfer" class="space-y-4">
+            <p class="text-[14px] text-ink">{{ $invoice->sender_name }} carisine <span class="font-medium tabular-nums">{{ $invoice->formatAmount($invoice->payable) }}</span> ödenecek kaydı açılır (belge no {{ $invoice->invoice_number }}). Cari yoksa VKN ile Tedarikçi olarak açılır.</p>
+            <div class="max-w-[12rem]">
+                <label for="due-on" class="block text-[13px] text-ink-muted mb-1.5">Vade tarihi</label>
+                <input id="due-on" type="date" wire:model="dueOn" class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+            </div>
+            @error('dueOn') <span class="text-status-critical text-[12px] block">{{ $message }}</span> @enderror
+            <div class="flex items-center gap-3 pt-2">
+                <button type="submit" class="bg-panel-900 text-white rounded-md px-4 py-2.5 text-[14px] font-medium hover:bg-panel-800 transition-colors">Aktar</button>
+                <button type="button" wire:click="closeTransfer" class="text-[14px] text-ink-muted hover:text-ink">Vazgeç</button>
+            </div>
+        </form>
+    </x-modal>
 </div>

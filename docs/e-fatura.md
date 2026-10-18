@@ -31,6 +31,16 @@ Fatura gelir gelmez ve detay her açıldığında **yalnızca boş bağlar** dol
 - **ÜTS:** fatura numarası ÜTS'deki Verme bildiriminin belge no'su (`BNO`) olarak sorgulanır. Kabul yine Kabul Bekleyenler'in onay panelinden yapılır (Alma'nın iptali olmadığı için otomatik kabul yoktur). Kabul Bekleyenler `?belge=` ile süzülebilir.
 - Eşitleme kuyrukta oturumsuz çalışır; eşleştirmedeki her sorgu organizasyonu açıkça verir (başka kliniğin kaydıyla eşleşmez, testle doğrulandı).
 
+## Finans'a aktarım (Aşama 46)
+
+Finans yazma yetkisi olan kullanıcı detaydaki **"Cari borç olarak aktar"** ile faturayı Finans'a **ödenecek** yükümlülük olarak aktarır. Otomatik borç yoktur (Faz 5 kararı); aktarım her zaman elle yapılır.
+
+- Tutar = faturanın ödenecek tutarı (KDV dahil), belge no = fatura no, vade kullanıcının seçtiği tarih (varsayılan fatura tarihi).
+- Cari gönderenin VKN/TCKN'siyle bulunur; yoksa "Tedarikçi" türünde açılır (aynı adlı başka cari varsa ada VKN eklenir).
+- Yükümlülük Finans'ın kendi servisiyle (`ObligationService`) açılır; ödeme, vade bildirimi ve raporlar her zamanki gibi çalışır.
+- Aynı fatura ikinci kez aktarılamaz; aktarılan yükümlülük Finans'ta iptal edilirse fatura yeniden aktarılabilir.
+- TL dışı ve iade faturaları aktarılmaz.
+
 ## Nilvera API anahtarı
 
 1. Nilvera Portal'a girin (test hesabı için Nilvera'dan test kullanıcısı isteyin).

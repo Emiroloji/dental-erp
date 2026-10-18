@@ -59,10 +59,11 @@ kapıdan geçer.
   şifreli saklanır, arama özetle tam eşleşmeyle yapılır, ekranlarda maskelidir;
   ayrı "Hastalar" yetkisiyle görülür. Hasta kartında kullanılan ürünler (implant,
   greft…) ve ÜTS durumları listelenir. Tedavi/hasta dosyası değildir.
-- **Gelen e-Fatura (Faz 6, Aşama 44):** tedarikçi e-faturaları entegratörden (ilk
-  sürücü Nilvera) her 30 dakikada çekilir; UBL-TR XML'i saklanır ve okunur
-  (kalemler, ilaç/tıbbi cihaz GTIN-lot-seri kimlikleri). Gelen e-Faturalar
-  listesi ve detayı, PDF görüntüleme. Ayrıntı: `docs/e-fatura.md`.
+- **Gelen e-Fatura (Faz 6, Aşama 44–46):** tedarikçi e-faturaları entegratörden
+  (ilk sürücü Nilvera) her 30 dakikada çekilir; UBL-TR XML'i saklanır ve okunur
+  (kalemler, ilaç/tıbbi cihaz GTIN-lot-seri kimlikleri). Fatura tedarikçi, satın
+  alma teslimi, ürün kartı ve ÜTS'deki kabul bekleyenlerle eşleştirilir; Finans
+  yetkisiyle cari borç olarak aktarılır. Ayrıntı: `docs/e-fatura.md`.
 - **Tanıtım sitesi:** aynı repo içinde girişsiz sayfalar (`/`, `/neler-yapiyor`,
   `/talep`). Talep formu yalnızca bir `Lead` kaydı oluşturur — otomatik hesap
   veya organizasyon açılmaz; Platform Sahibi "Gelen Talepler" ekranından elle
