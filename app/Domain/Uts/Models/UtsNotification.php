@@ -39,6 +39,10 @@ class UtsNotification extends Model
 
     public const TYPE_HEK_CANCEL = 'hek_iptal';
 
+    public const TYPE_REMOVAL = 'vucuttan_cikarma';
+
+    public const TYPE_REMOVAL_CANCEL = 'vucuttan_cikarma_iptal';
+
     public const STATUS_SENT = 'sent';
 
     public const STATUS_FAILED = 'failed';
@@ -77,6 +81,8 @@ class UtsNotification extends Model
             self::TYPE_IMHA_CANCEL => 'İmha iptali',
             self::TYPE_HEK => 'HEK / Zayiat',
             self::TYPE_HEK_CANCEL => 'HEK / Zayiat iptali',
+            self::TYPE_REMOVAL => 'Vücuttan çıkarma',
+            self::TYPE_REMOVAL_CANCEL => 'Vücuttan çıkarma iptali',
             default => 'Alma',
         };
     }

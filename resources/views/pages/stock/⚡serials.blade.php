@@ -100,6 +100,9 @@ new #[Layout('layouts::authenticated')] class extends Component
                 <p class="px-5 pt-3 text-[13px]">
                     <span class="font-medium text-ink">Hastaya kullanıldı</span>
                     <span class="text-ink-muted">{{ $usage->used_on->format('d.m.Y') }}</span>
+                    @if ($usage->removed_on)
+                        <span class="text-status-warn ml-1">Hastadan çıkarıldı {{ $usage->removed_on->format('d.m.Y') }}</span>
+                    @endif
                     @if ($canSeePatients)
                         <a href="{{ route('patients.show', $usage->patient_id) }}" class="ml-1 underline text-ink">{{ $usage->patient->fullName() }}</a>
                         <span class="text-ink-muted">{{ $usage->patient->maskedIdentity() }}</span>

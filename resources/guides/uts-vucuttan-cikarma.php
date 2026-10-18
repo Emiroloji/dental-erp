@@ -43,7 +43,7 @@ return [
             ],
         ],
     ],
-    'program' => 'Dental ERP hastaya kullanılan her ürünü hastanın implant kartında ve Seri Takibi\'nde gösterir; çıkarma bildirimini yapacağınız ürünün seri ve lot numarası oradan bulunur. Hastanın vücudundan çıkarma bildirimi şu an programdan gönderilmez, ÜTS portalından yapılır.',
+    'program' => 'Dental ERP\'de hastanın implant kartındaki üründe "Vücuttan çıkar" ile gerekçe ve çıkarma tarihi seçilir. Kullanımı ÜTS\'ye bildirilmiş üründe çıkarma bildirimi aynı hasta bilgileriyle kendiliğinden gider; tarih takılma tarihinden önce ya da ileri bir tarih olamaz. Çıkarma hasta kartında ve Seri Takibi\'nde görünür; ÜTS\'deki bildirim Gönderim Geçmişi\'nden iptal edilir.',
     'sources' => [
         ['ÜTS Takip ve İzleme Web Servis Tanımları Dokümanı, rev. 1.99, bölüm 3.1.22, 3.1.21, 3.2 ve EK-A (UTS-H198)', 'https://uts.saglik.gov.tr/wp-content/uploads/2021/UTS-PRJ-TakipVeIzlemeWebServisTanimlariDokumani.pdf'],
     ],

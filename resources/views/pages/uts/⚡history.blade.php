@@ -4,6 +4,7 @@ use App\Domain\Patients\Models\PatientUsage;
 use App\Domain\Uts\Exceptions\UtsException;
 use App\Domain\Uts\Models\UtsNotification;
 use App\Domain\Uts\Services\UtsDisposalService;
+use App\Domain\Uts\Services\UtsRemovalService;
 use App\Domain\Uts\Services\UtsUsageService;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Layout;
@@ -23,14 +24,16 @@ new #[Layout('layouts::authenticated')] class extends Component
 
     public ?int $cancellingId = null;
 
-    public function retry(int $notificationId, UtsUsageService $usages, UtsDisposalService $disposals): void
+    public function retry(int $notificationId, UtsUsageService $usages, UtsDisposalService $disposals, UtsRemovalService $removals): void
     {
         Gate::authorize('stock_movement.create');
 
         $notification = UtsNotification::findOrFail($notificationId);
 
         try {
-            if ($notification->patient_usage_id !== null) {
+            if ($notification->type === UtsNotification::TYPE_REMOVAL) {
+                $removals->retry($notification);
+            } elseif ($notification->patient_usage_id !== null) {
                 $usages->report($this->usageOf($notificationId));
             } elseif ($disposals->canRetry($notification)) {
                 $disposals->retry($notification);
@@ -57,7 +60,7 @@ new #[Layout('layouts::authenticated')] class extends Component
         $this->cancellingId = null;
     }
 
-    public function cancelInUts(UtsUsageService $usages, UtsDisposalService $disposals): void
+    public function cancelInUts(UtsUsageService $usages, UtsDisposalService $disposals, UtsRemovalService $removals): void
     {
         Gate::authorize('stock_movement.create');
 
@@ -65,9 +68,11 @@ new #[Layout('layouts::authenticated')] class extends Component
         $this->cancellingId = null;
 
         try {
-            $notification->patient_usage_id !== null
-                ? $usages->cancel($this->usageOf($notification->id))
-                : $disposals->cancel($notification);
+            match (true) {
+                $notification->type === UtsNotification::TYPE_REMOVAL => $removals->cancel($notification),
+                $notification->patient_usage_id !== null => $usages->cancel($this->usageOf($notification->id)),
+                default => $disposals->cancel($notification),
+            };
             session()->flash('status', 'Bildirim ÜTS\'de iptal edildi. Stok çıkışını artık Stok Hareketleri\'nden iptal edebilirsiniz.');
         } catch (UtsException $e) {
             session()->flash('error', $e->getMessage());
@@ -90,6 +95,7 @@ new #[Layout('layouts::authenticated')] class extends Component
             'canAct' => Gate::allows('stock_movement.create'),
             'canSeePatients' => Gate::allows('patients.viewAny'),
             'disposals' => app(UtsDisposalService::class),
+            'removals' => app(UtsRemovalService::class),
             'cancelling' => $cancelling,
         ];
     }
@@ -160,7 +166,7 @@ new #[Layout('layouts::authenticated')] class extends Component
                             <td class="px-4 py-3">{{ $n->user?->name ?? '—' }}</td>
                             <td class="px-4 py-3">
                                 @if ($n->status === 'sent')
-                                    <span class="whitespace-nowrap rounded-full bg-brand-100 text-brand-600 px-2 py-0.5 text-[12px]">{{ match ($n->type) { 'kullanim' => 'ÜTS\'ye bildirildi', 'kullanim_iptal' => 'İptal edildi', 'almak_istemiyorum' => 'İşaretlendi', 'verme' => 'İade bildirildi', 'imha', 'hek' => 'ÜTS\'ye bildirildi', 'verme_iptal', 'imha_iptal', 'hek_iptal' => 'İptal edildi', default => 'Kabul edildi' } }}</span>
+                                    <span class="whitespace-nowrap rounded-full bg-brand-100 text-brand-600 px-2 py-0.5 text-[12px]">{{ match ($n->type) { 'kullanim' => 'ÜTS\'ye bildirildi', 'kullanim_iptal' => 'İptal edildi', 'almak_istemiyorum' => 'İşaretlendi', 'verme' => 'İade bildirildi', 'imha', 'hek', 'vucuttan_cikarma' => 'ÜTS\'ye bildirildi', 'verme_iptal', 'imha_iptal', 'hek_iptal', 'vucuttan_cikarma_iptal' => 'İptal edildi', default => 'Kabul edildi' } }}</span>
                                     <div class="text-ink-muted mt-1 break-all">{{ $n->uts_notification_id }}</div>
                                 @else
                                     <span class="whitespace-nowrap rounded-full bg-red-50 text-status-critical px-2 py-0.5 text-[12px]">Gönderilemedi</span>
@@ -174,7 +180,14 @@ new #[Layout('layouts::authenticated')] class extends Component
                                         <button type="button" wire:click="confirmCancel({{ $n->id }})" class="mt-2 whitespace-nowrap text-[13px] text-status-critical hover:underline">ÜTS'de iptal et</button>
                                     @endif
                                 @endif
-                                @if ($canAct && $usage && $usage->cancelled_at === null)
+                                @if ($canAct && $n->type === 'vucuttan_cikarma')
+                                    @if ($removals->canRetry($n))
+                                        <button type="button" wire:click="retry({{ $n->id }})" wire:loading.attr="disabled" class="mt-2 whitespace-nowrap border border-line rounded-md px-3 py-1 text-[13px] text-ink hover:border-panel-900">Tekrar gönder</button>
+                                    @elseif ($removals->isActive($n))
+                                        <button type="button" wire:click="confirmCancel({{ $n->id }})" class="mt-2 whitespace-nowrap text-[13px] text-status-critical hover:underline">ÜTS'de iptal et</button>
+                                    @endif
+                                @endif
+                                @if ($canAct && $usage && $usage->cancelled_at === null && in_array($n->type, ['kullanim', 'kullanim_iptal'], true))
                                     @if ($n->type === 'kullanim' && $n->status === 'failed' && $usage->utsStatus() === 'failed' && $usage->utsNotifications->last()->is($n))
                                         <button type="button" wire:click="retry({{ $n->id }})" wire:loading.attr="disabled" class="mt-2 whitespace-nowrap border border-line rounded-md px-3 py-1 text-[13px] text-ink hover:border-panel-900">Tekrar gönder</button>
                                     @elseif ($n->type === 'kullanim' && $n->status === 'sent' && $usage->reportedCode() === $n->uts_notification_id)
@@ -194,7 +207,13 @@ new #[Layout('layouts::authenticated')] class extends Component
     <x-modal :show="$cancelling !== null" title="ÜTS bildirimini iptal et" on-close="closeCancel">
         @if ($cancelling)
             <p class="text-[14px] text-ink">ÜTS'deki {{ mb_strtolower($cancelling->typeLabel()) }} bildirimi iptal edilecek: <span class="font-medium">{{ $cancelling->product_name }}</span>@if ($cancelling->serial), seri {{ $cancelling->serial }}@elseif ($cancelling->lot), lot {{ $cancelling->lot }}@endif.</p>
-            <p class="text-[13px] text-ink-muted mt-2">Ürün ÜTS'de yeniden kliniğinizin stoğunda görünür. Çıkış yanlış girildiyse iptalden sonra stok çıkışını Stok Hareketleri'nden iptal edin.</p>
+            <p class="text-[13px] text-ink-muted mt-2">
+                @if ($cancelling->type === 'vucuttan_cikarma')
+                    Çıkarma kaydı hasta kartından da kaldırılır.
+                @else
+                    Çıkış yanlış girildiyse iptalden sonra stok çıkışını Stok Hareketleri'nden iptal edin.
+                @endif
+            </p>
             <div class="flex items-center gap-3 mt-6">
                 <button type="button" wire:click="cancelInUts" wire:loading.attr="disabled" class="bg-panel-900 text-white rounded-md px-4 py-2.5 text-[14px] font-medium hover:bg-panel-800 transition-colors disabled:opacity-50">ÜTS'de iptal et</button>
                 <button type="button" wire:click="closeCancel" class="text-[14px] text-ink-muted hover:text-ink">Vazgeç</button>

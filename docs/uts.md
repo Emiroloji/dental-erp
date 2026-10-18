@@ -61,6 +61,12 @@ Kabul Bekleyenler'de satırdaki "Almak istemiyorum" (stok yazma yetkisi, onay pa
 - Hızlı İşlem'de işaretli ürün "Klinik içi kullanım" ile çıkarılamaz (hasta seçimi Stok Çıkışı'ndadır).
 - Hasta kimliği `uts_notifications` tablosuna yazılmaz; kayıt `patient_usages` üzerinden hastaya bağlanır. Hasta verisi ve güvenlik önlemleri için tasarım belgesi: `docs/superpowers/specs/2026-10-18-hasta-ve-uts-kullanim-design.md`.
 
+## Hastanın vücudundan çıkarma (Aşama 55)
+
+- Hasta kartındaki üründe "Vücuttan çıkar" (hasta yazma yetkisi): gerekçe (`GRK`: doku uyumsuzluğu, revizyon, kullanım ömrünü doldurma, geri çağırma, diğer + `DGA`), çıkarma tarihi (`GIT`; kullanım tarihinden önce ve ileri olamaz).
+- Çıkarma önce kullanım kaydına yazılır (`patient_usages.removed_on`, `removal_reason`, `removal_note`); kullanım ÜTS'ye bildirilmişse `bildirim/hastaninVucudundanCikarma/ekle` aynı ürün ve hasta alanlarıyla gider. ÜTS hatası yerel kaydı geri almaz; Gönderim Geçmişi'nden tekrar gönderilir.
+- **İptal vardır** (`hastaninVucudundanCikarma/iptal`); iptal edilince yerel çıkarma da kaldırılır. Çıkarma bildirimi geçerliyken kullanım bildirimi iptal edilemez (önce çıkarma iptal edilir).
+
 ### Gerçek ortam kilidi
 
 Yazma (Alma ve Kullanım) henüz gerçek ÜTS'de denenmedi. Bağlantı **gerçek ortamda** ise gönderim, `UTS_PRODUCTION_WRITES=true` yapılana kadar engellenir ve ekranda "gerçek ortamda bildirim gönderimi henüz açılmadı" yazar. Test ortamı ve okuma ekranları etkilenmez.

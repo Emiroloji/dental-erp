@@ -8,6 +8,7 @@ use App\Domain\Stock\Models\StockLot;
 use App\Domain\Stock\Models\StockMovement;
 use App\Domain\Stock\Models\StockSerial;
 use App\Domain\Uts\Models\UtsNotification;
+use App\Domain\Uts\Support\RemovalReport;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -16,7 +17,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 /**
  * Hastaya kullanılan ÜTS takipli ürün (Aşama 43): bir stok çıkış hareketinin
  * hastaya bağlanmış hali. Seri takipli üründe her seri ayrı satırdır.
- * Çıkış hareketi iptal edilirse cancelled_at dolar.
+ * Çıkış hareketi iptal edilirse cancelled_at dolar; ürün hastadan
+ * çıkarılınca removed_on ve gerekçesi dolar (Aşama 55).
  */
 class PatientUsage extends Model
 {
@@ -32,12 +34,13 @@ class PatientUsage extends Model
 
     protected $fillable = [
         'organization_id', 'patient_id', 'stock_movement_id', 'product_id', 'stock_lot_id',
-        'stock_serial_id', 'quantity', 'used_on', 'user_id', 'cancelled_at',
+        'stock_serial_id', 'quantity', 'used_on', 'removed_on', 'removal_reason', 'removal_note', 'user_id', 'cancelled_at',
     ];
 
     protected $casts = [
         'quantity' => 'decimal:3',
         'used_on' => 'date',
+        'removed_on' => 'date',
         'cancelled_at' => 'datetime',
     ];
 
@@ -104,6 +107,12 @@ class PatientUsage extends Model
         return $this->utsStatus() === self::UTS_SENT
             ? $this->utsNotifications->last(fn ($n) => $n->type === UtsNotification::TYPE_USAGE && $n->status === UtsNotification::STATUS_SENT)?->uts_notification_id
             : null;
+    }
+
+    public function removalLabel(): ?string
+    {
+        return $this->removed_on === null ? null
+            : RemovalReport::REASONS[$this->removal_reason] ?? $this->removal_reason;
     }
 
     public function utsStatusLabel(): string

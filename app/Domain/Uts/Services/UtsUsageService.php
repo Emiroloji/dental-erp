@@ -7,6 +7,7 @@ use App\Domain\Uts\Contracts\UtsClient;
 use App\Domain\Uts\Exceptions\UtsException;
 use App\Domain\Uts\Models\UtsNotification;
 use App\Domain\Uts\Support\UsageReport;
+use Carbon\CarbonInterface;
 
 /**
  * Hastaya kullanımı ÜTS'ye bildirir ve gerekirse iptal eder (Aşama 43).
@@ -60,6 +61,10 @@ class UtsUsageService
             throw new UtsException('Bu, ÜTS\'de bildirilmiş bir kullanım değil; iptal edilecek bildirim yok.');
         }
 
+        if (app(UtsRemovalService::class)->hasActive($usage)) {
+            throw new UtsException('Bu ürün için ÜTS\'de hastanın vücudundan çıkarma bildirimi var. Önce çıkarma bildirimini iptal edin.');
+        }
+
         $attributes = $this->attributes($usage, UtsNotification::TYPE_USAGE_CANCEL, $environment, $code);
 
         try {
@@ -73,7 +78,11 @@ class UtsUsageService
         return UtsNotification::create($attributes + ['status' => UtsNotification::STATUS_SENT, 'uts_notification_id' => $cancelCode]);
     }
 
-    private function reportFor(PatientUsage $usage): UsageReport
+    /**
+     * Kullanımın ÜTS içeriği; $date verilirse GIT o tarihtir (çıkarma
+     * bildirimi aynı ürün ve hasta alanlarını kullanır).
+     */
+    public function reportFor(PatientUsage $usage, ?CarbonInterface $date = null): UsageReport
     {
         $patient = $usage->patient;
 
@@ -81,7 +90,7 @@ class UtsUsageService
             uno: (string) $usage->product->gtin,
             lot: $usage->serial ? null : $usage->lot->lot_no,
             serial: $usage->serial?->serial_no,
-            usedOn: $usage->used_on->toDateString(),
+            usedOn: ($date ?? $usage->used_on)->toDateString(),
             firstName: $patient->first_name,
             lastName: $patient->last_name,
             identityCode: $patient->identity_type->utsCode(),

@@ -100,6 +100,7 @@ new #[Layout('layouts::marketing')] class extends Component
                     ['Kimlik korunur', 'Kimlik numarası şifreli saklanır; listelerde maskeli görünür (100******46). Numarayla arama yalnızca numaranın tamamıyla yapılır.'],
                     ['Ayrı yetki', 'Hastaları görmek ayrı bir yetkidir; stok personeline kendiliğinden açılmaz.'],
                     ['İmplant kartı', 'Hastanın kartında ona kullanılan her ürün; tarih, lot, seri numarası, şube ve ÜTS durumuyla görünür. "Bu implant kime takıldı" sorusunun cevabı da seri numarasından bulunur.'],
+                    ['Hastadan çıkarma', 'Tutmayan ya da değiştirilen implant karttan "vücuttan çıkar" ile işaretlenir; gerekçe ve tarihle ÜTS\'ye hastanın vücudundan çıkarma bildirimi gider.'],
                 ], 'patient'],
 
                 ['finans', 'Finans: ön muhasebe', [

@@ -8,6 +8,7 @@ use App\Domain\Uts\Support\DisposalReport;
 use App\Domain\Uts\Support\GiveReport;
 use App\Domain\Uts\Support\PendingReceipt;
 use App\Domain\Uts\Support\PendingReceiptPage;
+use App\Domain\Uts\Support\RemovalReport;
 use App\Domain\Uts\Support\UsageReport;
 use App\Domain\Uts\Support\UtsItem;
 
@@ -128,6 +129,22 @@ class FakeUtsClient implements UtsClient
         $this->failWrite();
 
         return 'sahte-'.$type.'-iptal-'.count($this->calls);
+    }
+
+    public function reportRemoval(RemovalReport $report): string
+    {
+        $this->calls[] = ['reportRemoval', [$report->toPayload()]];
+        $this->failWrite();
+
+        return 'sahte-cikarma-'.count($this->calls);
+    }
+
+    public function cancelRemoval(string $notificationId): string
+    {
+        $this->calls[] = ['cancelRemoval', [$notificationId]];
+        $this->failWrite();
+
+        return 'sahte-cikarma-iptal-'.count($this->calls);
     }
 
     private function failWrite(): void

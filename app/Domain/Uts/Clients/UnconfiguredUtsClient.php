@@ -7,6 +7,7 @@ use App\Domain\Uts\Exceptions\UtsException;
 use App\Domain\Uts\Support\DisposalReport;
 use App\Domain\Uts\Support\GiveReport;
 use App\Domain\Uts\Support\PendingReceiptPage;
+use App\Domain\Uts\Support\RemovalReport;
 use App\Domain\Uts\Support\UsageReport;
 
 /**
@@ -60,6 +61,16 @@ class UnconfiguredUtsClient implements UtsClient
     }
 
     public function cancelDisposal(string $type, string $notificationId): string
+    {
+        $this->fail();
+    }
+
+    public function reportRemoval(RemovalReport $report): string
+    {
+        $this->fail();
+    }
+
+    public function cancelRemoval(string $notificationId): string
     {
         $this->fail();
     }

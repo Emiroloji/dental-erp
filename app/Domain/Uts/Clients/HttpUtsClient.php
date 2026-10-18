@@ -9,6 +9,7 @@ use App\Domain\Uts\Support\DisposalReport;
 use App\Domain\Uts\Support\GiveReport;
 use App\Domain\Uts\Support\PendingReceipt;
 use App\Domain\Uts\Support\PendingReceiptPage;
+use App\Domain\Uts\Support\RemovalReport;
 use App\Domain\Uts\Support\UsageReport;
 use App\Domain\Uts\Support\UtsItem;
 use Illuminate\Http\Client\ConnectionException;
@@ -113,6 +114,16 @@ class HttpUtsClient implements UtsClient
         $path = $type === DisposalReport::TYPE_IMHA ? 'imhaBertaraf' : 'hekZayiat';
 
         return $this->notificationCode("/UTS/uh/rest/bildirim/{$path}/iptal", ['BID' => $notificationId], 'ÜTS iptali onaylamadı. Biraz sonra tekrar deneyin.');
+    }
+
+    public function reportRemoval(RemovalReport $report): string
+    {
+        return $this->notificationCode('/UTS/uh/rest/bildirim/hastaninVucudundanCikarma/ekle', $report->toPayload(), 'ÜTS çıkarma bildirimini onaylamadı. Gönderim Geçmişi\'nden tekrar deneyin.');
+    }
+
+    public function cancelRemoval(string $notificationId): string
+    {
+        return $this->notificationCode('/UTS/uh/rest/bildirim/hastaninVucudundanCikarma/iptal', ['BID' => $notificationId], 'ÜTS çıkarma iptalini onaylamadı. Biraz sonra tekrar deneyin.');
     }
 
     /**

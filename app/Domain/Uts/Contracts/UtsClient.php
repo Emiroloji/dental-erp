@@ -6,6 +6,7 @@ use App\Domain\Uts\Exceptions\UtsException;
 use App\Domain\Uts\Support\DisposalReport;
 use App\Domain\Uts\Support\GiveReport;
 use App\Domain\Uts\Support\PendingReceiptPage;
+use App\Domain\Uts\Support\RemovalReport;
 use App\Domain\Uts\Support\UsageReport;
 use App\Domain\Uts\Support\UtsItem;
 
@@ -13,7 +14,8 @@ use App\Domain\Uts\Support\UtsItem;
  * ÜTS web servisleri. Uygulamalar: HttpUtsClient (gerçek), FakeUtsClient
  * (test), UnconfiguredUtsClient (token yok). Yazma bildirimleri: Alma
  * (Aşama 42), Kullanım ve iptali (Aşama 43), Almak istemiyorum (Aşama 47),
- * Verme ve iptali (Aşama 48), İmha ve HEK/Zayiat ve iptalleri (Aşama 49).
+ * Verme ve iptali (Aşama 48), İmha ve HEK/Zayiat ve iptalleri (Aşama 49),
+ * hastanın vücudundan çıkarma ve iptali (Aşama 55).
  */
 interface UtsClient
 {
@@ -99,6 +101,20 @@ interface UtsClient
      * @throws UtsException
      */
     public function cancelDisposal(string $type, string $notificationId): string;
+
+    /**
+     * Hastaya kullanılmış ürünün hastadan çıkarıldığını bildirir (3.1.22).
+     *
+     * @throws UtsException
+     */
+    public function reportRemoval(RemovalReport $report): string;
+
+    /**
+     * Hastanın vücudundan çıkarma bildirimini iptal eder (3.2).
+     *
+     * @throws UtsException
+     */
+    public function cancelRemoval(string $notificationId): string;
 
     public function name(): string;
 }
