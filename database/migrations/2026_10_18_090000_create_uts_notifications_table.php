@@ -18,6 +18,7 @@ return new class extends Migration
             $table->string('status', 16);
             $table->string('environment', 16);
             $table->string('uno', 32);
+            $table->string('product_name')->nullable();
             $table->string('lot', 32)->nullable();
             $table->string('serial', 32)->nullable();
             $table->unsignedInteger('quantity')->nullable();

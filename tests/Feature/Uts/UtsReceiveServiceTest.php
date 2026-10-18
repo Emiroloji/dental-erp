@@ -41,7 +41,7 @@ class UtsReceiveServiceTest extends TestCase
 
     private function lotReceipt(int $quantity = 5): PendingReceipt
     {
-        return PendingReceipt::fromArray(['BID' => 'vbi-lot', 'GKK' => 7, 'GKU' => 'Tedarik A.Ş.', 'UNO' => '08699999999994', 'LNO' => 'L1', 'ADT' => $quantity, 'BNO' => 'IRS-1']);
+        return PendingReceipt::fromArray(['BID' => 'vbi-lot', 'GKK' => 7, 'GKU' => 'Tedarik A.Ş.', 'UNO' => '08699999999994', 'LNO' => 'L1', 'ADT' => $quantity, 'BNO' => 'IRS-1', 'MME' => 'Implant X']);
     }
 
     private function serialReceipt(): PendingReceipt
@@ -66,6 +66,7 @@ class UtsReceiveServiceTest extends TestCase
         $this->assertSame('L1', $record->lot);
         $this->assertSame(5, $record->quantity);
         $this->assertSame('Tedarik A.Ş.', $record->sender_name);
+        $this->assertSame('Implant X', $record->product_name);
         $this->assertSame('test', $record->environment);
     }
 

@@ -25,7 +25,7 @@ class UtsNotification extends Model
 
     protected $fillable = [
         'organization_id', 'user_id', 'type', 'source_notification_id', 'uts_notification_id',
-        'status', 'environment', 'uno', 'lot', 'serial', 'quantity', 'sender_code',
+        'status', 'environment', 'uno', 'product_name', 'lot', 'serial', 'quantity', 'sender_code',
         'sender_name', 'document_no', 'message',
     ];
 

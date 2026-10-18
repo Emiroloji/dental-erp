@@ -28,6 +28,7 @@ class FakeUtsClient implements UtsClient
         private readonly array $pending = [],
         private readonly array $items = [],
         private readonly ?UtsException $failure = null,
+        private readonly ?UtsException $receiveFailure = null,
     ) {}
 
     public function pendingReceipts(?int $senderCode = null, int $page = 0): PendingReceiptPage
@@ -62,8 +63,8 @@ class FakeUtsClient implements UtsClient
     {
         $this->calls[] = ['receive', [$notificationId, $quantity]];
 
-        if ($this->failure) {
-            throw $this->failure;
+        if ($failure = $this->failure ?? $this->receiveFailure) {
+            throw $failure;
         }
 
         $this->received[] = $notificationId;

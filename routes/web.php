@@ -122,6 +122,11 @@ Route::middleware('tenant')->group(function () {
         ->middleware(['auth', 'can:stock_movement.viewAny'])
         ->name('uts.verify');
 
+    // Aşama 42: ÜTS'ye gönderilen bildirimlerin (Alma) kaydı.
+    Route::livewire('/uts/gecmis', 'pages::uts.history')
+        ->middleware(['auth', 'can:stock_movement.viewAny'])
+        ->name('uts.history');
+
     // Faz 5: Finans (ön muhasebe) — organizasyon geneli, şube kapsamı yok (karar 2.9).
     Route::livewire('/finans', 'pages::finance.overview')
         ->middleware(['auth', 'can:finance.viewAny'])

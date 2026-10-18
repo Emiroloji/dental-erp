@@ -107,6 +107,7 @@ new #[Layout('layouts::authenticated')] class extends Component
         <nav class="flex gap-4 mt-4 text-[14px]">
             <a href="{{ route('uts.pending') }}" class="text-ink-muted hover:text-ink pb-1">Kabul Bekleyenler</a>
             <a href="{{ route('uts.verify') }}" class="font-medium text-ink border-b-2 border-brand-500 pb-1">Lot/Seri Doğrula</a>
+            <a href="{{ route('uts.history') }}" class="text-ink-muted hover:text-ink pb-1">Gönderim Geçmişi</a>
         </nav>
     </div>
 

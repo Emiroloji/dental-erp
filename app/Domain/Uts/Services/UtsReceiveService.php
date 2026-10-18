@@ -49,6 +49,7 @@ class UtsReceiveService
             'source_notification_id' => $receipt->notificationId,
             'environment' => $environment,
             'uno' => $receipt->uno,
+            'product_name' => $receipt->brand,
             'lot' => $receipt->lot,
             'serial' => $receipt->serial,
             'quantity' => $quantity ?? $receipt->quantity,
