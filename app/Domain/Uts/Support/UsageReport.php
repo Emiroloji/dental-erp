@@ -4,7 +4,9 @@ namespace App\Domain\Uts\Support;
 
 /**
  * ÜTS Kullanım bildirimi içeriği (rev. 1.99, 3.1.9). Seri takipli üründe
- * SNO, lot takipli üründe LNO + ADT gider. Kimlik numarası türüne göre
+ * SNO, lot takipli üründe LNO gider. Adet gönderilmez: kullanım bildiriminde
+ * adet 1'dir (verilmezse 1 kabul edilir; UTS-H222), lottan birden çok adet
+ * kullanıldıysa her adet ayrı bildirimdir. Kimlik numarası türüne göre
  * TKN / YKN / PAN alanına; kimliği belirsiz hastada KTN olarak kayıt no gider.
  */
 final readonly class UsageReport
@@ -13,7 +15,6 @@ final readonly class UsageReport
         public string $uno,
         public ?string $lot,
         public ?string $serial,
-        public ?int $quantity,
         public string $usedOn,
         public string $firstName,
         public string $lastName,
@@ -34,7 +35,6 @@ final readonly class UsageReport
             $payload['SNO'] = $this->serial;
         } else {
             $payload['LNO'] = $this->lot;
-            $payload['ADT'] = $this->quantity;
         }
 
         $payload += ['GIT' => $this->usedOn, 'HAA' => $this->firstName, 'HAS' => $this->lastName, 'TUR' => $this->identityCode];

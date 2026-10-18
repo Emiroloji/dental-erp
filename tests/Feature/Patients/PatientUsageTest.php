@@ -89,15 +89,29 @@ class PatientUsageTest extends TestCase
         $this->assertSame($this->admin->id, $usages->first()->user_id);
     }
 
-    public function test_lot_usage_keeps_the_quantity(): void
+    /**
+     * ÜTS kullanım bildiriminde adet 1 olmalıdır (rev. 1.99, 3.1.9; UTS-H222):
+     * lot takipli üründe her adet ayrı kullanım ve ayrı bildirimdir.
+     */
+    public function test_lot_usage_becomes_one_usage_per_unit(): void
     {
         $movements = app(StockMovementService::class)->out($this->graft, $this->warehouse, 2, null, $this->admin, 'Klinik içi kullanım', StockOutReason::ClinicalUse);
 
-        $usage = app(PatientUsageService::class)->record($movements, $this->patient, Carbon::parse('2026-10-18'))->sole();
+        $usages = app(PatientUsageService::class)->record($movements, $this->patient, Carbon::parse('2026-10-18'));
 
-        $this->assertSame(2.0, (float) $usage->quantity);
-        $this->assertNull($usage->stock_serial_id);
-        $this->assertSame('G-7', $usage->lot->lot_no);
+        $this->assertCount(2, $usages);
+        $this->assertSame([1.0, 1.0], $usages->map(fn ($u) => (float) $u->quantity)->all());
+        $this->assertNull($usages->first()->stock_serial_id);
+        $this->assertSame('G-7', $usages->first()->lot->lot_no);
+    }
+
+    public function test_fractional_lot_usage_is_refused(): void
+    {
+        $movements = app(StockMovementService::class)->out($this->graft, $this->warehouse, 1.5, null, $this->admin, 'Klinik içi kullanım', StockOutReason::ClinicalUse);
+
+        $this->expectException(PatientException::class);
+
+        app(PatientUsageService::class)->record($movements, $this->patient, Carbon::parse('2026-10-18'));
     }
 
     public function test_report_sends_serial_usage_with_patient_identity(): void
@@ -123,16 +137,18 @@ class PatientUsageTest extends TestCase
         $this->assertStringNotContainsString('10000000146', json_encode(UtsNotification::sole()->getAttributes()));
     }
 
-    public function test_lot_usage_sends_lot_and_quantity(): void
+    public function test_lot_usage_sends_lot_without_quantity(): void
     {
         $movements = app(StockMovementService::class)->out($this->graft, $this->warehouse, 2, null, $this->admin, 'Klinik içi kullanım', StockOutReason::ClinicalUse);
-        $usage = app(PatientUsageService::class)->record($movements, $this->patient, Carbon::parse('2026-10-18'))->sole();
 
-        app(UtsUsageService::class)->report($usage);
+        foreach (app(PatientUsageService::class)->record($movements, $this->patient, Carbon::parse('2026-10-18')) as $usage) {
+            app(UtsUsageService::class)->report($usage);
+        }
 
+        $this->assertCount(2, $this->client->calls);
         $payload = $this->client->calls[0][1][0];
         $this->assertSame('G-7', $payload['LNO']);
-        $this->assertSame(2, $payload['ADT']);
+        $this->assertArrayNotHasKey('ADT', $payload);
         $this->assertArrayNotHasKey('SNO', $payload);
     }
 

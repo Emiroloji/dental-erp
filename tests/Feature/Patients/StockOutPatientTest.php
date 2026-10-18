@@ -300,4 +300,23 @@ class StockOutPatientTest extends TestCase
             ->assertSee('Hastaya kullanıldı')
             ->assertDontSee('Ayşe Yılmaz');
     }
+
+    public function test_fractional_quantity_is_refused_before_the_stock_out(): void
+    {
+        $graft = Product::create(['name' => 'Kemik grefti', 'base_unit' => 'Adet', 'status' => 'active', 'gtin' => '04049999999991', 'uts_usage_report' => true]);
+        app(StockMovementService::class)->in($graft, $this->warehouse, 5, ['lot_no' => 'G-7'], $this->admin);
+
+        Livewire::test('pages::stock.out')
+            ->call('openForm')
+            ->set('product_id', (string) $graft->id)
+            ->set('warehouse_id', (string) $this->warehouse->id)
+            ->set('quantity', '1.5')
+            ->set('reasonCategory', 'clinical_use')
+            ->call('selectPatient', $this->patient->id)
+            ->call('save')
+            ->assertHasErrors(['quantity']);
+
+        $this->assertSame(0, StockMovement::where('type', 'out')->count());
+        $this->assertSame(0, PatientUsage::count());
+    }
 }

@@ -81,7 +81,6 @@ class UtsUsageService
             uno: (string) $usage->product->gtin,
             lot: $usage->serial ? null : $usage->lot->lot_no,
             serial: $usage->serial?->serial_no,
-            quantity: $usage->serial ? null : (int) round((float) $usage->quantity),
             usedOn: $usage->used_on->toDateString(),
             firstName: $patient->first_name,
             lastName: $patient->last_name,

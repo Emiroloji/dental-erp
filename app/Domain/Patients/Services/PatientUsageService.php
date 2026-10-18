@@ -2,6 +2,7 @@
 
 namespace App\Domain\Patients\Services;
 
+use App\Domain\Patients\Exceptions\PatientException;
 use App\Domain\Patients\Models\Patient;
 use App\Domain\Patients\Models\PatientUsage;
 use App\Domain\Stock\Models\StockMovement;
@@ -11,6 +12,8 @@ use Illuminate\Support\Collection;
 /**
  * Stok çıkış hareketlerini hastaya bağlar (Aşama 43). Stoğa dokunmaz:
  * hareketler StockMovementService::out ile önceden oluşmuş olmalıdır.
+ * Her kullanım satırı tek adettir: ÜTS kullanım bildiriminde adet 1'dir
+ * (UTS-H222); lottan 3 adet kullanıldıysa 3 satır ve 3 bildirim olur.
  */
 class PatientUsageService
 {
@@ -33,7 +36,13 @@ class PatientUsageService
             $serials = $movement->serials;
 
             if ($serials->isEmpty()) {
-                return [PatientUsage::create($base + ['quantity' => abs((float) $movement->quantity)])];
+                $units = abs((float) $movement->quantity);
+
+                if (floor($units) !== $units) {
+                    throw new PatientException('ÜTS\'ye hastaya kullanım adet adet bildirilir; miktarı tam sayı girin.', 'quantity');
+                }
+
+                return collect(range(1, (int) $units))->map(fn () => PatientUsage::create($base + ['quantity' => 1]));
             }
 
             return $serials->map(fn ($serial) => PatientUsage::create($base + ['stock_serial_id' => $serial->id, 'quantity' => 1]));

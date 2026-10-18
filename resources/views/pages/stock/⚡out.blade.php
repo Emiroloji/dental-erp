@@ -291,6 +291,15 @@ new #[Layout('layouts::authenticated')] class extends Component
             }
 
             $usedOn = Carbon::parse($this->used_on);
+
+            // ÜTS kullanım bildiriminde adet 1'dir (UTS-H222): her adet ayrı
+            // bildirilir, bu yüzden lot takipli üründe miktar tam sayı olmalı.
+            $baseQuantity = $units->toBaseUnit($product, (float) $validated['quantity'], $unit);
+            if (! $product->tracks_serials && floor($baseQuantity) !== $baseQuantity) {
+                $this->addError('quantity', 'ÜTS\'ye hastaya kullanım adet adet bildirilir; miktarı tam sayı girin.');
+
+                return;
+            }
         }
 
         $disposal = $this->needsDisposal($product) && $this->reportDisposal;

@@ -157,7 +157,7 @@ class HttpUtsClientTest extends TestCase
         Http::fake(['utstest.saglik.gov.tr/*' => Http::response(['SNC' => 'kullanim-kodu-1'])]);
 
         $code = $this->client()->reportUsage(new UsageReport(
-            uno: '08699999999994', lot: null, serial: 'SN-1', quantity: null, usedOn: '2026-10-18',
+            uno: '08699999999994', lot: null, serial: 'SN-1', usedOn: '2026-10-18',
             firstName: 'Ayşe', lastName: 'Yılmaz', identityCode: 'TC_KIMLIK_NUMARASI_VAR', identityField: 'TKN', identityNo: '10000000146', personNo: 12,
         ));
 
@@ -171,11 +171,11 @@ class HttpUtsClientTest extends TestCase
         Http::fake(['*' => Http::response(['SNC' => 'kod'])]);
 
         $this->client()->reportUsage(new UsageReport(
-            uno: '08699999999994', lot: 'L1', serial: null, quantity: 2, usedOn: '2026-10-18',
+            uno: '08699999999994', lot: 'L1', serial: null, usedOn: '2026-10-18',
             firstName: 'Bilinmeyen', lastName: 'Hasta', identityCode: 'KIMLIGI_BELIRSIZ', identityField: null, identityNo: null, personNo: 12,
         ));
 
-        Http::assertSent(fn (Request $r) => $r->data() === ['UNO' => '08699999999994', 'LNO' => 'L1', 'ADT' => 2, 'GIT' => '2026-10-18', 'HAA' => 'Bilinmeyen', 'HAS' => 'Hasta', 'TUR' => 'KIMLIGI_BELIRSIZ', 'KTN' => 12]);
+        Http::assertSent(fn (Request $r) => $r->data() === ['UNO' => '08699999999994', 'LNO' => 'L1', 'GIT' => '2026-10-18', 'HAA' => 'Bilinmeyen', 'HAS' => 'Hasta', 'TUR' => 'KIMLIGI_BELIRSIZ', 'KTN' => 12]);
     }
 
     public function test_cancel_usage_posts_bid(): void
