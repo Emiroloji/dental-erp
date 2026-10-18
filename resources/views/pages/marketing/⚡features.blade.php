@@ -46,6 +46,16 @@ new #[Layout('layouts::marketing')] class extends Component
                     ['Tedarikçi geçmişi', 'Her tedarikçinin siparişleri, teslimatları ve toplam harcaması kendi kartından görünür.'],
                 ], 'purchase'],
 
+                ['efatura', 'Gelen e-fatura', [
+                    'Tedarikçinin kliniğe kestiği e-fatura entegratörünüzden yarım saatte bir kendiliğinden gelir. Kimse faturayı elle girmez; program faturanın kendisini okur ve kliniğin kayıtlarıyla eşleştirir.',
+                ], [
+                    ['Kendiliğinden gelir', 'Entegratörünüzün anahtarını bir kez girersiniz; yeni faturalar yarım saatte bir çekilir, istediğiniz an "Şimdi çek" ile de alınır. İlk bağlı entegratör Nilvera; diğerleri aynı yapıyla eklenir.'],
+                    ['Kalemleriyle okunur', 'Her kalemin adı, miktarı, birim fiyatı ve KDV oranı görünür. İlaç ve tıbbi cihaz faturasında GTIN, lot, seri numarası ve tarihler de okunur.'],
+                    ['Eşleşir', 'Gönderen tedarikçi kartınızla, fatura numarası teslim alma kaydınızla, kalemler ürün kartlarınızla eşleşir. Tedarikçi kayıtlı değilse tek tıkla eklenir.'],
+                    ['ÜTS ile buluşur', 'Aynı fatura numarasıyla ÜTS\'de kabul bekleyen ürünler faturanın altında listelenir; kabul ekranına oradan geçersiniz.'],
+                    ['Finans\'a aktarılır', 'Fatura tek tıkla tedarikçiye ödenecek borç olarak Finans\'a geçer; vadesi yaklaşınca hatırlatılır. Aynı fatura iki kez aktarılamaz.'],
+                ], 'einvoice'],
+
                 ['transfer', 'Şubeler arası transfer', [
                     'Bir şube başka bir şubeden ürün ister. Talep, onay, hazırlık, gönderim ve teslim adımlarından geçer; aynı akış bir şubenin iki deposu arasında da çalışır.',
                 ], [
@@ -71,16 +81,30 @@ new #[Layout('layouts::marketing')] class extends Component
 
                 ['ilac', 'İlaç, medikal ürün ve ÜTS', [
                     'İlaç ve bazı medikal ürünler kayıt ister. Ürün kartında GTIN, ÜTS numarası, ruhsat numarası, üretici ve saklama koşulu alanları vardır.',
+                    'ÜTS takipli ürünün kliniğe girişinden hastaya takılmasına, iadesinden imhasına kadar her adımı ÜTS\'ye programdan bildirilir. ÜTS portalına ayrıca girip aynı bilgiyi ikinci kez yazmazsınız.',
                 ], [
                     ['Seri numarası', 'İmplant gibi ürünlerde her birim ayrı seri numarasıyla girer ve çıkar; hangi serinin nerede olduğu izlenir.'],
                     ['Soğuk zincir', 'Girişte ölçülen sıcaklık istenir; saklama aralığının dışındaki giriş engellenir ya da gerekçesiyle kabul edilir.'],
                     ['Kontrollü ürün', 'Her çıkışta açıklama zorunludur; hareketler ayrı bir kontrollü ürün defterinde listelenir.'],
-                    ['ÜTS sorgulama', 'Kutudaki kare kod okutulunca lot ve seri numarası ÜTS\'de sorgulanır ve kendi kaydınızla karşılaştırılır. Tedarikçilerin kurumunuza bildirdiği, henüz kabul edilmemiş ürünler ayrı listede görünür. Program yalnızca okur; ÜTS\'ye bildirim göndermez.'],
+                    ['Kabul bekleyenler', 'Tedarikçinin size gönderdiği ürünler ÜTS\'den saatte bir taranır, yeni gelen olunca bildirim düşer. Tek tek ya da toplu kabul edersiniz (Alma bildirimi); gelmeyen ürünü "Almak istemiyorum" ile reddedersiniz. Kabulün ÜTS\'de iptali olmadığı için her kabul onaydan geçer.'],
+                    ['Hastaya kullanım', 'İmplant hastaya takılınca Stok Çıkışı\'nda hasta seçilir; Kullanım bildirimi kendiliğinden gider ve ürün hastanın kartına yazılır.'],
+                    ['İade, imha, zayiat', 'Tedarikçiye iadede Verme bildirimi; son kullanma tarihi geçen ya da hasar gören üründe İmha ya da HEK/Zayiat bildirimi aynı ekrandan yapılır.'],
+                    ['Gönderim geçmişi', 'Her bildirim kim, ne zaman, hangi ürün ve ÜTS\'nin cevabıyla kayıtlıdır. Gönderilemeyen tekrar gönderilir; iptali olan bildirim buradan iptal edilir.'],
+                    ['Lot ve seri doğrulama', 'Kutudaki kare kod okutulunca lot ve seri numarası ÜTS\'de sorgulanır ve kendi kaydınızla karşılaştırılır.'],
                 ], 'medical'],
+
+                ['hasta', 'Hasta ve implant kartı', [
+                    'ÜTS, hastaya takılan ürün için hastanın adını ve kimlik numarasını ister. Program bunun için gereken kadarını tutar; bir hasta dosyası ya da tedavi kaydı değildir.',
+                ], [
+                    ['En az veri', 'Ad, soyad, kimlik türü (T.C., yabancı kimlik, pasaport ya da kimliği belirsiz) ve isteğe bağlı doğum yılı. Telefon, adres, tedavi bilgisi tutulmaz.'],
+                    ['Kimlik korunur', 'Kimlik numarası şifreli saklanır; listelerde maskeli görünür (100******46). Numarayla arama yalnızca numaranın tamamıyla yapılır.'],
+                    ['Ayrı yetki', 'Hastaları görmek ayrı bir yetkidir; stok personeline kendiliğinden açılmaz.'],
+                    ['İmplant kartı', 'Hastanın kartında ona kullanılan her ürün; tarih, lot, seri numarası, şube ve ÜTS durumuyla görünür. "Bu implant kime takıldı" sorusunun cevabı da seri numarasından bulunur.'],
+                ], 'patient'],
 
                 ['finans', 'Finans: ön muhasebe', [
                     'Finans bölümü kliniğin ön muhasebesidir: paranın nerede durduğunu, nereden gelip nereye gittiğini ve önümüzdeki günlerde ne ödeyip ne tahsil edeceğinizi gösterir.',
-                    'Stoktan ve satın almadan bilinçli olarak ayrıdır: malzemenin alındığı gün ile parasının ödendiği gün çoğu zaman aynı değildir.',
+                    'Stoktan ve satın almadan bilinçli olarak ayrıdır: malzemenin alındığı gün ile parasının ödendiği gün çoğu zaman aynı değildir. Tedarikçinin e-faturası ise istediğinizde tek tıkla ödenecek borç olarak aktarılır.',
                 ], [
                     ['Hesaplar', 'Kasa, banka ve POS hesapları açılış bakiyesiyle açılır. Bakiye hareketlerden hesaplanır, bu yüzden ekranlar birbirini tutar. Kullanılmayan hesap pasife alınır.'],
                     ['Gelir ve gider', 'Kategoriyle ve isteğe bağlı şube etiketiyle kaydedilir. Hesaplar arası transfer gelir ya da gider sayılmaz; POS\'tan bankaya geçişteki komisyon ayrı gider olur.'],
@@ -128,9 +152,9 @@ new #[Layout('layouts::marketing')] class extends Component
                 ['kapsam', 'Kapsam dışı bıraktıklarımız', [
                     'Sistemin ne olmadığını bilmek, ne olduğunu bilmek kadar önemli. Aşağıdakiler eksik değil, bilinçli tercih.',
                 ], [
-                    ['Hasta, randevu, tedavi planı', 'Klinik yönetimi modülleri kapsam dışı. Program kliniğin malzemesine ve parasına odaklanır.'],
+                    ['Randevu, tedavi planı, hasta dosyası', 'Klinik yönetimi modülleri kapsam dışı. Hasta kaydı yalnızca ÜTS\'nin istediği ad, soyad ve kimlikten ibarettir; program kliniğin malzemesine ve parasına odaklanır.'],
                     ['Resmî muhasebe', 'Finans ön muhasebedir: KDV, döviz, çek/senet ve resmî defter tutmaz. Yıl sonunda mali müşavirinize Excel dökümü verirsiniz.'],
-                    ['Banka ve ödeme entegrasyonu', 'Sanal pos, banka bağlantısı ve e-fatura yok. Banka hareketleri elle girilir, mutabakatla doğrulanır.'],
+                    ['Banka, ödeme ve giden fatura', 'Sanal pos, banka bağlantısı ve kliniğin kestiği e-fatura/e-arşiv yok. Tedarikçiden gelen e-fatura alınır; banka hareketleri elle girilir, mutabakatla doğrulanır.'],
                 ], null],
             ],
         ];
@@ -145,8 +169,8 @@ new #[Layout('layouts::marketing')] class extends Component
                 Bir diş kliniğinin malzeme ve para işini baştan sona kapsar
             </h1>
             <p class="mt-6 text-[17px] text-white/65 leading-relaxed max-w-[64ch]">
-                Malzemenin tedarikçiden kliniğe girişini, depolar arasında dolaşımını, hastada kullanılmasını,
-                faturasının ödenmesini ve kasanın gününü aynı programda tutarsınız. Aşağıda sistemin bugün
+                Malzemenin tedarikçiden kliniğe girişini, ÜTS bildirimlerini, depolar arasında dolaşımını, hastada
+                kullanılmasını, faturasının gelip ödenmesini ve kasanın gününü aynı programda tutarsınız. Aşağıda sistemin bugün
                 gerçekten yaptığı işler var; yapmadıklarını da sonunda açıkça yazdık.
             </p>
         </div>

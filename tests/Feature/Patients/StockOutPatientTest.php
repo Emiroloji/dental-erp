@@ -279,4 +279,25 @@ class StockOutPatientTest extends TestCase
             ->call('confirmCancel', UtsNotification::sole()->id)
             ->assertForbidden();
     }
+
+    public function test_serial_tracking_shows_the_patient_to_patient_readers_only(): void
+    {
+        $this->implantOut()->call('selectPatient', $this->patient->id)->call('save');
+
+        Livewire::test('pages::stock.serials')
+            ->set('search', 'S1')
+            ->assertSee('Hastaya kullanıldı')
+            ->assertSee('Ayşe Yılmaz')
+            ->assertSee('100******46')
+            ->assertSee(route('patients.show', $this->patient->id), false);
+
+        $staff = User::factory()->create(['organization_id' => $this->org->id, 'role' => User::ROLE_STAFF, 'status' => 'active']);
+        Permission::create(['user_id' => $staff->id, 'module' => Module::StockMovement->value, 'can_read' => true, 'can_write' => false, 'can_delete' => false, 'scope' => PermissionScope::All->value]);
+        $this->actingAs($staff);
+
+        Livewire::test('pages::stock.serials')
+            ->set('search', 'S1')
+            ->assertSee('Hastaya kullanıldı')
+            ->assertDontSee('Ayşe Yılmaz');
+    }
 }

@@ -6,7 +6,8 @@ use Tests\TestCase;
 
 /**
  * Tanıtım sitesi programın bugünkü kapsamını anlatır: stoğun yanında
- * Faz 5 finans (ön muhasebe), ilaç/ÜTS, raporlar ve asistan. Örnek ekranlar
+ * finans (ön muhasebe), ÜTS bildirimleri, hasta ve implant kartı, gelen
+ * e-fatura, raporlar ve asistan. Örnek ekranlar
  * HTML kopyalarıdır; uydurma müşteri, yorum ya da kullanım rakamı yoktur.
  */
 class MarketingContentTest extends TestCase
@@ -15,12 +16,12 @@ class MarketingContentTest extends TestCase
     {
         $response = $this->get('/')->assertOk();
 
-        foreach (['Stok', 'Satın alma', 'Transfer', 'Sayım ve iade', 'İlaç ve ÜTS', 'Finans', 'Raporlar ve asistan', 'Yetki ve denetim'] as $module) {
+        foreach (['Stok', 'Satın alma', 'e-Fatura', 'Transfer', 'Sayım ve iade', 'ÜTS ve hasta', 'Finans', 'Raporlar ve asistan', 'Yetki ve denetim'] as $module) {
             $response->assertSee($module);
         }
 
         foreach ([
-            '#stok', '#satinalma', '#transfer', '#sayim', '#ilac', '#finans', '#rapor', '#yetki',
+            '#stok', '#satinalma', '#efatura', '#transfer', '#sayim', '#ilac', '#finans', '#rapor', '#yetki',
         ] as $anchor) {
             $response->assertSee(route('marketing.features').$anchor, false);
         }
@@ -40,13 +41,33 @@ class MarketingContentTest extends TestCase
     {
         $response = $this->get('/neler-yapiyor')->assertOk();
 
-        foreach (['hiyerarsi', 'stok', 'satinalma', 'transfer', 'sayim', 'uyari', 'ilac', 'finans', 'rapor', 'barkod', 'yetki', 'guvenlik', 'paket', 'kapsam'] as $id) {
+        foreach (['hiyerarsi', 'stok', 'satinalma', 'efatura', 'transfer', 'sayim', 'uyari', 'ilac', 'hasta', 'finans', 'rapor', 'barkod', 'yetki', 'guvenlik', 'paket', 'kapsam'] as $id) {
             $response->assertSee('id="'.$id.'"', false);
         }
 
         $response->assertSee('ön muhasebe')
             ->assertSee('ÜTS')
             ->assertDontSee('Muhasebe programı yerine geçmez');
+    }
+
+    /**
+     * Faz 6–7 sonrası artık doğru olmayan eski iddialar sitede kalmamalı.
+     */
+    public function test_outdated_claims_are_gone(): void
+    {
+        foreach (['/', '/neler-yapiyor'] as $path) {
+            $this->get($path)
+                ->assertDontSee('yalnızca okur')
+                ->assertDontSee('bildirim göndermez')
+                ->assertDontSee('e-fatura yok')
+                ->assertDontSee('Yok, bilinçli olarak');
+        }
+
+        $this->get('/neler-yapiyor')
+            ->assertSee('Kullanım bildirimi')
+            ->assertSee('İmha')
+            ->assertSee('Gelen e-fatura')
+            ->assertSee('implant kartı', false);
     }
 
     public function test_page_description_mentions_finance(): void

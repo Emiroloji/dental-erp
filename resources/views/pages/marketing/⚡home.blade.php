@@ -29,9 +29,9 @@ new #[Layout('layouts::marketing')] class extends Component
             'journey' => [
                 ['Talep açılır', 'Ortodonti deposunda eldiven azalınca depo sorumlusu satın alma talebi açar.', 'Stok değişmez'],
                 ['Onaylanır', 'Klinik sahibi talebi onaylar, tedarikçiye sipariş verilir.', 'Stok değişmez'],
-                ['Teslim alınır', 'Gelen 8 kutu lot numarası, son kullanma tarihi ve fatura numarasıyla girilir; 2 kutu açık siparişte kalır.', 'Stok artar'],
-                ['Kullanılır', 'Klinikte kullanılan miktar çıkış olarak düşülür; parti seçilmezse tarihi önce dolan düşer.', 'Stok azalır'],
-                ['Fatura ödenir', 'Faturayı Finans\'ta tedarikçiye borç olarak girersiniz; vadesi yaklaşınca hatırlatılır, ödediğinizde bankadan düşer.', 'Para çıkar'],
+                ['Teslim alınır', 'Gelen 8 kutu lot numarası ve son kullanma tarihiyle girilir; 2 kutu açık siparişte kalır. ÜTS takipli ürün ÜTS\'de de tek tıkla kabul edilir.', 'Stok artar'],
+                ['Kullanılır', 'Çıkışta parti seçilmezse tarihi önce dolan düşer. İmplant hastaya takılınca hasta kartına yazılır, ÜTS\'ye kullanım bildirilir.', 'Stok azalır'],
+                ['Fatura ödenir', 'Tedarikçinin e-faturası kendiliğinden gelir, teslimle eşleşir ve tek tıkla Finans\'a borç olarak geçer; ödediğinizde bankadan düşer.', 'Para çıkar'],
             ],
             'modules' => [
                 ['stok', 'Stok', 'Lot, son kullanma tarihi ve seri numarasıyla, depo depo.', 'lots', [
@@ -44,6 +44,11 @@ new #[Layout('layouts::marketing')] class extends Component
                     'Teslim alınan miktar stoğa girer, kalanı açık siparişte bekler.',
                     'Her tedarikçinin sipariş ve harcama geçmişi kendi kartında.',
                 ]],
+                ['efatura', 'e-Fatura', 'Tedarikçi faturası kendiliğinden gelir.', 'einvoice', [
+                    'Entegratörden yarım saatte bir çekilir, kalemleriyle okunur.',
+                    'Tedarikçi, teslim kaydı ve ürün kartıyla eşleşir.',
+                    'Tek tıkla Finans\'a ödenecek borç olarak geçer.',
+                ]],
                 ['transfer', 'Transfer', 'Şubeler ve depolar arası, adım adım.', 'transfer', [
                     'Talep, onay, hazırlık, gönderim ve teslim.',
                     'Stok gönderimde kaynaktan düşer, teslimde hedefe eklenir.',
@@ -54,10 +59,10 @@ new #[Layout('layouts::marketing')] class extends Component
                     'Onaylanan fark düzeltme hareketine dönüşür.',
                     'Tedarikçiye iade; kargo, onay ve alacak dekontuyla izlenir.',
                 ]],
-                ['ilac', 'İlaç ve ÜTS', 'Seri numarası, soğuk zincir, kontrollü ürün.', 'medical', [
-                    'İmplant gibi ürünler tek tek seri numarasıyla izlenir.',
-                    'Soğuk zincir ürününde girişte ölçülen sıcaklık istenir.',
-                    'Lot ve seri numarası ÜTS\'de sorgulanıp kendi kaydınızla karşılaştırılır.',
+                ['ilac', 'ÜTS ve hasta', 'Kabulden imhaya ÜTS bildirimleri, implant kartı.', 'medical', [
+                    'Kabul bekleyen ürünler saatte bir taranır, tek tıkla kabul edilir.',
+                    'Hastaya kullanım, iade, imha ve zayiat programdan ÜTS\'ye bildirilir.',
+                    'Hangi implantın hangi hastaya takıldığı hasta kartında görünür.',
                 ]],
                 ['finans', 'Finans', 'Kasa, banka, POS, cariler ve vadeler.', 'finance', [
                     'Gelir ve gider kategorileriyle, şube etiketiyle kaydedilir.',
@@ -85,7 +90,9 @@ new #[Layout('layouts::marketing')] class extends Component
                 ['Telefonda çalışır mı?', 'Evet. Program tarayıcıda çalışır ve telefonun ana ekranına eklenip uygulama gibi açılır. Barkodu telefonun kamerasıyla ya da el okuyucusuyla okutabilirsiniz.'],
                 ['Muhasebe programımın yerine geçer mi?', 'Hayır. Finans modülü ön muhasebedir: kliniğin parasını günlük olarak izlersiniz. KDV ve döviz tutulmaz; resmî defterler mali müşavirinizde kalır, ona Excel dökümü verirsiniz.'],
                 ['Yanlış girilen kaydı silebilir miyim?', 'Stok ve para hareketleri silinmez, gerekçesiyle iptal edilir. İptal de bir kayıt olarak durur; böylece geçmiş ay raporları sonradan değişmez.'],
-                ['Hasta ve randevu takibi var mı?', 'Yok, bilinçli olarak. Program kliniğin malzemesine ve parasına odaklanır; hasta, randevu ve tedavi planı kapsam dışıdır.'],
+                ['ÜTS bildirimlerini program mı yapıyor?', 'Evet. Tedarikçinin gönderdiği ürünün kabulü, hastaya kullanımı, tedarikçiye iadesi, imhası ve zayiatı programdan ÜTS\'ye bildirilir. Bunun için kurumunuzun ÜTS sistem anahtarını bir kez girersiniz.'],
+                ['Hasta kaydı tutuyor mu?', 'ÜTS\'nin istediği kadar: ad, soyad ve kimlik numarası şifreli tutulur, hastaya takılan ürünler hasta kartında görünür. Randevu, tedavi planı ve hasta dosyası yoktur.'],
+                ['e-Fatura ile çalışıyor mu?', 'Tedarikçinin kliniğe kestiği e-fatura entegratörünüzden kendiliğinden gelir ve eşleştirilir. Kliniğin hastaya kestiği fatura (giden e-fatura, e-arşiv) programda yoktur.'],
             ],
         ];
     }
@@ -214,7 +221,7 @@ new #[Layout('layouts::marketing')] class extends Component
                 Programda neler var
             </h2>
             <p class="mt-4 text-[16px] text-ink-muted leading-relaxed max-w-[60ch]">
-                Sekiz bölüm, tek kayıt. Bir bölüm seçin, o ekranın örneğini görün. Paketler modülleri kısıtlamaz;
+                Dokuz bölüm, tek kayıt. Bir bölüm seçin, o ekranın örneğini görün. Paketler modülleri kısıtlamaz;
                 en küçük pakette de hepsi açıktır.
             </p>
 

@@ -5,7 +5,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
         <title>{{ $title ?? 'Dental ERP — Diş kliniği stok ve ön muhasebe programı' }}</title>
-        <meta name="description" content="Çok şubeli diş klinikleri ve hastaneler için lot ve son kullanma tarihi takipli stok yönetimi ve ön muhasebe: transfer, satın alma, sayım, iade, ÜTS sorgulama, kasa-banka-POS, cariler, vadeler ve raporlar tek sistemde.">
+        <meta name="description" content="Çok şubeli diş klinikleri ve hastaneler için lot ve son kullanma tarihi takipli stok yönetimi ve ön muhasebe: transfer, satın alma, sayım, iade, ÜTS bildirimleri, gelen e-fatura, kasa-banka-POS, cariler, vadeler ve raporlar tek sistemde.">
 
         @include('partials.pwa-head')
 

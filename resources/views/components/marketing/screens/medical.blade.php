@@ -1,22 +1,28 @@
-{{-- İlaç ve ÜTS: kare kod okutulan bir implantın ÜTS sorgusu ve ürün bayrakları. --}}
+{{-- ÜTS: Gönderim Geçmişi; aynı implant partisinin kabulden imhaya ÜTS bildirimleri. --}}
 <div class="p-4 sm:p-5">
-    <p class="text-[15px] font-medium text-ink">ÜTS, Lot/Seri Doğrula</p>
-    <p class="text-[12px] text-ink-muted">Kutudaki kare kod okutuldu</p>
+    <div class="flex items-baseline justify-between gap-3">
+        <p class="text-[15px] font-medium text-ink">ÜTS, Gönderim Geçmişi</p>
+        <p class="text-[12px] text-ink-muted">Bu hafta</p>
+    </div>
 
-    <dl class="mt-4 grid grid-cols-2 gap-x-4 gap-y-2.5 text-[13px]">
-        <div><dt class="text-[12px] text-ink-muted">Ürün</dt><dd class="text-ink">İmplant 4.3x10</dd></div>
-        <div><dt class="text-[12px] text-ink-muted">Seri no</dt><dd class="text-ink">NA-1002</dd></div>
-        <div><dt class="text-[12px] text-ink-muted">ÜTS kaydı</dt><dd class="text-status-good font-medium">Bulundu</dd></div>
-        <div><dt class="text-[12px] text-ink-muted">Bizim kaydımız</dt><dd class="text-status-good font-medium">Eşleşiyor</dd></div>
-    </dl>
-
-    <ul class="mt-4 flex flex-wrap gap-2 text-[12px]">
-        <li class="rounded px-2 py-1 border border-line text-ink">Seri numaralı</li>
-        <li class="rounded px-2 py-1 border border-finance-in/30 text-finance-in">Soğuk zincir, girişte 4 °C</li>
-        <li class="rounded px-2 py-1 border border-line text-ink">Kontrollü ürün defteri</li>
+    <ul class="mt-4 divide-y divide-line border-y border-line text-[13px]">
+        @foreach ([
+            ['Alma', 'İmplant 4.3x10, 10 adet', 'Kabul edildi', true],
+            ['Kullanım', 'NA-1002, A*** Y***', 'Bildirildi', true],
+            ['Verme', 'NA-1007, tedarikçiye iade', 'Bildirildi', true],
+            ['İmha', 'Membran BG-55, SKT geçmiş', 'Gönderilemedi', false],
+        ] as [$type, $what, $result, $ok])
+            <li class="py-2.5 flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                    <span class="text-ink font-medium">{{ $type }}</span>
+                    <span class="block text-ink-muted truncate">{{ $what }}</span>
+                </div>
+                <span @class(['shrink-0 text-[12px] px-2 py-0.5 rounded', 'bg-status-good-bg text-status-good' => $ok, 'bg-status-warn-bg text-status-warn' => ! $ok])>{{ $result }}</span>
+            </li>
+        @endforeach
     </ul>
 
     <p class="mt-4 text-[12px] text-ink-muted leading-relaxed">
-        Sorgu yalnızca okur; ÜTS'ye sizin adınıza bildirim göndermez.
+        Kabul, kullanım, iade ve imha programdan ÜTS'ye gider; her birinin cevabı burada kalır.
     </p>
 </div>

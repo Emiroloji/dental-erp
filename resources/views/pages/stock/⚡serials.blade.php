@@ -1,9 +1,11 @@
 <?php
 
+use App\Domain\Patients\Models\PatientUsage;
 use App\Domain\Access\Support\Module;
 use App\Domain\Catalog\Support\Gs1;
 use App\Domain\Stock\Models\StockMovement;
 use App\Domain\Stock\Models\StockSerial;
+use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Url;
 use Livewire\Component;
@@ -57,7 +59,15 @@ new #[Layout('layouts::authenticated')] class extends Component
             ->orderBy('stock_movements.id')
             ->get()]);
 
-        return ['serials' => $serials, 'histories' => $histories];
+        // Aşama 43/51: hastaya kullanılmış seri ("bu implant kime takıldı").
+        // Hasta adı yalnızca hasta okuma yetkisiyle gösterilir.
+        $usages = PatientUsage::whereIn('stock_serial_id', $serials->pluck('id'))
+            ->whereNull('cancelled_at')
+            ->with('patient')
+            ->get()
+            ->keyBy('stock_serial_id');
+
+        return ['serials' => $serials, 'histories' => $histories, 'usages' => $usages, 'canSeePatients' => Gate::allows('patients.viewAny')];
     }
 };
 ?>
@@ -86,6 +96,16 @@ new #[Layout('layouts::authenticated')] class extends Component
                     <span class="text-ink-muted">Lot {{ $serial->lot->lot_no ?? '—' }} · SKT {{ $serial->lot->expiry_date?->format('d.m.Y') ?? '—' }} · {{ $serial->lot->warehouse->branch->name }} {{ $serial->lot->warehouse->name }}</span>
                 </div>
             </div>
+            @if ($usage = $usages[$serial->id] ?? null)
+                <p class="px-5 pt-3 text-[13px]">
+                    <span class="font-medium text-ink">Hastaya kullanıldı</span>
+                    <span class="text-ink-muted">{{ $usage->used_on->format('d.m.Y') }}</span>
+                    @if ($canSeePatients)
+                        <a href="{{ route('patients.show', $usage->patient_id) }}" class="ml-1 underline text-ink">{{ $usage->patient->fullName() }}</a>
+                        <span class="text-ink-muted">{{ $usage->patient->maskedIdentity() }}</span>
+                    @endif
+                </p>
+            @endif
             <ol class="px-5 py-4 border-l border-line ml-6 space-y-3">
                 @forelse ($histories[$serial->id] as $movement)
                     <li class="pl-4 relative">
