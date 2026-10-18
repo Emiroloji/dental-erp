@@ -39,6 +39,7 @@ final class ProductRules
             'storage_max_temp' => ['nullable', 'required_if:cold_chain,true', 'numeric', 'between:-100,100', 'gte:storage_min_temp'],
             'is_controlled' => ['boolean'],
             'tracks_serials' => ['boolean'],
+            'uts_usage_report' => ['boolean'],
         ];
     }
 

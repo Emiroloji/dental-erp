@@ -30,6 +30,7 @@ class Product extends Model
         'storage_max_temp',
         'is_controlled',
         'tracks_serials',
+        'uts_usage_report',
         'base_unit',
         'conversion_rules',
         'purchase_price',
@@ -60,6 +61,7 @@ class Product extends Model
         'storage_max_temp' => 'float',
         'is_controlled' => 'boolean',
         'tracks_serials' => 'boolean',
+        'uts_usage_report' => 'boolean',
     ];
 
     /**

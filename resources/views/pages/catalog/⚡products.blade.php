@@ -106,6 +106,9 @@ new #[Layout('layouts::authenticated')] class extends Component
 
     public bool $tracks_serials = false;
 
+    /** Hastaya kullanımda ÜTS Kullanım bildirimi yapılır (Aşama 43); GTIN ister. */
+    public bool $uts_usage_report = false;
+
     public function openForm(): void
     {
         Gate::authorize('product_management.create');
@@ -208,6 +211,7 @@ new #[Layout('layouts::authenticated')] class extends Component
             'storage_max_temp' => $product->storage_max_temp === null ? '' : (string) $product->storage_max_temp,
             'is_controlled' => $product->is_controlled,
             'tracks_serials' => $product->tracks_serials,
+            'uts_usage_report' => $product->uts_usage_report,
         ]);
         $this->showForm = true;
     }
@@ -223,7 +227,7 @@ new #[Layout('layouts::authenticated')] class extends Component
         $this->reset([
             'editingId', 'name', 'code', 'barcode', 'category_id', 'supplier_id', 'purchase_price', 'min_stock', 'max_stock', 'conversionRules',
             'alert_mode', 'alert_quantity_low', 'alert_quantity_critical', 'alert_expiry_low_days', 'alert_expiry_critical_days',
-            'gtin', 'uts_number', 'license_number', 'manufacturer', 'storage_condition', 'cold_chain', 'storage_min_temp', 'storage_max_temp', 'is_controlled', 'tracks_serials',
+            'gtin', 'uts_number', 'license_number', 'manufacturer', 'storage_condition', 'cold_chain', 'storage_min_temp', 'storage_max_temp', 'is_controlled', 'tracks_serials', 'uts_usage_report',
         ]);
         $this->base_unit = 'Adet';
         $this->purchase_price = '0';
@@ -307,6 +311,12 @@ new #[Layout('layouts::authenticated')] class extends Component
             ->all();
 
         // Seri takipli ürün birim birim izlenir; alternatif birim (Kutu vb.) bu ürünlerde kullanılmaz.
+        if ($validated['uts_usage_report'] && $gtin === null) {
+            $this->addError('uts_usage_report', 'ÜTS kullanım bildirimi için ürünün GTIN\'i girilmeli.');
+
+            return;
+        }
+
         if ($validated['tracks_serials'] && $conversionRules !== []) {
             $this->addError('tracks_serials', 'Seri takipli üründe birim dönüşümü tanımlanamaz; her birim ayrı seri numarasıyla izlenir.');
 
@@ -342,6 +352,7 @@ new #[Layout('layouts::authenticated')] class extends Component
             'storage_max_temp' => $validated['cold_chain'] && filled($validated['storage_max_temp']) ? (float) $validated['storage_max_temp'] : null,
             'is_controlled' => $validated['is_controlled'],
             'tracks_serials' => $validated['tracks_serials'],
+            'uts_usage_report' => $validated['uts_usage_report'],
         ];
 
         try {
@@ -705,6 +716,11 @@ new #[Layout('layouts::authenticated')] class extends Component
                         <span><span class="text-ink">Seri numarası takibi</span> <span class="text-ink-muted">— her birim ayrı seri numarasıyla girilir ve çıkar (ör. implant). Stok varken değiştirilemez.</span></span>
                     </label>
                     @error('tracks_serials') <span class="text-status-critical text-[12px] block">{{ $message }}</span> @enderror
+                    <label class="flex items-start gap-2 text-[13px]">
+                        <input type="checkbox" wire:model="uts_usage_report" class="accent-brand-500 w-4 h-4 mt-0.5">
+                        <span><span class="text-ink">Hastaya kullanımda ÜTS'ye bildirilir</span> <span class="text-ink-muted">— Stok Çıkışı'nda "Klinik içi kullanım" seçilince hasta istenir ve ÜTS'ye Kullanım bildirimi gider (ör. implant, greft). GTIN gerekir.</span></span>
+                    </label>
+                    @error('uts_usage_report') <span class="text-status-critical text-[12px] block">{{ $message }}</span> @enderror
                 </div>
             </div>
 
