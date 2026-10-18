@@ -149,7 +149,7 @@ new #[Layout('layouts::authenticated')] class extends Component
                             <td class="px-4 py-3">{{ $n->user?->name ?? '—' }}</td>
                             <td class="px-4 py-3">
                                 @if ($n->status === 'sent')
-                                    <span class="whitespace-nowrap rounded-full bg-brand-100 text-brand-600 px-2 py-0.5 text-[12px]">{{ match ($n->type) { 'kullanim' => 'ÜTS\'ye bildirildi', 'kullanim_iptal' => 'İptal edildi', 'almak_istemiyorum' => 'İşaretlendi', default => 'Kabul edildi' } }}</span>
+                                    <span class="whitespace-nowrap rounded-full bg-brand-100 text-brand-600 px-2 py-0.5 text-[12px]">{{ match ($n->type) { 'kullanim' => 'ÜTS\'ye bildirildi', 'kullanim_iptal' => 'İptal edildi', 'almak_istemiyorum' => 'İşaretlendi', 'verme' => 'İade bildirildi', 'verme_iptal' => 'İade iptal edildi', default => 'Kabul edildi' } }}</span>
                                     <div class="text-ink-muted mt-1 break-all">{{ $n->uts_notification_id }}</div>
                                 @else
                                     <span class="whitespace-nowrap rounded-full bg-red-50 text-status-critical px-2 py-0.5 text-[12px]">Gönderilemedi</span>

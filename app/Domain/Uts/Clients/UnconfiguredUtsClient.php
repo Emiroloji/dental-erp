@@ -4,6 +4,7 @@ namespace App\Domain\Uts\Clients;
 
 use App\Domain\Uts\Contracts\UtsClient;
 use App\Domain\Uts\Exceptions\UtsException;
+use App\Domain\Uts\Support\GiveReport;
 use App\Domain\Uts\Support\PendingReceiptPage;
 use App\Domain\Uts\Support\UsageReport;
 
@@ -38,6 +39,16 @@ class UnconfiguredUtsClient implements UtsClient
     }
 
     public function cancelUsage(string $notificationId): string
+    {
+        $this->fail();
+    }
+
+    public function give(GiveReport $report): string
+    {
+        $this->fail();
+    }
+
+    public function cancelGive(string $notificationId): string
     {
         $this->fail();
     }

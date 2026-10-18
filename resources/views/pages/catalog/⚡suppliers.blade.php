@@ -20,6 +20,9 @@ new #[Layout('layouts::authenticated')] class extends Component
 
     public string $tax_number = '';
 
+    /** Tedarikçinin ÜTS kurum numarası; iade (Verme) bildiriminde kullanılır (Aşama 48). */
+    public string $uts_institution_no = '';
+
     public function openForm(): void
     {
         Gate::authorize('supplier_management.create');
@@ -30,7 +33,7 @@ new #[Layout('layouts::authenticated')] class extends Component
     public function closeForm(): void
     {
         $this->showForm = false;
-        $this->reset(['name', 'contact_person', 'phone', 'email', 'tax_number']);
+        $this->reset(['name', 'contact_person', 'phone', 'email', 'tax_number', 'uts_institution_no']);
         $this->resetValidation();
     }
 
@@ -44,7 +47,9 @@ new #[Layout('layouts::authenticated')] class extends Component
             'phone' => ['nullable', 'string', 'max:50'],
             'email' => ['nullable', 'email', 'max:255'],
             'tax_number' => ['nullable', 'string', 'max:50'],
+            'uts_institution_no' => ['nullable', 'integer', 'min:1'],
         ]);
+        $validated['uts_institution_no'] = filled($validated['uts_institution_no']) ? (int) $validated['uts_institution_no'] : null;
 
         $supplierService->create($validated);
 
@@ -158,6 +163,12 @@ new #[Layout('layouts::authenticated')] class extends Component
             <div>
                 <label class="block text-[13px] text-ink-muted mb-1.5">Vergi No</label>
                 <input type="text" wire:model="tax_number" class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+            </div>
+            <div>
+                <label class="block text-[13px] text-ink-muted mb-1.5">ÜTS kurum no <span class="text-ink-muted">(isteğe bağlı)</span></label>
+                <input type="text" inputmode="numeric" wire:model="uts_institution_no" class="w-full border border-line rounded-md px-3 py-2 text-[14px] tabular-nums focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+                @error('uts_institution_no') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
+                <p class="text-[12px] text-ink-muted mt-1">ÜTS'ye iade bildiriminde kullanılır; ÜTS'den ürün kabul edildikçe kendiliğinden de dolar.</p>
             </div>
             <div class="sm:col-span-2 flex items-center gap-3 pt-2">
                 <button type="submit" class="bg-panel-900 text-white rounded-md px-4 py-2.5 text-[14px] font-medium hover:bg-panel-800 transition-colors">

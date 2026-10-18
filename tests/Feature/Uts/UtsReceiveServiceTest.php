@@ -2,6 +2,8 @@
 
 namespace Tests\Feature\Uts;
 
+use App\Domain\Catalog\Models\Supplier;
+use App\Domain\EInvoice\Models\EInvoice;
 use App\Domain\Organization\Models\Organization;
 use App\Domain\Uts\Clients\FakeUtsClient;
 use App\Domain\Uts\Contracts\UtsClient;
@@ -180,5 +182,18 @@ class UtsReceiveServiceTest extends TestCase
 
         $this->assertSame(0, UtsNotification::count());
         $this->assertSame('sent', $this->service()->receive($this->lotReceipt())->status);
+    }
+
+    public function test_accepting_learns_the_suppliers_uts_institution_number_from_the_matched_invoice(): void
+    {
+        $supplier = Supplier::create(['name' => 'Tedarik A.Ş.', 'tax_number' => '1234567890', 'status' => 'active']);
+        EInvoice::create([
+            'provider_uuid' => 'u-1', 'invoice_number' => 'IRS-1', 'issue_date' => '2026-10-17', 'currency' => 'TRY',
+            'line_extension' => 0, 'tax_exclusive' => 0, 'tax_total' => 0, 'payable' => 0, 'xml_path' => 'x', 'supplier_id' => $supplier->id,
+        ]);
+
+        $this->service()->receive($this->lotReceipt());
+
+        $this->assertSame(7, $supplier->fresh()->uts_institution_no);
     }
 }

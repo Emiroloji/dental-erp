@@ -27,12 +27,16 @@ class UtsNotification extends Model
 
     public const TYPE_DECLINE = 'almak_istemiyorum';
 
+    public const TYPE_GIVE = 'verme';
+
+    public const TYPE_GIVE_CANCEL = 'verme_iptal';
+
     public const STATUS_SENT = 'sent';
 
     public const STATUS_FAILED = 'failed';
 
     protected $fillable = [
-        'organization_id', 'user_id', 'patient_usage_id', 'type', 'source_notification_id', 'uts_notification_id',
+        'organization_id', 'user_id', 'patient_usage_id', 'supplier_return_id', 'type', 'source_notification_id', 'uts_notification_id',
         'status', 'environment', 'uno', 'product_name', 'lot', 'serial', 'quantity', 'sender_code',
         'sender_name', 'document_no', 'message',
     ];
@@ -58,6 +62,8 @@ class UtsNotification extends Model
             self::TYPE_USAGE => 'Kullanım',
             self::TYPE_USAGE_CANCEL => 'Kullanım iptali',
             self::TYPE_DECLINE => 'Almak istemiyorum',
+            self::TYPE_GIVE => 'İade (Verme)',
+            self::TYPE_GIVE_CANCEL => 'İade iptali',
             default => 'Alma',
         };
     }

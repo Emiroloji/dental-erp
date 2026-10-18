@@ -8,6 +8,9 @@ use App\Domain\Returns\Support\ReturnStatus;
 use App\Domain\Stock\Exceptions\InactiveLocationException;
 use App\Domain\Stock\Exceptions\InsufficientStockException;
 use App\Domain\Stock\Models\StockMovement;
+use App\Domain\Uts\Exceptions\UtsException;
+use App\Domain\Uts\Services\UtsReturnService;
+use Illuminate\Support\Carbon;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -23,9 +26,60 @@ new #[Layout('layouts::authenticated')] class extends Component
 
     public string $credit_amount = '';
 
+    /* ÜTS Verme bildirimi (Aşama 48): tedarikçinin ÜTS kurum no'su, iade belge no ve tarih. */
+    public string $utsInstitutionNo = '';
+
+    public string $utsDocumentNo = '';
+
+    public string $utsDate = '';
+
     public function mount(int $return): void
     {
-        $this->returnId = $this->findReturn($return)->id;
+        $model = $this->findReturn($return);
+        $this->returnId = $model->id;
+        $this->utsInstitutionNo = (string) ($model->supplier?->uts_institution_no ?? '');
+        $this->utsDate = today()->toDateString();
+    }
+
+    public function reportToUts(UtsReturnService $uts): void
+    {
+        $return = $this->return();
+        abort_unless(app(ReturnPermissions::class)->canManage(auth()->user(), $return->warehouse), 403);
+
+        $this->validate([
+            'utsInstitutionNo' => ['required', 'integer', 'min:1'],
+            'utsDocumentNo' => ['required', 'string', 'max:50'],
+            'utsDate' => ['required', 'date', 'before_or_equal:today'],
+        ], [
+            'utsInstitutionNo.required' => 'Tedarikçinin ÜTS kurum numarasını girin.',
+            'utsDocumentNo.required' => 'İade faturası ya da irsaliyesinin numarasını girin.',
+        ]);
+
+        try {
+            $uts->report($return, (int) $this->utsInstitutionNo, $this->utsDocumentNo, Carbon::parse($this->utsDate));
+        } catch (UtsException $e) {
+            session()->flash('error', $e->getMessage());
+
+            return;
+        }
+
+        session()->flash('status', 'İade ÜTS\'ye bildirildi.');
+    }
+
+    public function cancelUtsReturn(UtsReturnService $uts): void
+    {
+        $return = $this->return();
+        abort_unless(app(ReturnPermissions::class)->canManage(auth()->user(), $return->warehouse), 403);
+
+        try {
+            $uts->cancel($return);
+        } catch (UtsException $e) {
+            session()->flash('error', $e->getMessage());
+
+            return;
+        }
+
+        session()->flash('status', 'ÜTS iade bildirimi iptal edildi.');
     }
 
     public function approve(ReturnService $returns): void
@@ -50,6 +104,14 @@ new #[Layout('layouts::authenticated')] class extends Component
 
     public function supplierReject(ReturnService $returns): void
     {
+        // Aşama 48: ÜTS'de geçerli Verme bildirimi varken ürün stoğa dönerse
+        // ÜTS ile stok ayrışır; önce iptal edilmeli.
+        if (app(UtsReturnService::class)->hasActiveGive($this->return())) {
+            session()->flash('error', 'Bu iade ÜTS\'ye Verme olarak bildirildi. Önce ÜTS iade bildirimini iptal edin.');
+
+            return;
+        }
+
         $this->attempt(fn () => $returns->supplierReject($this->return(), auth()->user(), $this->actionNote), 'Tedarikçi iadeyi reddetti; ürün stoğa geri eklendi.');
     }
 
@@ -123,6 +185,10 @@ new #[Layout('layouts::authenticated')] class extends Component
             'canShip' => $canManage && $return->status === ReturnStatus::Approved,
             'canSupplierDecide' => $canManage && $return->status === ReturnStatus::Shipped,
             'canComplete' => $canManage && $return->status === ReturnStatus::SupplierApproved,
+            'canManage' => $canManage,
+            'utsReportable' => app(UtsReturnService::class)->isReportable($return),
+            'utsStatus' => app(UtsReturnService::class)->status($return),
+            'utsRecords' => \App\Domain\Uts\Models\UtsNotification::where('supplier_return_id', $return->id)->orderBy('id')->get(),
         ];
     }
 };
@@ -198,6 +264,51 @@ new #[Layout('layouts::authenticated')] class extends Component
                     <button wire:click="reject" wire:confirm="İade talebi reddedilsin mi? Stok değişmez." class="text-[14px] text-status-critical hover:underline">Reddet</button>
                 @endif
             </div>
+        </section>
+    @endif
+
+    @if ($utsReportable || $utsRecords->isNotEmpty())
+        <section class="mt-6 border border-line rounded-lg bg-surface px-5 py-4">
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                <h2 class="text-[15px] font-medium text-ink">ÜTS</h2>
+                <span class="text-[13px] {{ in_array($utsStatus, ['sent'], true) ? 'text-brand-600' : ($utsStatus === 'failed' ? 'text-status-critical' : 'text-ink-muted') }}">
+                    {{ match ($utsStatus) { 'sent' => 'ÜTS\'ye bildirildi', 'partial' => 'Bir kısmı bildirildi', 'failed' => 'Gönderilemedi', 'cancelled' => 'ÜTS\'de iptal edildi', default => 'ÜTS\'ye bildirilmedi' } }}
+                </span>
+            </div>
+
+            @if ($utsRecords->isNotEmpty())
+                <ul class="mb-3 space-y-1 text-[13px]">
+                    @foreach ($utsRecords as $record)
+                        <li class="text-ink-muted">{{ $record->created_at->format('d.m.Y H:i') }}, {{ $record->typeLabel() }}@if ($record->serial), seri {{ $record->serial }}@endif: {{ $record->status === 'sent' ? $record->uts_notification_id : $record->message }}</li>
+                    @endforeach
+                </ul>
+            @endif
+
+            @if ($canManage && $utsReportable && in_array($utsStatus, ['none', 'failed', 'partial'], true))
+                <p class="text-[13px] text-ink-muted mb-3">Kargolanan ürün ÜTS'de tedarikçiye Verme bildirimiyle iade edilir. Seri takipli üründe her seri ayrı bildirilir.</p>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                        <label for="uts-kun" class="block text-[13px] text-ink-muted mb-1.5">Tedarikçinin ÜTS kurum no</label>
+                        <input id="uts-kun" type="text" inputmode="numeric" wire:model="utsInstitutionNo" class="w-full border border-line rounded-md px-3 py-2 text-[14px] tabular-nums">
+                        @error('utsInstitutionNo') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
+                    </div>
+                    <div>
+                        <label for="uts-bno" class="block text-[13px] text-ink-muted mb-1.5">İade belge no</label>
+                        <input id="uts-bno" type="text" wire:model="utsDocumentNo" placeholder="İade faturası / irsaliye" class="w-full border border-line rounded-md px-3 py-2 text-[14px]">
+                        @error('utsDocumentNo') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
+                    </div>
+                    <div>
+                        <label for="uts-date" class="block text-[13px] text-ink-muted mb-1.5">İşlem tarihi</label>
+                        <input id="uts-date" type="date" wire:model="utsDate" max="{{ today()->toDateString() }}" class="w-full border border-line rounded-md px-3 py-2 text-[14px]">
+                        @error('utsDate') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
+                    </div>
+                </div>
+                <button type="button" wire:click="reportToUts" wire:confirm="İade ÜTS'ye Verme bildirimiyle gönderilsin mi?" wire:loading.attr="disabled" class="mt-3 bg-panel-900 text-white rounded-md px-4 py-2.5 text-[14px] font-medium hover:bg-panel-800 transition-colors disabled:opacity-50">ÜTS'ye iade bildir</button>
+            @endif
+
+            @if ($canManage && in_array($utsStatus, ['sent', 'partial'], true))
+                <button type="button" wire:click="cancelUtsReturn" wire:confirm="ÜTS'deki Verme bildirimleri iptal edilsin mi? Tedarikçi iadeyi reddettiyse kullanın." class="mt-3 text-[14px] text-status-critical hover:underline">ÜTS'de iptal et</button>
+            @endif
         </section>
     @endif
 

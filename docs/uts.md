@@ -1,6 +1,6 @@
 # ÜTS (Ürün Takip Sistemi) Entegrasyonu
 
-ÜTS, T.C. Sağlık Bakanlığı'na bağlı TİTCK'nın işlettiği tıbbi cihaz takip sistemidir. Tedarikçi bir ürünü kliniğe ÜTS'de **Verme bildirimiyle** gönderir; klinik de **Alma bildirimiyle** kabul eder. Bu uygulama kabul bekleyenleri okur, lot/seri doğrular, **Alma bildirimi** (Aşama 42) ve hastaya kullanımda **Kullanım bildirimi** (Aşama 43) gönderir, gerekirse Kullanım bildirimini iptal eder. Tüketiciye Verme, iade ve imha bildirimleri henüz yoktur.
+ÜTS, T.C. Sağlık Bakanlığı'na bağlı TİTCK'nın işlettiği tıbbi cihaz takip sistemidir. Tedarikçi bir ürünü kliniğe ÜTS'de **Verme bildirimiyle** gönderir; klinik de **Alma bildirimiyle** kabul eder. Bu uygulama kabul bekleyenleri okur ve saatlik tarar, lot/seri doğrular; **Alma** (Aşama 42), hastaya kullanımda **Kullanım** (Aşama 43), **Almak istemiyorum** (Aşama 47) ve tedarikçiye iadede **Verme** (Aşama 48) bildirimlerini gönderir, iptali olanları iptal eder.
 
 Kaynak: "Takip ve İzleme Web Servis Tanımları Dokümanı" rev. 1.99 (ÜTS 9.8.x), uts.saglik.gov.tr.
 
@@ -33,6 +33,14 @@ Ekranları görme yetkisi Stok modülünü izler ve şube kapsamı geçerlidir.
 ## Almak istemiyorum (Aşama 47)
 
 Kabul Bekleyenler'de satırdaki "Almak istemiyorum" (stok yazma yetkisi, onay paneliyle) bildirimi ÜTS'de `almakIstemiyorum/almakIstemiyorumOlarakIsaretle` (`BID`) ile işaretler; satır listeden kalkar ve Gönderim Geçmişi'ne yazılır. ÜTS portalında "Almak istiyorum" ile geri alınabilir. Gerçek ortam kilidi bu işlem için de geçerlidir.
+
+## Tedarikçiye iade — Verme bildirimi (Aşama 48)
+
+- ÜTS takipli ürünün iadesi **kargoya verildikten sonra** iade detayındaki ÜTS bölümünden bildirilir (iade akışından ayrı adım; ÜTS kesintisi iadeyi durdurmaz).
+- İstek `bildirim/verme/ekle`: `UNO`, seri takipli üründe her seri için `SNO`, lot takipli üründe `LNO` + `ADT`, `KUN` (tedarikçinin ÜTS kurum no), `BNO` (iade faturası/irsaliye no), `GIT` (tarih).
+- Tedarikçinin ÜTS kurum no'su tedarikçi kartında tutulur; ilk iade bildiriminde ya da ÜTS'den ürün kabul edildiğinde (aynı belge numaralı e-faturanın tedarikçisine, gönderen kurum kodu) kendiliğinden dolar.
+- Yarım kalan gönderim tekrar başlatılınca yalnızca eksik seriler gider.
+- **İptal vardır** (`bildirim/verme/iptal`). Tedarikçi iadeyi reddederse, ÜTS'de geçerli Verme bildirimi iptal edilmeden "Tedarikçi Reddetti" yapılamaz (ürün stoğa döner).
 
 ## Kullanım bildirimi (hastaya kullanım)
 

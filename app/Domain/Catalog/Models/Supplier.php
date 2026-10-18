@@ -18,7 +18,12 @@ class Supplier extends Model
         'phone',
         'email',
         'tax_number',
+        'uts_institution_no',
         'status',
+    ];
+
+    protected $casts = [
+        'uts_institution_no' => 'integer',
     ];
 
     public function products(): HasMany

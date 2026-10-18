@@ -2,6 +2,8 @@
 
 namespace App\Domain\Uts\Services;
 
+use App\Domain\Catalog\Models\Supplier;
+use App\Domain\EInvoice\Models\EInvoice;
 use App\Domain\Uts\Contracts\UtsClient;
 use App\Domain\Uts\Exceptions\UtsException;
 use App\Domain\Uts\Models\UtsNotification;
@@ -64,7 +66,27 @@ class UtsReceiveService
             throw $e;
         }
 
+        $this->learnSupplierInstitution($receipt);
+
         return UtsNotification::create($attributes + ['status' => UtsNotification::STATUS_SENT, 'uts_notification_id' => $code]);
+    }
+
+    /**
+     * Gönderenin ÜTS kurum numarası, aynı belge numarasıyla gelmiş e-faturanın
+     * tedarikçisine yazılır (yalnızca boşsa); iade (Verme) bildiriminde
+     * kullanılır (Aşama 48).
+     */
+    private function learnSupplierInstitution(PendingReceipt $receipt): void
+    {
+        if ($receipt->senderCode === null || $receipt->documentNo === null) {
+            return;
+        }
+
+        $supplierId = EInvoice::where('invoice_number', $receipt->documentNo)->whereNotNull('supplier_id')->latest('id')->value('supplier_id');
+
+        if ($supplierId) {
+            Supplier::whereKey($supplierId)->whereNull('uts_institution_no')->update(['uts_institution_no' => $receipt->senderCode]);
+        }
     }
 
     /**

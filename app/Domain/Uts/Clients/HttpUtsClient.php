@@ -5,6 +5,7 @@ namespace App\Domain\Uts\Clients;
 use App\Domain\Uts\Contracts\UtsClient;
 use App\Domain\Uts\Exceptions\UtsAuthException;
 use App\Domain\Uts\Exceptions\UtsException;
+use App\Domain\Uts\Support\GiveReport;
 use App\Domain\Uts\Support\PendingReceipt;
 use App\Domain\Uts\Support\PendingReceiptPage;
 use App\Domain\Uts\Support\UsageReport;
@@ -89,6 +90,16 @@ class HttpUtsClient implements UtsClient
     public function cancelUsage(string $notificationId): string
     {
         return $this->notificationCode('/UTS/uh/rest/bildirim/kullanim/iptal', ['BID' => $notificationId], 'ÜTS Kullanım iptalini onaylamadı. Biraz sonra tekrar deneyin.');
+    }
+
+    public function give(GiveReport $report): string
+    {
+        return $this->notificationCode('/UTS/uh/rest/bildirim/verme/ekle', $report->toPayload(), 'ÜTS Verme bildirimini onaylamadı. Biraz sonra tekrar deneyin.');
+    }
+
+    public function cancelGive(string $notificationId): string
+    {
+        return $this->notificationCode('/UTS/uh/rest/bildirim/verme/iptal', ['BID' => $notificationId], 'ÜTS Verme iptalini onaylamadı. Biraz sonra tekrar deneyin.');
     }
 
     /**

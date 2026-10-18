@@ -7,7 +7,7 @@ use App\Domain\Catalog\Models\Supplier;
 class SupplierService
 {
     /**
-     * @param  array{name: string, contact_person?: ?string, phone?: ?string, email?: ?string, tax_number?: ?string}  $attributes
+     * @param  array{name: string, contact_person?: ?string, phone?: ?string, email?: ?string, tax_number?: ?string, uts_institution_no?: ?int}  $attributes
      */
     public function create(array $attributes): Supplier
     {

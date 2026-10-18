@@ -106,7 +106,7 @@ new #[Layout('layouts::authenticated')] class extends Component
 
     public bool $tracks_serials = false;
 
-    /** Hastaya kullanımda ÜTS Kullanım bildirimi yapılır (Aşama 43); GTIN ister. */
+    /** ÜTS takipli ürün: Kullanım (Aşama 43), iade Verme (48), imha/zayiat (49) bildirimleri; GTIN ister. */
     public bool $uts_usage_report = false;
 
     public function openForm(): void
@@ -718,7 +718,7 @@ new #[Layout('layouts::authenticated')] class extends Component
                     @error('tracks_serials') <span class="text-status-critical text-[12px] block">{{ $message }}</span> @enderror
                     <label class="flex items-start gap-2 text-[13px]">
                         <input type="checkbox" wire:model="uts_usage_report" class="accent-brand-500 w-4 h-4 mt-0.5">
-                        <span><span class="text-ink">Hastaya kullanımda ÜTS'ye bildirilir</span> <span class="text-ink-muted">— Stok Çıkışı'nda "Klinik içi kullanım" seçilince hasta istenir ve ÜTS'ye Kullanım bildirimi gider (ör. implant, greft). GTIN gerekir.</span></span>
+                        <span><span class="text-ink">ÜTS takipli ürün</span> <span class="text-ink-muted">— hastaya kullanımda hasta istenir ve Kullanım bildirimi gider; tedarikçiye iadede Verme, imha ve zayiatta ilgili ÜTS bildirimi yapılabilir (ör. implant, greft, membran). GTIN gerekir.</span></span>
                     </label>
                     @error('uts_usage_report') <span class="text-status-critical text-[12px] block">{{ $message }}</span> @enderror
                 </div>

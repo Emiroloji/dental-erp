@@ -3,6 +3,7 @@
 namespace App\Domain\Uts\Contracts;
 
 use App\Domain\Uts\Exceptions\UtsException;
+use App\Domain\Uts\Support\GiveReport;
 use App\Domain\Uts\Support\PendingReceiptPage;
 use App\Domain\Uts\Support\UsageReport;
 use App\Domain\Uts\Support\UtsItem;
@@ -10,7 +11,8 @@ use App\Domain\Uts\Support\UtsItem;
 /**
  * ÜTS web servisleri. Uygulamalar: HttpUtsClient (gerçek), FakeUtsClient
  * (test), UnconfiguredUtsClient (token yok). Yazma bildirimleri: Alma
- * (Aşama 42), Kullanım ve Kullanım iptali (Aşama 43).
+ * (Aşama 42), Kullanım ve iptali (Aşama 43), Almak istemiyorum (Aşama 47),
+ * Verme ve iptali (Aşama 48).
  */
 interface UtsClient
 {
@@ -65,6 +67,21 @@ interface UtsClient
      * @throws UtsException
      */
     public function cancelUsage(string $notificationId): string;
+
+    /**
+     * Tedarikçiye iadeyi Verme bildirimiyle bildirir (3.1.4); yeni bildirim
+     * kodunu döndürür.
+     *
+     * @throws UtsException
+     */
+    public function give(GiveReport $report): string;
+
+    /**
+     * Verme bildirimini iptal eder (3.2, verme/iptal).
+     *
+     * @throws UtsException
+     */
+    public function cancelGive(string $notificationId): string;
 
     public function name(): string;
 }
