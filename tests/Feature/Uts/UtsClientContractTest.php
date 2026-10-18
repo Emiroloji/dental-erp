@@ -68,4 +68,21 @@ class UtsClientContractTest extends TestCase
 
         (new UnconfiguredUtsClient)->pendingReceipts();
     }
+
+    public function test_fake_client_records_receive_and_returns_a_code(): void
+    {
+        $client = new FakeUtsClient;
+
+        $code = $client->receive('vbi-1', 2);
+
+        $this->assertNotSame('', $code);
+        $this->assertSame([['receive', ['vbi-1', 2]]], $client->calls);
+    }
+
+    public function test_unconfigured_client_cannot_receive(): void
+    {
+        $this->expectException(UtsException::class);
+
+        (new UnconfiguredUtsClient)->receive('vbi-1');
+    }
 }

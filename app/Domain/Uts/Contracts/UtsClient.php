@@ -7,9 +7,9 @@ use App\Domain\Uts\Support\PendingReceiptPage;
 use App\Domain\Uts\Support\UtsItem;
 
 /**
- * ÜTS web servisleri (yalnızca okuma). Uygulamalar: HttpUtsClient (gerçek),
- * FakeUtsClient (test), UnconfiguredUtsClient (token yok). Yazma bildirimleri
- * (Alma, Kullanım...) Aşama B'de bu arayüze eklenecek.
+ * ÜTS web servisleri. Uygulamalar: HttpUtsClient (gerçek), FakeUtsClient
+ * (test), UnconfiguredUtsClient (token yok). Yazma bildirimlerinden şimdilik
+ * yalnızca Alma vardır (Aşama 42); Kullanım vb. sonraki aşamalardır.
  */
 interface UtsClient
 {
@@ -28,6 +28,16 @@ interface UtsClient
      * @throws UtsException
      */
     public function lookup(string $uno, ?string $lot = null, ?string $serial = null): array;
+
+    /**
+     * Kabul bekleyen bir Verme bildirimini Alma bildirimiyle kabul eder
+     * (rev. 1.99, 3.1.6). Adet yalnızca lot takipli üründe eksik alım için
+     * verilir. Alma bildiriminin iptali yoktur (3.2). Yeni bildirim kodunu
+     * (SNC) döndürür.
+     *
+     * @throws UtsException
+     */
+    public function receive(string $notificationId, ?int $quantity = null): string;
 
     public function name(): string;
 }

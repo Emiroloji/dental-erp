@@ -105,4 +105,49 @@ class HttpUtsClientTest extends TestCase
 
         $this->client()->pendingReceipts();
     }
+
+    public function test_receive_posts_alma_with_notification_id_and_returns_new_code(): void
+    {
+        Http::fake(['utstest.saglik.gov.tr/*' => Http::response([
+            'SNC' => '15713f21-f7d8-11e8-a3a9-f783d4ccac99',
+            'MSJ' => [['TIP' => 'BILGI', 'KOD' => 'UTS-B006', 'MET' => 'Alma bildirimi yapıldı.']],
+        ])]);
+
+        $code = $this->client()->receive('96be8de1-f7d7-11e8-a3a9-f783d4ccac99', 5);
+
+        $this->assertSame('15713f21-f7d8-11e8-a3a9-f783d4ccac99', $code);
+
+        Http::assertSent(fn (Request $r) => $r->url() === 'https://utstest.saglik.gov.tr/UTS/uh/rest/bildirim/alma/ekle'
+            && $r->header('utsToken') === ['gizli-token']
+            && $r['VBI'] === '96be8de1-f7d7-11e8-a3a9-f783d4ccac99'
+            && $r['ADT'] === 5);
+    }
+
+    public function test_receive_omits_quantity_when_not_given(): void
+    {
+        Http::fake(['*' => Http::response(['SNC' => 'yeni-kod'])]);
+
+        $this->client()->receive('vbi-1');
+
+        Http::assertSent(fn (Request $r) => ! array_key_exists('ADT', $r->data()));
+    }
+
+    public function test_receive_without_result_code_is_an_error(): void
+    {
+        Http::fake(['*' => Http::response(['MSJ' => []])]);
+
+        $this->expectException(UtsException::class);
+
+        $this->client()->receive('vbi-1');
+    }
+
+    public function test_receive_shows_uts_error_message(): void
+    {
+        Http::fake(['*' => Http::response(['MSJ' => [['TIP' => 'HATA', 'KOD' => 'UTS-H171', 'MET' => 'Verilen Tekil Ürün bilgilerine uyan birden fazla bildirim bulundu!']]])]);
+
+        $this->expectException(UtsException::class);
+        $this->expectExceptionMessage('birden fazla bildirim');
+
+        $this->client()->receive('vbi-1');
+    }
 }

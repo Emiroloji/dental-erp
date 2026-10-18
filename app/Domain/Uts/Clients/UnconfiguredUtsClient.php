@@ -21,6 +21,11 @@ class UnconfiguredUtsClient implements UtsClient
         $this->fail();
     }
 
+    public function receive(string $notificationId, ?int $quantity = null): string
+    {
+        $this->fail();
+    }
+
     public function name(): string
     {
         return 'Yapılandırılmamış';

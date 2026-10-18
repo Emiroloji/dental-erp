@@ -9,12 +9,16 @@ use App\Domain\Uts\Support\PendingReceiptPage;
 use App\Domain\Uts\Support\UtsItem;
 
 /**
- * Testler ve geliştirme için bellek içi ÜTS. Çağrıları kaydeder.
+ * Testler ve geliştirme için bellek içi ÜTS. Çağrıları kaydeder; kabul
+ * edilen (receive) bildirimler bekleyenler listesinden düşer.
  */
 class FakeUtsClient implements UtsClient
 {
     /** @var list<array{0: string, 1: array<int, mixed>}> */
     public array $calls = [];
+
+    /** @var list<string> */
+    private array $received = [];
 
     /**
      * @param  list<PendingReceipt>  $pending
@@ -34,7 +38,8 @@ class FakeUtsClient implements UtsClient
             throw $this->failure;
         }
 
-        $rows = array_values(array_filter($this->pending, fn (PendingReceipt $r) => $senderCode === null || $r->senderCode === $senderCode));
+        $rows = array_values(array_filter($this->pending, fn (PendingReceipt $r) => ($senderCode === null || $r->senderCode === $senderCode)
+            && ! in_array($r->notificationId, $this->received, true)));
         $slice = array_slice($rows, $page * PendingReceiptPage::PAGE_SIZE, PendingReceiptPage::PAGE_SIZE);
 
         return new PendingReceiptPage($slice, $page, count($rows) > ($page + 1) * PendingReceiptPage::PAGE_SIZE);
@@ -51,6 +56,19 @@ class FakeUtsClient implements UtsClient
         return array_values(array_filter($this->items, fn (UtsItem $i) => $i->uno === $uno
             && ($lot === null || $i->lot === $lot)
             && ($serial === null || $i->serial === $serial)));
+    }
+
+    public function receive(string $notificationId, ?int $quantity = null): string
+    {
+        $this->calls[] = ['receive', [$notificationId, $quantity]];
+
+        if ($this->failure) {
+            throw $this->failure;
+        }
+
+        $this->received[] = $notificationId;
+
+        return 'sahte-alma-'.count($this->received);
     }
 
     public function name(): string

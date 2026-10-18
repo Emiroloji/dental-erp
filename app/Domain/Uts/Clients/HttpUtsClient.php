@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 /**
- * ÜTS REST servisleri (Takip ve İzleme Web Servis Tanımları rev. 1.47).
+ * ÜTS REST servisleri (Takip ve İzleme Web Servis Tanımları rev. 1.99).
  * Kimlik doğrulama her istekte `utsToken` başlığıdır (doküman 2.1). Token
  * günlüğe ve hata mesajlarına yazılmaz.
  */
@@ -58,6 +58,25 @@ class HttpUtsClient implements UtsClient
         }
 
         return array_map(fn (array $row) => UtsItem::fromArray($row), $this->rows($this->post('/UTS/uh/rest/tekilUrun/sorgula', $body)));
+    }
+
+    public function receive(string $notificationId, ?int $quantity = null): string
+    {
+        $body = ['VBI' => $notificationId];
+
+        if ($quantity !== null) {
+            $body['ADT'] = $quantity;
+        }
+
+        $code = $this->post('/UTS/uh/rest/bildirim/alma/ekle', $body)['SNC'] ?? null;
+
+        if (! is_string($code) || trim($code) === '') {
+            Log::warning('ÜTS Alma bildirimi kodsuz döndü', ['vbi' => $notificationId]);
+
+            throw new UtsException('ÜTS Alma bildirimini onaylamadı. Kabul Bekleyenler listesini yenileyip tekrar kontrol edin.');
+        }
+
+        return trim($code);
     }
 
     /**
