@@ -5,7 +5,8 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
         <title>{{ $title ?? 'Dental ERP — Diş kliniği stok ve ön muhasebe programı' }}</title>
-        <meta name="description" content="Çok şubeli diş klinikleri ve hastaneler için lot ve son kullanma tarihi takipli stok yönetimi ve ön muhasebe: transfer, satın alma, sayım, iade, ÜTS bildirimleri, gelen e-fatura, kasa-banka-POS, cariler, vadeler ve raporlar tek sistemde.">
+        <meta name="description" content="{{ $description ?? 'Çok şubeli diş klinikleri ve hastaneler için lot ve son kullanma tarihi takipli stok yönetimi ve ön muhasebe: transfer, satın alma, sayım, iade, ÜTS bildirimleri, gelen e-fatura, kasa-banka-POS, cariler, vadeler ve raporlar tek sistemde.' }}">
+        {{ $head ?? '' }}
 
         @include('partials.pwa-head')
 
@@ -28,6 +29,10 @@
                     <a href="{{ route('marketing.features') }}"
                         class="hidden sm:inline-block px-3 py-2 rounded-md transition-colors {{ request()->routeIs('marketing.features') ? 'text-ink' : 'text-ink-muted hover:text-ink' }}">
                         Neler yapıyor
+                    </a>
+                    <a href="{{ route('guides.index') }}"
+                        class="hidden md:inline-block px-3 py-2 rounded-md transition-colors {{ request()->routeIs('guides.*') ? 'text-ink' : 'text-ink-muted hover:text-ink' }}">
+                        Rehberler
                     </a>
                     <a href="{{ route('login') }}" class="px-2 sm:px-3 py-2 rounded-md text-ink-muted hover:text-ink transition-colors">Giriş yap</a>
                     <a href="{{ route('marketing.contact') }}" class="sm:ml-1 bg-panel-900 text-white rounded-md px-3 sm:px-4 py-2 font-medium hover:bg-panel-800 transition-colors">Talep gönder</a>
@@ -57,6 +62,7 @@
                     <nav class="mt-8 sm:mt-0 flex flex-col gap-2.5 text-[14px]">
                         <a href="{{ route('marketing.home') }}" class="hover:text-white transition-colors">Ana sayfa</a>
                         <a href="{{ route('marketing.features') }}" class="hover:text-white transition-colors">Neler yapıyor</a>
+                        <a href="{{ route('guides.index') }}" class="hover:text-white transition-colors">ÜTS ve e-fatura rehberleri</a>
                         <a href="{{ route('marketing.contact') }}" class="hover:text-white transition-colors">Talep gönder</a>
                         <a href="{{ route('login') }}" class="hover:text-white transition-colors">Giriş yap</a>
                     </nav>

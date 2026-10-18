@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Controllers\EInvoice\EInvoicePdfController;
+use App\Http\Controllers\Marketing\GuideController;
+use App\Http\Controllers\Marketing\SeoController;
 use App\Http\Controllers\Purchasing\PurchaseReceiptDocumentController;
 use App\Http\Controllers\Reporting\ReportExportDownloadController;
 use App\Http\Controllers\Stock\LabelController;
@@ -15,6 +17,12 @@ use Illuminate\Support\Facades\Route;
 Route::livewire('/', 'pages::marketing.home')->name('marketing.home');
 Route::livewire('/neler-yapiyor', 'pages::marketing.features')->name('marketing.features');
 Route::livewire('/talep', 'pages::marketing.contact')->name('marketing.contact');
+
+// Aşama 52: ÜTS ve e-fatura rehberleri, site haritası ve robots.txt (girişsiz).
+Route::get('/rehber', [GuideController::class, 'index'])->name('guides.index');
+Route::get('/rehber/{slug}', [GuideController::class, 'show'])->where('slug', '[a-z0-9-]+')->name('guides.show');
+Route::get('/sitemap.xml', [SeoController::class, 'sitemap'])->name('seo.sitemap');
+Route::get('/robots.txt', [SeoController::class, 'robots'])->name('seo.robots');
 
 Route::post('/logout', function () {
     Auth::logout();
