@@ -55,7 +55,7 @@ Kabul Bekleyenler'de satırdaki "Almak istemiyorum" (stok yazma yetkisi, onay pa
 
 - Ürün kartında **"Hastaya kullanımda ÜTS'ye bildirilir"** işaretli olmalı (GTIN zorunlu; ör. implant, greft, membran).
 - Stok Çıkışı'nda bu ürün **"Klinik içi kullanım"** nedeniyle çıkarken **hasta** (Hastalar kaydından, ad/soyad ya da tam kimlik numarasıyla arama; formdan yeni hasta eklenebilir) ve **kullanım tarihi** istenir.
-- Kayıttan sonra her seri (lot takipli üründe lot + adet) için `POST /UTS/uh/rest/bildirim/kullanim/ekle` gider: `UNO` (GTIN), `SNO` ya da `LNO`+`ADT`, `GIT` (tarih), `HAA`, `HAS`, `TUR` ve kimlik türüne göre `TKN`/`YKN`/`PAN` (kimliği belirsizde `KTN` = hasta kayıt no).
+- Kayıttan sonra her seri (lot takipli üründe her adet ayrı) için `POST /UTS/uh/rest/bildirim/kullanim/ekle` gider: `UNO` (GTIN), `SNO` ya da `LNO` (`ADT` gönderilmez), `GIT` (tarih), `HAA`, `HAS`, `TUR` ve kimlik türüne göre `TKN`/`YKN`/`PAN` (kimliği belirsizde `KTN` = hasta kayıt no).
 - ÜTS hatası stok çıkışını geri almaz; ekranda uyarı çıkar, Gönderim Geçmişi'nden tekrar gönderilir.
 - **İptal vardır** (`kullanim/iptal`, `BID`). ÜTS'de bildirilmiş bir kullanımın stok çıkışı, önce ÜTS'de iptal edilmeden Stok Hareketleri'nden iptal edilemez.
 - Hızlı İşlem'de işaretli ürün "Klinik içi kullanım" ile çıkarılamaz (hasta seçimi Stok Çıkışı'ndadır).
@@ -106,5 +106,5 @@ Token'ı yalnızca kurumun imza yetkilisi (hastanelerde başhekim/yardımcılar�
 - Canlı sorgudur; ÜTS yavaşsa ya da kapalıysa ekran bekler. Yerel eşitleme ve "yeni bekleyen var" bildirimi yoktur.
 - ÜTS yanıt biçimi servis tanım dokümanına (rev. 1.99, ÜTS 9.8.x) göre yazıldı ve yerel sahte ÜTS sunucusuyla uçtan uca denendi; **gerçek ÜTS test ortamında henüz denenmedi.**
 - Hangi ürünlerin tekil takipli olduğu ve kliniğinizin hangi bildirimlerle yükümlü olduğu mevzuata bağlıdır; uygulama yasal tavsiye vermez.
-- Kullanım bildiriminde lot takipli üründe `ADT` olarak çıkan miktar gönderilir; belge bu alanı "1 olarak verilir" diye anlatıyor. Test ortamında doğrulanmalı.
+- Kullanım bildiriminde adet 1'dir (belge 3.1.9 ve `UTS-H222`): lot takipli üründen birden çok adet kullanılınca her adet ayrı kullanım kaydı ve ayrı bildirimdir. Bu yüzden hastaya kullanımda miktar tam sayı olmalıdır.
 - Sonraki adımlar: Tüketiciye Verme, "Almak istemiyorum" işaretleme, iade/imha bildirimleri.
