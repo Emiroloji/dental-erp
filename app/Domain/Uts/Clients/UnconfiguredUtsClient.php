@@ -12,7 +12,7 @@ use App\Domain\Uts\Support\UsageReport;
  */
 class UnconfiguredUtsClient implements UtsClient
 {
-    public function pendingReceipts(?int $senderCode = null, int $page = 0): PendingReceiptPage
+    public function pendingReceipts(?int $senderCode = null, int $page = 0, ?string $documentNo = null): PendingReceiptPage
     {
         $this->fail();
     }

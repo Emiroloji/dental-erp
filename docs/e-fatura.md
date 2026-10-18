@@ -8,7 +8,7 @@ Tedarikçilerin kliniğe kestiği e-faturalar entegratörden otomatik çekilir, 
 |---|---|---|
 | Ayarlar → e-Fatura Bağlantısı | `/ayarlar` | Entegratör (şimdilik Nilvera), ortam, API anahtarı; "Bağlantıyı dene", kaldır. Yalnızca Admin. |
 | Gelen e-Faturalar | `/e-fatura` | Tarih, fatura no, gönderen (ad + VKN/TCKN), senaryo, kalem sayısı, tutar. Arama ve tarih süzgeci. "Şimdi çek" (satın alma yazma yetkisi). |
-| Fatura detayı | `/e-fatura/{id}` | Tutarlar, kalemler; ilaç/tıbbi cihaz kalemlerinde GTIN, lot, seri, üretim/son kullanma tarihi. "PDF'i aç" entegratörden getirir. |
+| Fatura detayı | `/e-fatura/{id}` | Tutarlar, kalemler; ilaç/tıbbi cihaz kalemlerinde GTIN, lot, seri, üretim/son kullanma tarihi. "PDF'i aç" entegratörden getirir. **Eşleşmeler**: tedarikçi (yoksa "Tedarikçi olarak ekle"), satın alma teslimi, kalem ürün kartı, ÜTS'de bu faturaya ait kabul bekleyenler ve "Kabul Bekleyenler'de aç". |
 
 Görmek için Satın Alma okuma yetkisi yeterlidir.
 
@@ -20,6 +20,16 @@ Görmek için Satın Alma okuma yetkisi yeterlidir.
 - Okunamayan fatura atlanır, günlüğe yazılır ve sonraki çekimde yeniden denenir; diğerleri yazılır.
 - Tutarlar kuruş (tam sayı) saklanır. UBL'de nokta her zaman ondalıktır (`190.000` = 190 TL); kuruşa yarım yukarı yuvarlanır.
 - İlaç ve tıbbi cihaz faturasında (`ILAC_TIBBICIHAZ`) kalem kimlikleri GİB "İlaç ve Tıbbi Cihaz Teslimlerine İlişkin Fatura Teknik Kılavuzu" V1.2'ye göre okunur: `(UNO)…(LNO)…(SNO)…(URT)YYAAGG` ve `(GTIN)…(BN)…(SN)…(XD)YYAAGG`.
+
+## Eşleştirme (Aşama 45)
+
+Fatura gelir gelmez ve detay her açıldığında **yalnızca boş bağlar** doldurulur; elle yapılan eşleşme ezilmez.
+
+- **Tedarikçi:** gönderenin VKN/TCKN'si = tedarikçi kartındaki vergi no (boşluklar yok sayılır).
+- **Satın alma teslimi:** teslim kaydındaki fatura no = e-fatura numarası ve sipariş aynı tedarikçinin; iptal edilmiş teslim sayılmaz.
+- **Ürün:** kalem kimliğindeki GTIN/UNO = ürünün GTIN'i (GS1 normalleştirmeli) ya da barkodu; kimlik yoksa satıcı kodu = ürün kodu.
+- **ÜTS:** fatura numarası ÜTS'deki Verme bildiriminin belge no'su (`BNO`) olarak sorgulanır. Kabul yine Kabul Bekleyenler'in onay panelinden yapılır (Alma'nın iptali olmadığı için otomatik kabul yoktur). Kabul Bekleyenler `?belge=` ile süzülebilir.
+- Eşitleme kuyrukta oturumsuz çalışır; eşleştirmedeki her sorgu organizasyonu açıkça verir (başka kliniğin kaydıyla eşleşmez, testle doğrulandı).
 
 ## Nilvera API anahtarı
 

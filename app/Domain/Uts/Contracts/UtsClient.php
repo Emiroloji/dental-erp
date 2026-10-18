@@ -15,11 +15,12 @@ use App\Domain\Uts\Support\UtsItem;
 interface UtsClient
 {
     /**
-     * Kuruma yapılmış, kabul bekleyen Verme bildirimleri (3.4.7).
+     * Kuruma yapılmış, kabul bekleyen Verme bildirimleri (rev. 1.99, 3.4.10);
+     * gönderen kurum ve belge (fatura/irsaliye) numarasıyla süzülebilir.
      *
      * @throws UtsException
      */
-    public function pendingReceipts(?int $senderCode = null, int $page = 0): PendingReceiptPage;
+    public function pendingReceipts(?int $senderCode = null, int $page = 0, ?string $documentNo = null): PendingReceiptPage;
 
     /**
      * Kurum üzerindeki tekil ürünü ürün no + lot/seri ile sorgular (3.4.1).

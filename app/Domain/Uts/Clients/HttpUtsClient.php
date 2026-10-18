@@ -32,12 +32,16 @@ class HttpUtsClient implements UtsClient
         return 'ÜTS';
     }
 
-    public function pendingReceipts(?int $senderCode = null, int $page = 0): PendingReceiptPage
+    public function pendingReceipts(?int $senderCode = null, int $page = 0, ?string $documentNo = null): PendingReceiptPage
     {
         $body = ['SAN' => $page];
 
         if ($senderCode !== null) {
             $body['GKK'] = $senderCode;
+        }
+
+        if ($documentNo !== null && $documentNo !== '') {
+            $body['BNO'] = $documentNo;
         }
 
         $rows = $this->rows($this->post('/UTS/uh/rest/bildirim/alma/bekleyenler/sorgula', $body));

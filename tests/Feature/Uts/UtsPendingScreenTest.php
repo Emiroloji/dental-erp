@@ -101,4 +101,14 @@ class UtsPendingScreenTest extends TestCase
 
         Livewire::test('pages::uts.pending')->set('sender', '8')->assertSee('A-8')->assertDontSee('A-7');
     }
+
+    public function test_document_filter_comes_from_the_url(): void
+    {
+        $this->fake([
+            PendingReceipt::fromArray(['GKK' => 7, 'UNO' => 'U1', 'BNO' => 'ADM-1']),
+            PendingReceipt::fromArray(['GKK' => 7, 'UNO' => 'U2', 'BNO' => 'ADM-2']),
+        ]);
+
+        $this->get('/uts/kabul-bekleyenler?belge=ADM-2')->assertOk()->assertSee('ADM-2')->assertDontSee('ADM-1');
+    }
 }

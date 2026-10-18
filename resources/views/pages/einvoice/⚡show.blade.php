@@ -1,28 +1,79 @@
 <?php
 
+use App\Domain\Catalog\Services\SupplierService;
 use App\Domain\EInvoice\Models\EInvoice;
+use App\Domain\EInvoice\Services\EInvoiceMatcher;
+use App\Domain\Uts\Contracts\UtsClient;
+use App\Domain\Uts\Exceptions\UtsException;
+use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 
 /**
  * Gelen e-fatura detayı (Faz 6): başlık, tutarlar ve kalemler; ilaç/tıbbi
- * cihaz kalemlerinde GTIN, lot, seri ve tarih. Başka organizasyonun
- * faturası 404 döner.
+ * cihaz kalemlerinde GTIN, lot, seri ve tarih. Eşleşmeler (Aşama 45):
+ * tedarikçi, satın alma teslimi, kalem ürün kartı ve ÜTS'de bu faturaya ait
+ * kabul bekleyenler. Kabul yine ÜTS ekranının onay panelinden geçer.
+ * Başka organizasyonun faturası 404 döner.
  */
 new #[Layout('layouts::authenticated')] class extends Component
 {
     public int $invoiceId;
 
-    public function mount(int $invoice): void
+    public function mount(int $invoice, EInvoiceMatcher $matcher): void
     {
-        $this->invoiceId = EInvoice::findOrFail($invoice)->id;
+        $model = EInvoice::findOrFail($invoice);
+        $this->invoiceId = $model->id;
+
+        // Fatura geldikten sonra açılan tedarikçi, teslim ya da ürün kartı
+        // burada yakalanır; elle yapılmış eşleşmeye dokunulmaz.
+        $matcher->match($model);
+    }
+
+    public function createSupplier(SupplierService $suppliers, EInvoiceMatcher $matcher): void
+    {
+        Gate::authorize('supplier_management.create');
+
+        $invoice = EInvoice::findOrFail($this->invoiceId);
+
+        if ($invoice->supplier_id === null && filled($invoice->sender_name)) {
+            $supplier = $suppliers->create(['name' => $invoice->sender_name, 'tax_number' => $invoice->sender_tax_number]);
+            $invoice->update(['supplier_id' => $supplier->id]);
+            $matcher->match($invoice->fresh());
+            session()->flash('status', 'Tedarikçi eklendi ve faturaya bağlandı.');
+        }
     }
 
     public function with(): array
     {
+        $invoice = EInvoice::with(['lines.identities', 'lines.product', 'supplier', 'purchaseReceipt'])->findOrFail($this->invoiceId);
+
         return [
-            'invoice' => EInvoice::with('lines.identities')->findOrFail($this->invoiceId),
+            'invoice' => $invoice,
+            ...$this->utsPending($invoice),
         ];
+    }
+
+    /**
+     * ÜTS'de bu faturanın numarasıyla gelmiş, kabul bekleyen Verme
+     * bildirimleri (ilk sayfa). Yalnızca takip kimliği olan faturada ve stok
+     * görme yetkisiyle sorulur.
+     *
+     * @return array{utsRows: list<\App\Domain\Uts\Support\PendingReceipt>|null, utsError: ?string}
+     */
+    private function utsPending(EInvoice $invoice): array
+    {
+        $tracked = $invoice->lines->contains(fn ($line) => $line->identities->isNotEmpty());
+
+        if (! $tracked || ! Gate::allows('stock_movement.viewAny')) {
+            return ['utsRows' => null, 'utsError' => null];
+        }
+
+        try {
+            return ['utsRows' => app(UtsClient::class)->pendingReceipts(null, 0, $invoice->invoice_number)->items, 'utsError' => null];
+        } catch (UtsException $e) {
+            return ['utsRows' => null, 'utsError' => $e->getMessage()];
+        }
     }
 };
 ?>
@@ -37,12 +88,65 @@ new #[Layout('layouts::authenticated')] class extends Component
         <a href="{{ route('einvoice.pdf', $invoice->id) }}" target="_blank" rel="noopener" class="mt-4 sm:mt-0 inline-flex border border-line rounded-md px-4 py-2 text-[14px] text-ink hover:border-panel-900">PDF'i aç</a>
     </div>
 
+    @if (session('status'))
+        <div class="mb-4 rounded-md bg-brand-100 border border-brand-500/20 text-brand-600 text-[13px] px-4 py-3">{{ session('status') }}</div>
+    @endif
+
     <dl class="grid grid-cols-2 sm:grid-cols-4 gap-px bg-line border border-line rounded-lg overflow-hidden mb-6 text-[14px]">
         <div class="bg-surface px-4 py-3"><dt class="text-[12px] text-ink-muted">Fatura tarihi</dt><dd class="text-ink mt-0.5">{{ $invoice->issue_date->format('d.m.Y') }}</dd></div>
         <div class="bg-surface px-4 py-3"><dt class="text-[12px] text-ink-muted">Senaryo / tip</dt><dd class="text-ink mt-0.5">{{ $invoice->profileLabel() }}, {{ $invoice->typeLabel() }}</dd></div>
         <div class="bg-surface px-4 py-3"><dt class="text-[12px] text-ink-muted">KDV hariç / KDV</dt><dd class="text-ink mt-0.5 tabular-nums">{{ $invoice->formatAmount($invoice->tax_exclusive) }} / {{ $invoice->formatAmount($invoice->tax_total) }}</dd></div>
         <div class="bg-surface px-4 py-3"><dt class="text-[12px] text-ink-muted">Ödenecek</dt><dd class="text-ink mt-0.5 font-medium tabular-nums">{{ $invoice->formatAmount($invoice->payable) }}</dd></div>
     </dl>
+
+    <section class="border border-line rounded-lg bg-surface mb-6">
+        <h2 class="px-5 py-4 border-b border-line text-[15px] font-medium text-ink">Eşleşmeler</h2>
+        <dl class="divide-y divide-line text-[14px]">
+            <div class="px-5 py-3 sm:flex sm:items-center sm:justify-between gap-4">
+                <dt class="text-ink-muted sm:w-48 shrink-0">Tedarikçi</dt>
+                <dd class="flex-1 flex flex-wrap items-center justify-between gap-2">
+                    @if ($invoice->supplier)
+                        <span class="text-ink">{{ $invoice->supplier->name }}</span>
+                    @else
+                        <span class="text-status-warn">Tedarikçi kayıtlı değil (VKN eşleşmedi).</span>
+                        @can('supplier_management.create')
+                            <button type="button" wire:click="createSupplier" class="border border-line rounded-md px-3 py-1.5 text-[13px] text-ink hover:border-panel-900">Tedarikçi olarak ekle</button>
+                        @endcan
+                    @endif
+                </dd>
+            </div>
+            <div class="px-5 py-3 sm:flex sm:items-center gap-4">
+                <dt class="text-ink-muted sm:w-48 shrink-0">Satın alma teslimi</dt>
+                <dd class="flex-1">
+                    @if ($invoice->purchaseReceipt)
+                        <a href="{{ route('purchasing.show', $invoice->purchaseReceipt->purchase_order_id) }}" class="text-ink underline">Sipariş #{{ $invoice->purchaseReceipt->purchase_order_id }}, teslim kaydı</a>
+                    @else
+                        <span class="text-ink-muted">Bu fatura numarasıyla kaydedilmiş teslim yok. Teslim alırken fatura no olarak {{ $invoice->invoice_number }} girilirse eşleşir.</span>
+                    @endif
+                </dd>
+            </div>
+            @if ($utsRows !== null || $utsError)
+                <div class="px-5 py-3 sm:flex gap-4">
+                    <dt class="text-ink-muted sm:w-48 shrink-0">ÜTS</dt>
+                    <dd class="flex-1">
+                        @if ($utsError)
+                            <span class="text-ink-muted">{{ $utsError }}</span>
+                        @elseif (count($utsRows) === 0)
+                            <span class="text-ink-muted">ÜTS'de bu faturaya ait kabul bekleyen kayıt yok.</span>
+                        @else
+                            <p class="text-ink">ÜTS'de bu faturaya ait {{ count($utsRows) }} kabul bekleyen kayıt var.</p>
+                            <ul class="mt-1 font-mono text-[12px] text-ink-muted">
+                                @foreach ($utsRows as $row)
+                                    <li>{{ $row->uno }}@if ($row->lot) <span class="ml-2">Lot {{ $row->lot }}</span>@endif @if ($row->serial) <span class="ml-2">Seri {{ $row->serial }}</span>@endif <span class="ml-2">{{ $row->quantity }} adet</span></li>
+                                @endforeach
+                            </ul>
+                            <a href="{{ route('uts.pending', ['belge' => $invoice->invoice_number]) }}" class="inline-block mt-2 border border-line rounded-md px-3 py-1.5 text-[13px] text-ink hover:border-panel-900">Kabul Bekleyenler'de aç</a>
+                        @endif
+                    </dd>
+                </div>
+            @endif
+        </dl>
+    </section>
 
     <section class="relative border border-line rounded-lg bg-surface overflow-x-auto">
         <h2 class="px-5 py-4 border-b border-line text-[15px] font-medium text-ink">Kalemler</h2>
@@ -77,6 +181,7 @@ new #[Layout('layouts::authenticated')] class extends Component
                                     @endforeach
                                 </ul>
                             @endif
+                            <div class="mt-1.5 text-[12px] {{ $line->product ? 'text-brand-600' : 'text-ink-muted' }}">{{ $line->product ? 'Ürün kartı: '.$line->product->name : 'Ürün kartı yok' }}</div>
                         </td>
                         <td class="px-5 py-3 text-right tabular-nums whitespace-nowrap">{{ Number::format((float) $line->quantity, maxPrecision: 4) }} <span class="text-ink-muted text-[12px]">{{ $line->unitLabel() }}</span></td>
                         <td class="px-5 py-3 text-right tabular-nums whitespace-nowrap">{{ $invoice->formatAmount($line->unit_price) }}</td>

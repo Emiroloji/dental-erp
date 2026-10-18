@@ -21,6 +21,10 @@ new #[Layout('layouts::authenticated')] class extends Component
     #[Url(as: 'gonderen', except: '')]
     public string $sender = '';
 
+    /** Belge (fatura/irsaliye) no süzgeci; gelen e-fatura detayından gelir (Aşama 45). */
+    #[Url(as: 'belge', except: '')]
+    public string $document = '';
+
     public int $page = 0;
 
     /** @var list<string> Seçili satırların ÜTS bildirim kodları (BID). */
@@ -36,6 +40,11 @@ new #[Layout('layouts::authenticated')] class extends Component
 
     /** @var array<string, array{ok: bool, text: string}> Gönderim sonuçları. */
     public array $results = [];
+
+    public function updatedDocument(): void
+    {
+        $this->updatedSender();
+    }
 
     public function updatedSender(): void
     {
@@ -149,13 +158,18 @@ new #[Layout('layouts::authenticated')] class extends Component
     {
         $receipts = [];
 
-        foreach ($client->pendingReceipts($this->senderCode(), $this->page)->items as $receipt) {
+        foreach ($client->pendingReceipts($this->senderCode(), $this->page, $this->documentNo())->items as $receipt) {
             if ($receipt->notificationId !== null) {
                 $receipts[$receipt->notificationId] = $receipt;
             }
         }
 
         return $receipts;
+    }
+
+    private function documentNo(): ?string
+    {
+        return trim($this->document) !== '' ? trim($this->document) : null;
     }
 
     private function senderCode(): ?int
@@ -166,7 +180,7 @@ new #[Layout('layouts::authenticated')] class extends Component
     public function with(UtsClient $client, UtsMatcher $matcher): array
     {
         try {
-            $result = $client->pendingReceipts($this->senderCode(), $this->page);
+            $result = $client->pendingReceipts($this->senderCode(), $this->page, $this->documentNo());
         } catch (UtsException $e) {
             return ['error' => $e->getMessage(), 'rows' => [], 'hasMore' => false];
         }
@@ -193,7 +207,10 @@ new #[Layout('layouts::authenticated')] class extends Component
     </div>
 
     <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <input type="text" wire:model.live.debounce.500ms="sender" inputmode="numeric" placeholder="Gönderen kurum kodu (isteğe bağlı)" class="border border-line rounded-md px-3 py-2 text-[14px] w-full max-w-xs">
+        <div class="flex flex-wrap gap-2 w-full sm:w-auto">
+            <input type="text" wire:model.live.debounce.500ms="sender" inputmode="numeric" placeholder="Gönderen kurum kodu" aria-label="Gönderen kurum kodu" class="border border-line rounded-md px-3 py-2 text-[14px] w-full sm:w-52">
+            <input type="text" wire:model.live.debounce.500ms="document" placeholder="Belge (fatura) no" aria-label="Belge (fatura) no" class="border border-line rounded-md px-3 py-2 text-[14px] w-full sm:w-52">
+        </div>
 
         @can('stock_movement.create')
             @if (count($selected) > 0)

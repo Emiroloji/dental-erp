@@ -32,7 +32,7 @@ class FakeUtsClient implements UtsClient
         private readonly ?UtsException $writeFailure = null,
     ) {}
 
-    public function pendingReceipts(?int $senderCode = null, int $page = 0): PendingReceiptPage
+    public function pendingReceipts(?int $senderCode = null, int $page = 0, ?string $documentNo = null): PendingReceiptPage
     {
         $this->calls[] = ['pendingReceipts', [$senderCode, $page]];
 
@@ -41,6 +41,7 @@ class FakeUtsClient implements UtsClient
         }
 
         $rows = array_values(array_filter($this->pending, fn (PendingReceipt $r) => ($senderCode === null || $r->senderCode === $senderCode)
+            && ($documentNo === null || $r->documentNo === $documentNo)
             && ! in_array($r->notificationId, $this->received, true)));
         $slice = array_slice($rows, $page * PendingReceiptPage::PAGE_SIZE, PendingReceiptPage::PAGE_SIZE);
 

@@ -146,6 +146,7 @@ new #[Layout('layouts::authenticated')] class extends Component
                     <th class="px-5 py-3 font-medium">Senaryo</th>
                     <th class="px-5 py-3 font-medium text-right">Kalem</th>
                     <th class="px-5 py-3 font-medium text-right">Tutar</th>
+                    <th class="px-5 py-3 font-medium">Eşleşme</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-line">
@@ -157,10 +158,22 @@ new #[Layout('layouts::authenticated')] class extends Component
                         <td class="px-5 py-3 text-ink-muted whitespace-nowrap">{{ $invoice->profileLabel() }}@if ($invoice->type !== 'SATIS')<div class="text-[12px]">{{ $invoice->typeLabel() }}</div>@endif</td>
                         <td class="px-5 py-3 text-right tabular-nums text-ink-muted">{{ $invoice->lines_count }}</td>
                         <td class="px-5 py-3 text-right tabular-nums whitespace-nowrap">{{ $invoice->formatAmount($invoice->payable) }}</td>
+                        <td class="px-5 py-3">
+                            <div class="flex flex-wrap gap-1">
+                                @if ($invoice->supplier_id)
+                                    <span class="whitespace-nowrap rounded-full bg-brand-100 text-brand-600 px-2 py-0.5 text-[12px]">Tedarikçi eşleşti</span>
+                                @else
+                                    <span class="whitespace-nowrap rounded-full bg-amber-100 text-amber-700 px-2 py-0.5 text-[12px]">Tedarikçi yok</span>
+                                @endif
+                                @if ($invoice->purchase_receipt_id)
+                                    <span class="whitespace-nowrap rounded-full bg-brand-100 text-brand-600 px-2 py-0.5 text-[12px]">Teslim kaydı var</span>
+                                @endif
+                            </div>
+                        </td>
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="6" class="px-5 py-8 text-center text-ink-muted text-[13px]">
+                        <td colspan="7" class="px-5 py-8 text-center text-ink-muted text-[13px]">
                             {{ trim($search) !== '' || filled($from) || filled($to) ? 'Süzgeçlerle eşleşen fatura yok.' : 'Henüz gelen e-fatura yok. Bağlantı kuruluysa faturalar 30 dakika içinde burada görünür.' }}
                         </td>
                     </tr>

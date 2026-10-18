@@ -187,4 +187,13 @@ class HttpUtsClientTest extends TestCase
         Http::assertSent(fn (Request $r) => $r->url() === 'https://utstest.saglik.gov.tr/UTS/uh/rest/bildirim/kullanim/iptal'
             && $r->data() === ['BID' => 'kullanim-kodu-1']);
     }
+
+    public function test_pending_receipts_can_filter_by_document_number(): void
+    {
+        Http::fake(['*' => Http::response(['SNC' => []])]);
+
+        $this->client()->pendingReceipts(null, 0, 'ADM2026000451');
+
+        Http::assertSent(fn (Request $r) => $r['BNO'] === 'ADM2026000451');
+    }
 }

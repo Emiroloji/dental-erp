@@ -5,6 +5,8 @@ namespace Tests\Feature\EInvoice;
 use App\Domain\Access\Models\Permission;
 use App\Domain\Access\Support\Module;
 use App\Domain\Access\Support\PermissionScope;
+use App\Domain\Catalog\Models\Product;
+use App\Domain\Catalog\Models\Supplier;
 use App\Domain\EInvoice\Clients\FakeEInvoiceProvider;
 use App\Domain\EInvoice\Contracts\EInvoiceProvider;
 use App\Domain\EInvoice\Exceptions\EInvoiceException;
@@ -13,6 +15,9 @@ use App\Domain\EInvoice\Models\EInvoiceConnection;
 use App\Domain\EInvoice\Services\EInvoiceProviderFactory;
 use App\Domain\EInvoice\Services\EInvoiceSyncService;
 use App\Domain\Organization\Models\Organization;
+use App\Domain\Uts\Clients\FakeUtsClient;
+use App\Domain\Uts\Contracts\UtsClient;
+use App\Domain\Uts\Support\PendingReceipt;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
@@ -165,5 +170,69 @@ class EInvoiceScreenTest extends TestCase
 
         $this->get("/e-fatura/{$invoice->id}")->assertNotFound();
         $this->get("/e-fatura/{$invoice->id}/pdf")->assertNotFound();
+    }
+
+    public function test_detail_offers_to_add_unknown_sender_as_supplier(): void
+    {
+        $this->seedInvoices();
+        $invoice = EInvoice::where('invoice_number', 'ADM2026000451')->sole();
+
+        Livewire::test('pages::einvoice.show', ['invoice' => $invoice->id])
+            ->assertSee('Tedarikçi kayıtlı değil')
+            ->call('createSupplier')
+            ->assertSee('Tedarikçi eklendi');
+
+        $supplier = Supplier::sole();
+        $this->assertSame('Anadolu Dental Medikal Ltd. Şti.', $supplier->name);
+        $this->assertSame('1234567890', $supplier->tax_number);
+        $this->assertSame($supplier->id, $invoice->fresh()->supplier_id);
+    }
+
+    public function test_adding_supplier_needs_supplier_write(): void
+    {
+        $this->seedInvoices();
+        $invoice = EInvoice::where('invoice_number', 'ADM2026000451')->sole();
+        $this->actingAs($this->staff(Module::Purchasing));
+
+        Livewire::test('pages::einvoice.show', ['invoice' => $invoice->id])
+            ->assertDontSee('Tedarikçi olarak ekle')
+            ->call('createSupplier')
+            ->assertForbidden();
+    }
+
+    public function test_detail_shows_matched_product_cards(): void
+    {
+        Product::create(['name' => 'Implant kartı', 'base_unit' => 'Adet', 'status' => 'active', 'gtin' => '08699999999994']);
+        $this->seedInvoices();
+        $invoice = EInvoice::where('invoice_number', 'ADM2026000451')->sole();
+
+        Livewire::test('pages::einvoice.show', ['invoice' => $invoice->id])
+            ->assertSee('Ürün kartı: Implant kartı')
+            ->assertSee('Ürün kartı yok');
+    }
+
+    public function test_detail_lists_pending_uts_rows_of_this_invoice_with_a_link(): void
+    {
+        $this->seedInvoices();
+        $invoice = EInvoice::where('invoice_number', 'ADM2026000451')->sole();
+        $this->app->bind(UtsClient::class, fn () => new FakeUtsClient([
+            PendingReceipt::fromArray(['BID' => 'v1', 'GKK' => 7, 'UNO' => '08699999999994', 'SNO' => 'SN-778812', 'ADT' => 1, 'BNO' => 'ADM2026000451']),
+            PendingReceipt::fromArray(['BID' => 'v2', 'GKK' => 7, 'UNO' => '08699999999994', 'SNO' => 'SN-999', 'ADT' => 1, 'BNO' => 'BASKA-FATURA']),
+        ]));
+
+        Livewire::test('pages::einvoice.show', ['invoice' => $invoice->id])
+            ->assertSee('ÜTS\'de bu faturaya ait 1 kabul bekleyen kayıt var', false)
+            ->assertSee('SN-778812')
+            ->assertSee(route('uts.pending', ['belge' => 'ADM2026000451']), false);
+    }
+
+    public function test_list_shows_match_badges(): void
+    {
+        Supplier::create(['name' => 'Anadolu', 'tax_number' => '1234567890', 'status' => 'active']);
+        $this->seedInvoices();
+
+        Livewire::test('pages::einvoice.index')
+            ->assertSee('Tedarikçi eşleşti')
+            ->assertSee('Tedarikçi yok');
     }
 }
