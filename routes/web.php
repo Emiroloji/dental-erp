@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\EInvoice\EInvoicePdfController;
 use App\Http\Controllers\Purchasing\PurchaseReceiptDocumentController;
 use App\Http\Controllers\Reporting\ReportExportDownloadController;
 use App\Http\Controllers\Stock\LabelController;
@@ -202,6 +203,21 @@ Route::middleware('tenant')->group(function () {
         ->whereNumber('order')
         ->middleware(['auth', 'can:purchasing.viewAny'])
         ->name('purchasing.show');
+
+    // Faz 6: gelen e-faturalar (görmek satın alma okuma yetkisiyle).
+    Route::livewire('/e-fatura', 'pages::einvoice.index')
+        ->middleware(['auth', 'can:purchasing.viewAny'])
+        ->name('einvoice.index');
+
+    Route::livewire('/e-fatura/{invoice}', 'pages::einvoice.show')
+        ->whereNumber('invoice')
+        ->middleware(['auth', 'can:purchasing.viewAny'])
+        ->name('einvoice.show');
+
+    Route::get('/e-fatura/{invoice}/pdf', EInvoicePdfController::class)
+        ->whereNumber('invoice')
+        ->middleware(['auth', 'can:purchasing.viewAny'])
+        ->name('einvoice.pdf');
 
     Route::get('/satin-alma/teslim/{receipt}/belge', PurchaseReceiptDocumentController::class)
         ->middleware(['auth', 'can:purchasing.viewAny'])

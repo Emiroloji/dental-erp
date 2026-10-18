@@ -100,6 +100,10 @@
                             <x-slot:icon><path d="M3 4h2l2.4 11.2a1 1 0 0 0 1 .8h9.2a1 1 0 0 0 1-.8L20 8H6M9 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2Zm9 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" stroke-linecap="round" stroke-linejoin="round"/></x-slot:icon>
                             Satın Alma
                         </x-nav-link>
+                        <x-nav-link :href="route('einvoice.index')" :active="request()->routeIs('einvoice.*')">
+                            <x-slot:icon><path d="M7 3h7l5 5v13H7z" stroke-linejoin="round"/><path d="M14 3v5h5M10 13h6M10 17h4" stroke-linecap="round"/></x-slot:icon>
+                            e-Fatura
+                        </x-nav-link>
                     @endcan
                     @can('stock_movement.viewAny')
                         <x-nav-link :href="route('returns.index')" :active="request()->routeIs('returns.*')">

@@ -59,6 +59,10 @@ kapıdan geçer.
   şifreli saklanır, arama özetle tam eşleşmeyle yapılır, ekranlarda maskelidir;
   ayrı "Hastalar" yetkisiyle görülür. Hasta kartında kullanılan ürünler (implant,
   greft…) ve ÜTS durumları listelenir. Tedavi/hasta dosyası değildir.
+- **Gelen e-Fatura (Faz 6, Aşama 44):** tedarikçi e-faturaları entegratörden (ilk
+  sürücü Nilvera) her 30 dakikada çekilir; UBL-TR XML'i saklanır ve okunur
+  (kalemler, ilaç/tıbbi cihaz GTIN-lot-seri kimlikleri). Gelen e-Faturalar
+  listesi ve detayı, PDF görüntüleme. Ayrıntı: `docs/e-fatura.md`.
 - **Tanıtım sitesi:** aynı repo içinde girişsiz sayfalar (`/`, `/neler-yapiyor`,
   `/talep`). Talep formu yalnızca bir `Lead` kaydı oluşturur — otomatik hesap
   veya organizasyon açılmaz; Platform Sahibi "Gelen Talepler" ekranından elle
@@ -112,7 +116,8 @@ Her push ve PR'da GitHub Actions aynı üç adımı çalıştırır
 | Zamanlayıcı, Supervisor ile kuyruk worker'ı, dağıtım adımları | [`docs/production.md`](docs/production.md) |
 | Günlük yedek, sunucu dışı kopya (rclone), geri yükleme prosedürü ve provası | [`docs/yedekleme.md`](docs/yedekleme.md) |
 | Hata takibi (Sentry/log) ve `/health` uç noktası | [`docs/izleme.md`](docs/izleme.md) |
-| ÜTS (Ürün Takip Sistemi): token alma, ekranlar, Alma bildirimi, gerçek ortam kilidi | [`docs/uts.md`](docs/uts.md) |
+| ÜTS (Ürün Takip Sistemi): token alma, ekranlar, Alma bildirimi, gerçek ortam kilidi |
+| Gelen e-fatura: entegratör anahtarı, eşitleme, UBL okuma, yeni entegratör ekleme | [`docs/e-fatura.md`](docs/e-fatura.md) | [`docs/uts.md`](docs/uts.md) |
 
 ## Şartname belgeleri
 

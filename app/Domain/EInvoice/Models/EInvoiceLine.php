@@ -31,6 +31,26 @@ class EInvoiceLine extends Model
         return $this->hasMany(EInvoiceLineIdentity::class)->orderBy('id');
     }
 
+    /**
+     * UBL birim kodu (UN/ECE Rec. 20) → kısa Türkçe ad; bilinmeyen kod olduğu gibi.
+     */
+    public function unitLabel(): ?string
+    {
+        return match ($this->unit_code) {
+            'C62', 'NIU', 'H87' => 'Adet',
+            'BX' => 'Kutu',
+            'PK', 'PA' => 'Paket',
+            'SET' => 'Set',
+            'KGM' => 'kg',
+            'GRM' => 'g',
+            'LTR' => 'lt',
+            'MLT' => 'ml',
+            'MTR' => 'm',
+            'MTK' => 'm²',
+            default => $this->unit_code,
+        };
+    }
+
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);

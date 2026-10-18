@@ -4,6 +4,7 @@ namespace App\Domain\EInvoice\Models;
 
 use App\Domain\Catalog\Models\Supplier;
 use App\Domain\Finance\Models\FinanceObligation;
+use App\Domain\Finance\Support\Money;
 use App\Domain\Organization\Concerns\BelongsToOrganization;
 use App\Domain\Purchasing\Models\PurchaseReceipt;
 use Illuminate\Database\Eloquent\Model;
@@ -56,5 +57,45 @@ class EInvoice extends Model
     public function isMedical(): bool
     {
         return $this->profile === 'ILAC_TIBBICIHAZ';
+    }
+
+    /** Gönderenin vergi kimliği türü: 11 hane şahıs (TCKN), 10 hane şirket (VKN). */
+    public function senderIdLabel(): string
+    {
+        return strlen((string) $this->sender_tax_number) === 11 ? 'TCKN' : 'VKN';
+    }
+
+    public function profileLabel(): string
+    {
+        return match ($this->profile) {
+            'ILAC_TIBBICIHAZ' => 'İlaç ve tıbbi cihaz',
+            'TEMELFATURA' => 'Temel',
+            'TICARIFATURA' => 'Ticari',
+            'EARSIVFATURA' => 'e-Arşiv',
+            'KAMU' => 'Kamu',
+            'IHRACAT' => 'İhracat',
+            default => (string) $this->profile,
+        };
+    }
+
+    public function typeLabel(): string
+    {
+        return match ($this->type) {
+            'SATIS' => 'Satış',
+            'IADE' => 'İade',
+            'TEVKIFAT' => 'Tevkifat',
+            'ISTISNA' => 'İstisna',
+            default => (string) $this->type,
+        };
+    }
+
+    /**
+     * Kuruş tutarı faturanın para birimiyle gösterir; TL dışı tutar çevrilmez.
+     */
+    public function formatAmount(int $kurus): string
+    {
+        return $this->currency === 'TRY'
+            ? Money::format($kurus)
+            : rtrim(Money::format($kurus), ' ₺').' '.$this->currency;
     }
 }
