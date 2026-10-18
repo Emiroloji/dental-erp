@@ -116,8 +116,8 @@ Her push ve PR'da GitHub Actions aynı üç adımı çalıştırır
 | Zamanlayıcı, Supervisor ile kuyruk worker'ı, dağıtım adımları | [`docs/production.md`](docs/production.md) |
 | Günlük yedek, sunucu dışı kopya (rclone), geri yükleme prosedürü ve provası | [`docs/yedekleme.md`](docs/yedekleme.md) |
 | Hata takibi (Sentry/log) ve `/health` uç noktası | [`docs/izleme.md`](docs/izleme.md) |
-| ÜTS (Ürün Takip Sistemi): token alma, ekranlar, Alma bildirimi, gerçek ortam kilidi |
-| Gelen e-fatura: entegratör anahtarı, eşitleme, UBL okuma, yeni entegratör ekleme | [`docs/e-fatura.md`](docs/e-fatura.md) | [`docs/uts.md`](docs/uts.md) |
+| ÜTS (Ürün Takip Sistemi): token alma, ekranlar, Alma bildirimi, gerçek ortam kilidi | [`docs/uts.md`](docs/uts.md) |
+| Gelen e-fatura: entegratör anahtarı, eşitleme, UBL okuma, yeni entegratör ekleme | [`docs/e-fatura.md`](docs/e-fatura.md) |
 
 ## Şartname belgeleri
 
