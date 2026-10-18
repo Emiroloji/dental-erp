@@ -76,6 +76,11 @@ class HttpUtsClient implements UtsClient
         return $this->notificationCode('/UTS/uh/rest/bildirim/alma/ekle', $body, 'ÜTS Alma bildirimini onaylamadı. Kabul Bekleyenler listesini yenileyip tekrar kontrol edin.');
     }
 
+    public function decline(string $notificationId): void
+    {
+        $this->post('/UTS/uh/rest/almakIstemiyorum/almakIstemiyorumOlarakIsaretle', ['BID' => $notificationId]);
+    }
+
     public function reportUsage(UsageReport $report): string
     {
         return $this->notificationCode('/UTS/uh/rest/bildirim/kullanim/ekle', $report->toPayload(), 'ÜTS Kullanım bildirimini onaylamadı. Gönderim Geçmişi\'nden tekrar deneyin.');

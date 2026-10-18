@@ -18,10 +18,8 @@ use App\Domain\Platform\Reporting\NullErrorReporter;
 use App\Domain\Platform\Reporting\SentryErrorReporter;
 use App\Domain\Platform\Services\DatabaseBackupService;
 use App\Domain\Platform\Services\SystemStatus;
-use App\Domain\Uts\Clients\HttpUtsClient;
-use App\Domain\Uts\Clients\UnconfiguredUtsClient;
 use App\Domain\Uts\Contracts\UtsClient;
-use App\Domain\Uts\Models\UtsConnection;
+use App\Domain\Uts\Services\UtsClientFactory;
 use App\Http\Middleware\EnsurePlatformOwner;
 use App\Http\Middleware\EnsureTenantAccess;
 use Illuminate\Console\Events\ScheduledTaskFailed;
@@ -56,17 +54,8 @@ class AppServiceProvider extends ServiceProvider
 
         // Aşama 33: ÜTS istemcisi arayüz arkasında; token organizasyon başına
         // veritabanında (şifreli). Token yoksa hiçbir dış çağrı yapılmaz.
-        $this->app->bind(UtsClient::class, function () {
-            $connection = auth()->check() ? UtsConnection::first() : null;
-
-            return $connection
-                ? new HttpUtsClient(
-                    $connection->token,
-                    (string) config('uts.urls.'.$connection->environment, config('uts.urls.test')),
-                    (int) config('uts.timeout'),
-                )
-                : new UnconfiguredUtsClient;
-        });
+        // Kuyruk işleri istemciyi bağlantıdan UtsClientFactory::for ile kendileri üretir.
+        $this->app->bind(UtsClient::class, fn () => $this->app->make(UtsClientFactory::class)->current());
 
         // Faz 6: e-Fatura entegratörü arayüz arkasında; anahtar organizasyon
         // başına veritabanında (şifreli). Kuyruk işleri sürücüyü bağlantıdan

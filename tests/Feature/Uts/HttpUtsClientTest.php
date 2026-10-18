@@ -196,4 +196,14 @@ class HttpUtsClientTest extends TestCase
 
         Http::assertSent(fn (Request $r) => $r['BNO'] === 'ADM2026000451');
     }
+
+    public function test_decline_marks_the_notification_as_not_wanted(): void
+    {
+        Http::fake(['*' => Http::response(['MSJ' => [['TIP' => 'BILGI', 'KOD' => 'UTS-B000', 'MET' => 'İşlem başarılı.']]])]);
+
+        $this->client()->decline('vbi-1');
+
+        Http::assertSent(fn (Request $r) => $r->url() === 'https://utstest.saglik.gov.tr/UTS/uh/rest/almakIstemiyorum/almakIstemiyorumOlarakIsaretle'
+            && $r->data() === ['BID' => 'vbi-1']);
+    }
 }

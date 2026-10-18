@@ -24,6 +24,16 @@ Ekranları görme yetkisi Stok modülünü izler ve şube kapsamı geçerlidir.
 - Yetki: Stok yazma (`stock_movement.create`). Salt-okunur organizasyonda kapalıdır.
 - Aynı bildirim ikinci kez gönderilmez. Başarılı ve başarısız her deneme `uts_notifications` tablosuna yazılır (token yazılmaz).
 
+## Arka plan taraması ve bildirim (Aşama 47)
+
+- `uts:scan-pending` her saat, ÜTS bağlantısı olan **aktif** organizasyonların kabul bekleyenlerini tarar (`ScanUtsPendingJob`, bağlantı başına tek iş; en fazla 20 sayfa).
+- İlk kez görülen bildirim kodları `uts_pending_seen`'e yazılır ve Admin ile stok yazma yetkili personele "ÜTS'de kabul bekleyen yeni ürün" bildirimi gider (kaç yeni, hangi gönderenler). Okunmamış ÜTS bildirimi olan kişiye yenisi yığılmaz.
+- ÜTS hatası taramayı düşürmez; hiçbir şey "görüldü" sayılmaz, sonraki saat yeniden denenir.
+
+## Almak istemiyorum (Aşama 47)
+
+Kabul Bekleyenler'de satırdaki "Almak istemiyorum" (stok yazma yetkisi, onay paneliyle) bildirimi ÜTS'de `almakIstemiyorum/almakIstemiyorumOlarakIsaretle` (`BID`) ile işaretler; satır listeden kalkar ve Gönderim Geçmişi'ne yazılır. ÜTS portalında "Almak istiyorum" ile geri alınabilir. Gerçek ortam kilidi bu işlem için de geçerlidir.
+
 ## Kullanım bildirimi (hastaya kullanım)
 
 - Ürün kartında **"Hastaya kullanımda ÜTS'ye bildirilir"** işaretli olmalı (GTIN zorunlu; ör. implant, greft, membran).

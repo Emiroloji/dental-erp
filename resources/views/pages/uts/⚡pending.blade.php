@@ -41,6 +41,9 @@ new #[Layout('layouts::authenticated')] class extends Component
     /** @var array<string, array{ok: bool, text: string}> Gönderim sonuçları. */
     public array $results = [];
 
+    /** "Almak istemiyorum" onayı bekleyen satır (Aşama 47). */
+    public ?string $decliningId = null;
+
     public function updatedDocument(): void
     {
         $this->updatedSender();
@@ -151,6 +154,43 @@ new #[Layout('layouts::authenticated')] class extends Component
         $this->selected = [];
     }
 
+    public function confirmDecline(string $notificationId): void
+    {
+        $this->authorize('stock_movement.create');
+
+        $this->decliningId = $notificationId;
+    }
+
+    public function closeDecline(): void
+    {
+        $this->decliningId = null;
+    }
+
+    /**
+     * Satırı ÜTS'de "Almak istemiyorum" olarak işaretler; satır kabul
+     * bekleyenlerden kalkar. ÜTS'de "Almak istiyorum" ile geri alınabilir.
+     */
+    public function decline(): void
+    {
+        $this->authorize('stock_movement.create');
+
+        $id = $this->decliningId;
+        $this->decliningId = null;
+
+        try {
+            $receipt = $this->currentReceipts(app(UtsClient::class))[$id] ?? null;
+
+            if ($receipt === null) {
+                throw new UtsException('Bu bildirim artık kabul bekleyenler arasında değil.');
+            }
+
+            app(UtsReceiveService::class)->decline($receipt);
+            session()->flash('status', 'Bildirim ÜTS\'de "Almak istemiyorum" olarak işaretlendi.');
+        } catch (UtsException $e) {
+            $this->addError('confirm', $e->getMessage());
+        }
+    }
+
     /**
      * @return array<string, PendingReceipt> Bildirim koduna göre bu sayfadaki satırlar.
      */
@@ -221,6 +261,10 @@ new #[Layout('layouts::authenticated')] class extends Component
         @endcan
     </div>
 
+    @if (session('status'))
+        <div class="mb-4 rounded-md bg-brand-100 border border-brand-500/20 text-brand-600 text-[13px] px-4 py-3">{{ session('status') }}</div>
+    @endif
+
     @error('confirm')
         <div class="mb-4 rounded-md bg-red-50 border border-status-critical/30 text-status-critical text-[13px] px-4 py-3">{{ $message }}</div>
     @enderror
@@ -244,9 +288,8 @@ new #[Layout('layouts::authenticated')] class extends Component
                         <th class="px-4 py-3 font-medium">Ürün</th>
                         <th class="px-4 py-3 font-medium whitespace-nowrap">Lot / Seri</th>
                         <th class="px-4 py-3 font-medium text-right">Adet</th>
-                        <th class="px-4 py-3 font-medium whitespace-nowrap">Belge no</th>
+                        <th class="px-4 py-3 font-medium whitespace-nowrap">Belge / zaman</th>
                         <th class="px-4 py-3 font-medium">Gönderen</th>
-                        <th class="px-4 py-3 font-medium">Zaman</th>
                         <th class="px-4 py-3 font-medium">Eşleşme</th>
                         @if ($canAccept) <th class="px-4 py-3"><span class="sr-only">İşlem</span></th> @endif
                     </tr>
@@ -269,11 +312,10 @@ new #[Layout('layouts::authenticated')] class extends Component
                             </td>
                             <td class="px-4 py-3 whitespace-nowrap">{{ $r->lot ?? '—' }}@if ($r->serial) <div class="text-ink-muted">{{ $r->serial }}</div>@endif</td>
                             <td class="px-4 py-3 text-right">{{ $r->quantity ?? '—' }}</td>
-                            <td class="px-4 py-3 whitespace-nowrap">{{ $r->documentNo ?? '—' }}</td>
-                            <td class="px-4 py-3">{{ $r->senderName ?? '—' }}@if ($r->senderCode) <div class="text-ink-muted">{{ $r->senderCode }}</div>@endif</td>
-                            <td class="px-4 py-3 whitespace-nowrap">{{ $r->notifiedAt ? rescue(fn () => \Illuminate\Support\Carbon::parse($r->notifiedAt)->format('d.m.Y H:i'), $r->notifiedAt, false) : '—' }}</td>
+                            <td class="px-4 py-3 whitespace-nowrap">{{ $r->documentNo ?? '—' }}<div class="text-ink-muted">{{ $r->notifiedAt ? rescue(fn () => \Illuminate\Support\Carbon::parse($r->notifiedAt)->format('d.m.Y H:i'), $r->notifiedAt, false) : '' }}</div></td>
+                            <td class="px-4 py-3 min-w-[9rem]">{{ $r->senderName ?? '—' }}@if ($r->senderCode) <div class="text-ink-muted">{{ $r->senderCode }}</div>@endif</td>
                             <td class="px-4 py-3">
-                                <div class="flex flex-wrap gap-1">
+                                <div class="flex flex-col items-start gap-1">
                                     @if ($m['product'])
                                         <span class="whitespace-nowrap rounded-full bg-brand-100 text-brand-600 px-2 py-0.5 text-[12px]">Ürün bizde var</span>
                                     @else
@@ -288,6 +330,7 @@ new #[Layout('layouts::authenticated')] class extends Component
                                 <td class="px-4 py-3 text-right">
                                     @if ($r->notificationId)
                                         <button type="button" wire:click="confirm('{{ $r->notificationId }}')" class="whitespace-nowrap border border-line rounded-md px-3 py-1.5 text-[13px] text-ink hover:border-panel-900 transition-colors">Kabul et</button>
+                                        <button type="button" wire:click="confirmDecline('{{ $r->notificationId }}')" class="block ml-auto mt-1.5 whitespace-nowrap text-[12px] text-ink-muted hover:text-ink hover:underline">Almak istemiyorum</button>
                                     @endif
                                 </td>
                             @endif
@@ -354,6 +397,15 @@ new #[Layout('layouts::authenticated')] class extends Component
                 <button type="button" wire:click="closeConfirm" class="bg-panel-900 text-white rounded-md px-4 py-2.5 text-[14px] font-medium hover:bg-panel-800 transition-colors">Kapat</button>
                 <a href="{{ route('uts.history') }}" class="text-[14px] text-ink-muted hover:text-ink underline">Gönderim geçmişi</a>
             @endif
+        </div>
+    </x-modal>
+
+    <x-modal :show="$decliningId !== null" title="Almak istemiyorum" on-close="closeDecline">
+        <p class="text-[14px] text-ink">Bu Verme bildirimi ÜTS'de "Almak istemiyorum" olarak işaretlenecek ve kabul bekleyenlerden kalkacak. Ürün kliniğinize gelmediyse ya da yanlış gönderildiyse kullanın.</p>
+        <p class="text-[13px] text-ink-muted mt-2">Gerekirse ÜTS portalında "Almak istiyorum" ile geri alınabilir.</p>
+        <div class="flex items-center gap-3 mt-6">
+            <button type="button" wire:click="decline" wire:loading.attr="disabled" class="bg-panel-900 text-white rounded-md px-4 py-2.5 text-[14px] font-medium hover:bg-panel-800 transition-colors disabled:opacity-50">İşaretle</button>
+            <button type="button" wire:click="closeDecline" class="text-[14px] text-ink-muted hover:text-ink">Vazgeç</button>
         </div>
     </x-modal>
 </div>

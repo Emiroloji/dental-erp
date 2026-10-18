@@ -42,6 +42,15 @@ interface UtsClient
     public function receive(string $notificationId, ?int $quantity = null): string;
 
     /**
+     * Kuruma gelen Verme bildirimini "Almak istemiyorum" olarak işaretler
+     * (rev. 1.99, 3.4.22); bildirim kabul bekleyenlerden kalkar. ÜTS'de
+     * "Almak istiyorum" ile geri alınabilir.
+     *
+     * @throws UtsException
+     */
+    public function decline(string $notificationId): void;
+
+    /**
      * Hastaya kullanılan tekil ürünü bildirir (rev. 1.99, 3.1.9). Yeni
      * bildirim kodunu (SNC) döndürür.
      *

@@ -194,4 +194,39 @@ class UtsReceiveScreenTest extends TestCase
             ->call('send')
             ->assertForbidden();
     }
+
+    public function test_decline_removes_the_row_after_confirmation_and_is_recorded(): void
+    {
+        Livewire::test('pages::uts.pending')
+            ->call('confirmDecline', 'vbi-1')
+            ->assertSee('olarak işaretlenecek ve kabul bekleyenlerden kalkacak')
+            ->call('decline')
+            ->assertSee('olarak işaretlendi.')
+            ->assertDontSee('IRS-1');
+
+        $this->assertSame([['decline', ['vbi-1']]], array_values(array_filter($this->client->calls, fn ($c) => $c[0] === 'decline')));
+        $record = UtsNotification::sole();
+        $this->assertSame('almak_istemiyorum', $record->type);
+        $this->assertSame('sent', $record->status);
+        $this->assertSame('vbi-1', $record->source_notification_id);
+    }
+
+    public function test_decline_needs_stock_write(): void
+    {
+        $this->actingAs($this->staff(write: false));
+
+        Livewire::test('pages::uts.pending')->call('confirmDecline', 'vbi-1')->assertForbidden();
+    }
+
+    public function test_decline_respects_the_production_lock(): void
+    {
+        UtsConnection::first()->update(['environment' => 'production']);
+
+        Livewire::test('pages::uts.pending')
+            ->call('confirmDecline', 'vbi-1')
+            ->call('decline')
+            ->assertSee('gerçek ortamda bildirim gönderimi henüz açılmadı');
+
+        $this->assertSame([], array_values(array_filter($this->client->calls, fn ($c) => $c[0] === 'decline')));
+    }
 }

@@ -68,6 +68,44 @@ class UtsReceiveService
     }
 
     /**
+     * Verme bildirimini "Almak istemiyorum" olarak işaretler (3.4.22). Geri
+     * alınabilir bir işlemdir; yine de her deneme kaydedilir.
+     *
+     * @throws UtsException
+     */
+    public function decline(PendingReceipt $receipt): UtsNotification
+    {
+        if ($receipt->notificationId === null) {
+            throw new UtsException('ÜTS bu satır için bildirim kodu döndürmedi; işaretlenemez.');
+        }
+
+        $attributes = [
+            'user_id' => auth()->id(),
+            'type' => UtsNotification::TYPE_DECLINE,
+            'source_notification_id' => $receipt->notificationId,
+            'environment' => $this->guard->environment(),
+            'uno' => $receipt->uno,
+            'product_name' => $receipt->brand,
+            'lot' => $receipt->lot,
+            'serial' => $receipt->serial,
+            'quantity' => $receipt->quantity,
+            'sender_code' => $receipt->senderCode,
+            'sender_name' => $receipt->senderName,
+            'document_no' => $receipt->documentNo,
+        ];
+
+        try {
+            $this->client->decline($receipt->notificationId);
+        } catch (UtsException $e) {
+            UtsNotification::create($attributes + ['status' => UtsNotification::STATUS_FAILED, 'message' => $e->getMessage()]);
+
+            throw $e;
+        }
+
+        return UtsNotification::create($attributes + ['status' => UtsNotification::STATUS_SENT]);
+    }
+
+    /**
      * ÜTS'ye gidecek adet: seri takipli üründe hiç verilmez (rev. 1.99,
      * 3.1.6.2); lot takipli üründe yalnızca verilenden azsa verilir.
      */

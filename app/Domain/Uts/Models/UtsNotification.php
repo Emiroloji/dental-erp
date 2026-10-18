@@ -25,6 +25,8 @@ class UtsNotification extends Model
 
     public const TYPE_USAGE_CANCEL = 'kullanim_iptal';
 
+    public const TYPE_DECLINE = 'almak_istemiyorum';
+
     public const STATUS_SENT = 'sent';
 
     public const STATUS_FAILED = 'failed';
@@ -55,6 +57,7 @@ class UtsNotification extends Model
         return match ($this->type) {
             self::TYPE_USAGE => 'Kullanım',
             self::TYPE_USAGE_CANCEL => 'Kullanım iptali',
+            self::TYPE_DECLINE => 'Almak istemiyorum',
             default => 'Alma',
         };
     }

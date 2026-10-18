@@ -27,6 +27,11 @@ class UnconfiguredUtsClient implements UtsClient
         $this->fail();
     }
 
+    public function decline(string $notificationId): void
+    {
+        $this->fail();
+    }
+
     public function reportUsage(UsageReport $report): string
     {
         $this->fail();

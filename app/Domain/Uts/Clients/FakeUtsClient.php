@@ -72,6 +72,14 @@ class FakeUtsClient implements UtsClient
         return 'sahte-alma-'.count($this->received);
     }
 
+    public function decline(string $notificationId): void
+    {
+        $this->calls[] = ['decline', [$notificationId]];
+        $this->failWrite();
+
+        $this->received[] = $notificationId;
+    }
+
     public function reportUsage(UsageReport $report): string
     {
         $this->calls[] = ['reportUsage', [$report->toPayload()]];
