@@ -184,6 +184,9 @@ class SystemStatusTest extends TestCase
             ->assertSee('Zamanlanmış görevler')
             ->assertSee('notifications:send-digest')
             ->assertSee('Her gün 07:30 (İstanbul)')
-            ->assertSee('Saat başı');
+            ->assertSee('Saat başı')
+            ->assertSee('einvoice:sync')
+            ->assertSee('30 dakikada bir')
+            ->assertSee('uts:scan-pending');
     }
 }

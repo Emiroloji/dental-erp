@@ -53,6 +53,67 @@ jobs:
         # veritabanı servisi gerekmez.
         run: php artisan test
 
+  tests-postgres:
+    # Aşama 53: canlı veritabanı PostgreSQL'dir. SQLite sütun uzunluğu gibi
+    # kısıtları uygulamadığı için bazı hatalar yalnızca burada görünür
+    # (ör. 17 karakterlik değerin 16 karakterlik sütuna yazılması).
+    name: Testler (PostgreSQL)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: dental
+          POSTGRES_PASSWORD: dental
+          POSTGRES_DB: dental_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U dental"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_DATABASE: dental_test
+      DB_USERNAME: dental
+      DB_PASSWORD: dental
+      DB_URL: ''
+
+    steps:
+      - name: Kodu çek
+        uses: actions/checkout@v4
+
+      - name: PHP kur
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, gd, intl, mbstring, pdo_pgsql, pdo_sqlite, redis, zip
+          coverage: none
+
+      - name: Composer bağımlılıkları (önbellek)
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: composer-${{ runner.os }}-php8.4-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-${{ runner.os }}-php8.4-
+
+      - name: composer install
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: .env hazırla
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Testler (PostgreSQL)
+        # İş ortamındaki DB_* değişkenleri phpunit.xml'deki SQLite ayarının önüne geçer.
+        run: php artisan test
+
   build:
     name: Frontend derlemesi
     runs-on: ubuntu-latest

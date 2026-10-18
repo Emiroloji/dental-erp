@@ -223,6 +223,7 @@ class SystemStatus
 
         return match (true) {
             $task->expression === '0 * * * *' => 'Saat başı',
+            $task->expression === '*/30 * * * *' => '30 dakikada bir',
             (bool) preg_match('/^(\d+) (\d+) \* \* \*$/', $task->expression, $m) => sprintf('Her gün %02d:%02d (%s)', $m[2], $m[1], $zone),
             default => $task->expression,
         };

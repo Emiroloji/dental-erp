@@ -29,6 +29,15 @@ Buna bağlı işler (`routes/console.php`):
 | `backup:run` | her gün 02:30 | Veritabanı yedeği + eski yedek temizliği |
 | `queue:health-check` | saatlik | Biriken ve başarısız kuyruk işlerini log'a uyarı olarak yazar |
 | `backup:check-offsite` | her gün 06:00 | Yedeğin sunucu dışına gerçekten kopyalandığını doğrular |
+| `finance:generate-recurring` | her gün 03:15 | Tekrarlayan finans kalemlerinden yaklaşan yükümlülükleri üretir |
+| `finance:scan-due` | her gün 05:00 | Vadesi yaklaşan/geçen ödeme ve tahsilat bildirimi |
+| `notifications:send-digest` | her gün 07:30 (İstanbul) | Okunmamış bildirimlerin günlük özet e-postası |
+| `uts:scan-pending` | saatlik | ÜTS'de kabul bekleyen yeni ürün taraması ve bildirimi (kuyrukta, bağlantı başına iş) |
+| `einvoice:sync` | 30 dakikada bir | Gelen e-faturaları entegratörden çeker (kuyrukta, bağlantı başına iş) |
+
+`uts:scan-pending` ve `einvoice:sync` yalnızca iş kuyruğa atar; işleri kuyruk
+worker'ı çalıştırır. Worker durursa bu ikisi sessizce birikir, Platform →
+Genel Bakış'taki kuyruk kontrolü bunu gösterir.
 
 ## 2. Kuyruk worker'ı (Supervisor)
 
@@ -75,6 +84,20 @@ izleniyorsa doğrudan haber verir). Eşikler `config/health.php` içindedir.
   log'a yazılır. Ayrıntı: `docs/izleme.md`.
 
 ## 4. Dağıtım adımları
+
+### Faz 6–8 (ÜTS yazma, hasta, e-fatura) ilk dağıtımında
+
+1. Göçler: `php artisan migrate --force`. `2026_10_19_090000_widen_uts_notifications_type`
+   dahil olmalı; o olmadan "Almak istemiyorum" PostgreSQL'de hata verir.
+2. Ortam değişkenleri (`.env.example`): `UTS_PRODUCTION_WRITES` **false** kalır
+   (gerçek ÜTS'ye yazma, bir klinikle test ortamında denenene kadar kapalı);
+   e-fatura adresleri varsayılanla çalışır.
+3. Kuyruk worker'ı yeniden başlatılır (`queue:restart`): e-fatura ve ÜTS
+   taraması kuyrukta çalışır.
+4. Klinik ayarları: ÜTS token'ı ve e-fatura API anahtarını klinik sahibi
+   Ayarlar ekranından girer; önce test ortamı seçilir.
+5. Arama motorları: alan adı Google Search Console'a eklenip `/sitemap.xml`
+   gönderilir. `robots.txt` uygulama tarafından üretilir (statik dosya yok).
 
 **GitHub'a push etmek canlıyı güncellemez.** Sunucu kodu `git pull` ile alır ve
 bunu tetikleyen bir şey yoktur; her dağıtım bilinçli olarak başlatılır.
