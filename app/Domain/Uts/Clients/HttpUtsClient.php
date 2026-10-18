@@ -5,6 +5,7 @@ namespace App\Domain\Uts\Clients;
 use App\Domain\Uts\Contracts\UtsClient;
 use App\Domain\Uts\Exceptions\UtsAuthException;
 use App\Domain\Uts\Exceptions\UtsException;
+use App\Domain\Uts\Support\DisposalReport;
 use App\Domain\Uts\Support\GiveReport;
 use App\Domain\Uts\Support\PendingReceipt;
 use App\Domain\Uts\Support\PendingReceiptPage;
@@ -100,6 +101,18 @@ class HttpUtsClient implements UtsClient
     public function cancelGive(string $notificationId): string
     {
         return $this->notificationCode('/UTS/uh/rest/bildirim/verme/iptal', ['BID' => $notificationId], 'ÜTS Verme iptalini onaylamadı. Biraz sonra tekrar deneyin.');
+    }
+
+    public function dispose(DisposalReport $report): string
+    {
+        return $this->notificationCode("/UTS/uh/rest/bildirim/{$report->path()}/ekle", $report->toPayload(), 'ÜTS bildirimi onaylamadı. Biraz sonra tekrar deneyin.');
+    }
+
+    public function cancelDisposal(string $type, string $notificationId): string
+    {
+        $path = $type === DisposalReport::TYPE_IMHA ? 'imhaBertaraf' : 'hekZayiat';
+
+        return $this->notificationCode("/UTS/uh/rest/bildirim/{$path}/iptal", ['BID' => $notificationId], 'ÜTS iptali onaylamadı. Biraz sonra tekrar deneyin.');
     }
 
     /**

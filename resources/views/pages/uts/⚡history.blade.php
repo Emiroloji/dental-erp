@@ -3,6 +3,7 @@
 use App\Domain\Patients\Models\PatientUsage;
 use App\Domain\Uts\Exceptions\UtsException;
 use App\Domain\Uts\Models\UtsNotification;
+use App\Domain\Uts\Services\UtsDisposalService;
 use App\Domain\Uts\Services\UtsUsageService;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Layout;
@@ -11,10 +12,10 @@ use Livewire\WithPagination;
 
 /**
  * ÜTS'ye gönderilen bildirimlerin kaydı: Alma (Aşama 42), Kullanım ve
- * Kullanım iptali (Aşama 43); kim ve ne zaman gönderdiğiyle. Stok yazma
- * yetkisi olan, gönderilemeyen kullanımı tekrar gönderir ve bildirilmiş
- * kullanımı onay panelinden geçirerek ÜTS'de iptal eder. Hasta adı yalnızca
- * hasta okuma yetkisiyle görünür.
+ * Kullanım iptali (Aşama 43), Verme (48), İmha ve HEK/Zayiat (49); kim ve ne
+ * zaman gönderdiğiyle. Stok yazma yetkisi olan, gönderilemeyen kullanım ve
+ * imha/zayiatı tekrar gönderir; bildirilmiş olanı onay panelinden geçirerek
+ * ÜTS'de iptal eder. Hasta adı yalnızca hasta okuma yetkisiyle görünür.
  */
 new #[Layout('layouts::authenticated')] class extends Component
 {
@@ -22,15 +23,21 @@ new #[Layout('layouts::authenticated')] class extends Component
 
     public ?int $cancellingId = null;
 
-    public function retry(int $notificationId, UtsUsageService $usages): void
+    public function retry(int $notificationId, UtsUsageService $usages, UtsDisposalService $disposals): void
     {
         Gate::authorize('stock_movement.create');
 
-        $usage = $this->usageOf($notificationId);
+        $notification = UtsNotification::findOrFail($notificationId);
 
         try {
-            $usages->report($usage);
-            session()->flash('status', 'Kullanım ÜTS\'ye bildirildi.');
+            if ($notification->patient_usage_id !== null) {
+                $usages->report($this->usageOf($notificationId));
+            } elseif ($disposals->canRetry($notification)) {
+                $disposals->retry($notification);
+            } else {
+                abort(404);
+            }
+            session()->flash('status', 'Bildirim ÜTS\'ye gönderildi.');
         } catch (UtsException $e) {
             session()->flash('error', $e->getMessage());
         }
@@ -40,7 +47,8 @@ new #[Layout('layouts::authenticated')] class extends Component
     {
         Gate::authorize('stock_movement.create');
 
-        $this->usageOf($notificationId);
+        $notification = UtsNotification::findOrFail($notificationId);
+        abort_unless($notification->patient_usage_id !== null || $notification->stock_movement_id !== null, 404);
         $this->cancellingId = $notificationId;
     }
 
@@ -49,16 +57,18 @@ new #[Layout('layouts::authenticated')] class extends Component
         $this->cancellingId = null;
     }
 
-    public function cancelUsage(UtsUsageService $usages): void
+    public function cancelInUts(UtsUsageService $usages, UtsDisposalService $disposals): void
     {
         Gate::authorize('stock_movement.create');
 
-        $usage = $this->usageOf((int) $this->cancellingId);
+        $notification = UtsNotification::findOrFail((int) $this->cancellingId);
         $this->cancellingId = null;
 
         try {
-            $usages->cancel($usage);
-            session()->flash('status', 'Kullanım bildirimi ÜTS\'de iptal edildi. Stok çıkışını artık Stok Hareketleri\'nden iptal edebilirsiniz.');
+            $notification->patient_usage_id !== null
+                ? $usages->cancel($this->usageOf($notification->id))
+                : $disposals->cancel($notification);
+            session()->flash('status', 'Bildirim ÜTS\'de iptal edildi. Stok çıkışını artık Stok Hareketleri\'nden iptal edebilirsiniz.');
         } catch (UtsException $e) {
             session()->flash('error', $e->getMessage());
         }
@@ -79,6 +89,7 @@ new #[Layout('layouts::authenticated')] class extends Component
             'notifications' => UtsNotification::with(['user:id,name', 'patientUsage.patient', 'patientUsage.utsNotifications'])->latest('id')->paginate(20),
             'canAct' => Gate::allows('stock_movement.create'),
             'canSeePatients' => Gate::allows('patients.viewAny'),
+            'disposals' => app(UtsDisposalService::class),
             'cancelling' => $cancelling,
         ];
     }
@@ -149,13 +160,20 @@ new #[Layout('layouts::authenticated')] class extends Component
                             <td class="px-4 py-3">{{ $n->user?->name ?? '—' }}</td>
                             <td class="px-4 py-3">
                                 @if ($n->status === 'sent')
-                                    <span class="whitespace-nowrap rounded-full bg-brand-100 text-brand-600 px-2 py-0.5 text-[12px]">{{ match ($n->type) { 'kullanim' => 'ÜTS\'ye bildirildi', 'kullanim_iptal' => 'İptal edildi', 'almak_istemiyorum' => 'İşaretlendi', 'verme' => 'İade bildirildi', 'verme_iptal' => 'İade iptal edildi', default => 'Kabul edildi' } }}</span>
+                                    <span class="whitespace-nowrap rounded-full bg-brand-100 text-brand-600 px-2 py-0.5 text-[12px]">{{ match ($n->type) { 'kullanim' => 'ÜTS\'ye bildirildi', 'kullanim_iptal' => 'İptal edildi', 'almak_istemiyorum' => 'İşaretlendi', 'verme' => 'İade bildirildi', 'imha', 'hek' => 'ÜTS\'ye bildirildi', 'verme_iptal', 'imha_iptal', 'hek_iptal' => 'İptal edildi', default => 'Kabul edildi' } }}</span>
                                     <div class="text-ink-muted mt-1 break-all">{{ $n->uts_notification_id }}</div>
                                 @else
                                     <span class="whitespace-nowrap rounded-full bg-red-50 text-status-critical px-2 py-0.5 text-[12px]">Gönderilemedi</span>
                                     <div class="text-ink-muted mt-1">{{ $n->message }}</div>
                                 @endif
 
+                                @if ($canAct && $n->stock_movement_id !== null)
+                                    @if ($disposals->canRetry($n))
+                                        <button type="button" wire:click="retry({{ $n->id }})" wire:loading.attr="disabled" class="mt-2 whitespace-nowrap border border-line rounded-md px-3 py-1 text-[13px] text-ink hover:border-panel-900">Tekrar gönder</button>
+                                    @elseif ($disposals->isActive($n))
+                                        <button type="button" wire:click="confirmCancel({{ $n->id }})" class="mt-2 whitespace-nowrap text-[13px] text-status-critical hover:underline">ÜTS'de iptal et</button>
+                                    @endif
+                                @endif
                                 @if ($canAct && $usage && $usage->cancelled_at === null)
                                     @if ($n->type === 'kullanim' && $n->status === 'failed' && $usage->utsStatus() === 'failed' && $usage->utsNotifications->last()->is($n))
                                         <button type="button" wire:click="retry({{ $n->id }})" wire:loading.attr="disabled" class="mt-2 whitespace-nowrap border border-line rounded-md px-3 py-1 text-[13px] text-ink hover:border-panel-900">Tekrar gönder</button>
@@ -173,12 +191,12 @@ new #[Layout('layouts::authenticated')] class extends Component
         <div class="mt-4">{{ $notifications->links() }}</div>
     @endif
 
-    <x-modal :show="$cancelling !== null" title="Kullanım bildirimini iptal et" on-close="closeCancel">
+    <x-modal :show="$cancelling !== null" title="ÜTS bildirimini iptal et" on-close="closeCancel">
         @if ($cancelling)
-            <p class="text-[14px] text-ink">ÜTS'deki kullanım bildirimi iptal edilecek: <span class="font-medium">{{ $cancelling->product_name }}</span>@if ($cancelling->serial), seri {{ $cancelling->serial }}@elseif ($cancelling->lot), lot {{ $cancelling->lot }}@endif.</p>
-            <p class="text-[13px] text-ink-muted mt-2">Ürün ÜTS'de yeniden kliniğinizin stoğunda görünür. Hastaya kullanım yanlış girildiyse iptalden sonra stok çıkışını Stok Hareketleri'nden iptal edin.</p>
+            <p class="text-[14px] text-ink">ÜTS'deki {{ mb_strtolower($cancelling->typeLabel()) }} bildirimi iptal edilecek: <span class="font-medium">{{ $cancelling->product_name }}</span>@if ($cancelling->serial), seri {{ $cancelling->serial }}@elseif ($cancelling->lot), lot {{ $cancelling->lot }}@endif.</p>
+            <p class="text-[13px] text-ink-muted mt-2">Ürün ÜTS'de yeniden kliniğinizin stoğunda görünür. Çıkış yanlış girildiyse iptalden sonra stok çıkışını Stok Hareketleri'nden iptal edin.</p>
             <div class="flex items-center gap-3 mt-6">
-                <button type="button" wire:click="cancelUsage" wire:loading.attr="disabled" class="bg-panel-900 text-white rounded-md px-4 py-2.5 text-[14px] font-medium hover:bg-panel-800 transition-colors disabled:opacity-50">ÜTS'de iptal et</button>
+                <button type="button" wire:click="cancelInUts" wire:loading.attr="disabled" class="bg-panel-900 text-white rounded-md px-4 py-2.5 text-[14px] font-medium hover:bg-panel-800 transition-colors disabled:opacity-50">ÜTS'de iptal et</button>
                 <button type="button" wire:click="closeCancel" class="text-[14px] text-ink-muted hover:text-ink">Vazgeç</button>
             </div>
         @endif

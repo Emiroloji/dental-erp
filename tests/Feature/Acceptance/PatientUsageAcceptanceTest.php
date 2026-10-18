@@ -78,7 +78,7 @@ class PatientUsageAcceptanceTest extends TestCase
 
         Livewire::test('pages::uts.history')
             ->call('confirmCancel', UtsNotification::where('type', 'kullanim')->sole()->id)
-            ->call('cancelUsage');
+            ->call('cancelInUts');
 
         Http::assertSent(fn (Request $r) => str_ends_with($r->url(), '/bildirim/kullanim/iptal') && $r->data() === ['BID' => 'kullanim-kodu-1']);
 

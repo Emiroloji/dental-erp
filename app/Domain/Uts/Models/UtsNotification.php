@@ -31,19 +31,28 @@ class UtsNotification extends Model
 
     public const TYPE_GIVE_CANCEL = 'verme_iptal';
 
+    public const TYPE_IMHA = 'imha';
+
+    public const TYPE_IMHA_CANCEL = 'imha_iptal';
+
+    public const TYPE_HEK = 'hek';
+
+    public const TYPE_HEK_CANCEL = 'hek_iptal';
+
     public const STATUS_SENT = 'sent';
 
     public const STATUS_FAILED = 'failed';
 
     protected $fillable = [
-        'organization_id', 'user_id', 'patient_usage_id', 'supplier_return_id', 'type', 'source_notification_id', 'uts_notification_id',
+        'organization_id', 'user_id', 'patient_usage_id', 'supplier_return_id', 'stock_movement_id', 'type', 'source_notification_id', 'uts_notification_id',
         'status', 'environment', 'uno', 'product_name', 'lot', 'serial', 'quantity', 'sender_code',
-        'sender_name', 'document_no', 'message',
+        'sender_name', 'document_no', 'message', 'details',
     ];
 
     protected $casts = [
         'quantity' => 'integer',
         'sender_code' => 'integer',
+        'details' => 'array',
     ];
 
     public function user(): BelongsTo
@@ -64,6 +73,10 @@ class UtsNotification extends Model
             self::TYPE_DECLINE => 'Almak istemiyorum',
             self::TYPE_GIVE => 'İade (Verme)',
             self::TYPE_GIVE_CANCEL => 'İade iptali',
+            self::TYPE_IMHA => 'İmha',
+            self::TYPE_IMHA_CANCEL => 'İmha iptali',
+            self::TYPE_HEK => 'HEK / Zayiat',
+            self::TYPE_HEK_CANCEL => 'HEK / Zayiat iptali',
             default => 'Alma',
         };
     }

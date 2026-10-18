@@ -3,6 +3,7 @@
 namespace App\Domain\Uts\Contracts;
 
 use App\Domain\Uts\Exceptions\UtsException;
+use App\Domain\Uts\Support\DisposalReport;
 use App\Domain\Uts\Support\GiveReport;
 use App\Domain\Uts\Support\PendingReceiptPage;
 use App\Domain\Uts\Support\UsageReport;
@@ -12,7 +13,7 @@ use App\Domain\Uts\Support\UtsItem;
  * ÜTS web servisleri. Uygulamalar: HttpUtsClient (gerçek), FakeUtsClient
  * (test), UnconfiguredUtsClient (token yok). Yazma bildirimleri: Alma
  * (Aşama 42), Kullanım ve iptali (Aşama 43), Almak istemiyorum (Aşama 47),
- * Verme ve iptali (Aşama 48).
+ * Verme ve iptali (Aşama 48), İmha ve HEK/Zayiat ve iptalleri (Aşama 49).
  */
 interface UtsClient
 {
@@ -82,6 +83,22 @@ interface UtsClient
      * @throws UtsException
      */
     public function cancelGive(string $notificationId): string;
+
+    /**
+     * İmha/Bertaraf ya da HEK/Zayiat bildirimi; yeni bildirim kodunu döndürür.
+     *
+     * @throws UtsException
+     */
+    public function dispose(DisposalReport $report): string;
+
+    /**
+     * İmha/Bertaraf ya da HEK/Zayiat bildirimini iptal eder (3.2).
+     *
+     * @param  string  $type  DisposalReport::TYPE_IMHA | TYPE_HEK
+     *
+     * @throws UtsException
+     */
+    public function cancelDisposal(string $type, string $notificationId): string;
 
     public function name(): string;
 }

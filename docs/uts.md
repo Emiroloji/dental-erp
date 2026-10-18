@@ -42,6 +42,15 @@ Kabul Bekleyenler'de satırdaki "Almak istemiyorum" (stok yazma yetkisi, onay pa
 - Yarım kalan gönderim tekrar başlatılınca yalnızca eksik seriler gider.
 - **İptal vardır** (`bildirim/verme/iptal`). Tedarikçi iadeyi reddederse, ÜTS'de geçerli Verme bildirimi iptal edilmeden "Tedarikçi Reddetti" yapılamaz (ürün stoğa döner).
 
+## İmha ve HEK/Zayiat (Aşama 49)
+
+- ÜTS takipli ürün Stok Çıkışı'nda **"SKT geçmiş"** ya da **"Hasarlı ürün"** nedeniyle çıkarken "ÜTS bildirimi" bölümü açılır (varsayılan işaretli; ÜTS portalından zaten bildirildiyse kaldırılır).
+- **İmha / bertaraf** (`bildirim/imhaBertaraf/ekle`): gerekçe (`GRK`; SKT geçmişte varsayılan `SON_KULLANMA_TARIHI_GECMIS`, hasarda `TASIMA_VE_SAKLAMA_KOSULLARI_BOZULMUS`) ve imha tutanağı no (`BNO`, zorunlu).
+- **HEK / zayiat** (`bildirim/hekZayiat/ekle`): tür (`TUR`: HEK, çalınma, yangın, doğal afet, stok düzeltme, diğer).
+- "Diğer" seçilince açıklama zorunlu (`DGA` / `DTA`, en fazla 50 karakter). Seri takipli üründe her seri ayrı, lot takipli üründe `LNO` + `ADT`.
+- Gönderim çıkıştan sonra yapılır; başarısız olursa çıkış kalır, Gönderim Geçmişi'nde "Tekrar gönder" aynı gerekçeyle yeniden dener.
+- **İptal vardır** (`imhaBertaraf/iptal`, `hekZayiat/iptal`); ÜTS'de geçerli bildirimi olan çıkış hareketi önce ÜTS'de iptal edilmeden geri alınamaz.
+
 ## Kullanım bildirimi (hastaya kullanım)
 
 - Ürün kartında **"Hastaya kullanımda ÜTS'ye bildirilir"** işaretli olmalı (GTIN zorunlu; ör. implant, greft, membran).

@@ -4,6 +4,7 @@ namespace App\Domain\Uts\Clients;
 
 use App\Domain\Uts\Contracts\UtsClient;
 use App\Domain\Uts\Exceptions\UtsException;
+use App\Domain\Uts\Support\DisposalReport;
 use App\Domain\Uts\Support\GiveReport;
 use App\Domain\Uts\Support\PendingReceipt;
 use App\Domain\Uts\Support\PendingReceiptPage;
@@ -111,6 +112,22 @@ class FakeUtsClient implements UtsClient
         $this->failWrite();
 
         return 'sahte-verme-iptal-'.count($this->calls);
+    }
+
+    public function dispose(DisposalReport $report): string
+    {
+        $this->calls[] = ['dispose', [$report->type, $report->toPayload()]];
+        $this->failWrite();
+
+        return 'sahte-'.$report->type.'-'.count($this->calls);
+    }
+
+    public function cancelDisposal(string $type, string $notificationId): string
+    {
+        $this->calls[] = ['cancelDisposal', [$type, $notificationId]];
+        $this->failWrite();
+
+        return 'sahte-'.$type.'-iptal-'.count($this->calls);
     }
 
     private function failWrite(): void

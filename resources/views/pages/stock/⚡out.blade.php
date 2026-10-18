@@ -8,7 +8,9 @@ use App\Domain\Patients\Models\Patient;
 use App\Domain\Patients\Services\PatientService;
 use App\Domain\Patients\Services\PatientUsageService;
 use App\Domain\Uts\Exceptions\UtsException;
+use App\Domain\Uts\Services\UtsDisposalService;
 use App\Domain\Uts\Services\UtsUsageService;
+use App\Domain\Uts\Support\DisposalReport;
 use App\Domain\Stock\Exceptions\ControlledProductException;
 use App\Domain\Stock\Exceptions\InactiveLocationException;
 use App\Domain\Stock\Exceptions\SerialException;
@@ -79,6 +81,21 @@ new #[Layout('layouts::authenticated')] class extends Component
 
     public string $birth_year = '';
 
+    /*
+     * İmha / HEK-Zayiat (Aşama 49): ÜTS takipli ürün "SKT geçmiş" ya da
+     * "Hasarlı ürün" nedeniyle çıkarken ÜTS bildirimi; kayıttan hemen sonra
+     * gönderilir. Bildirim ÜTS portalından zaten yapıldıysa kutu kaldırılır.
+     */
+    public bool $reportDisposal = true;
+
+    public string $disposalType = DisposalReport::TYPE_IMHA;
+
+    public string $disposalCode = 'SON_KULLANMA_TARIHI_GECMIS';
+
+    public string $disposalDescription = '';
+
+    public string $disposalDocumentNo = '';
+
     public function openForm(): void
     {
         Gate::authorize('stock_movement.create');
@@ -90,7 +107,7 @@ new #[Layout('layouts::authenticated')] class extends Component
     public function closeForm(): void
     {
         $this->showForm = false;
-        $this->reset(['product_id', 'warehouse_id', 'lot_id', 'quantity', 'unit', 'reasonCategory', 'reasonNote', 'selectedSerials', 'serialSearch', 'patient_id', 'patientSearch', 'used_on']);
+        $this->reset(['product_id', 'warehouse_id', 'lot_id', 'quantity', 'unit', 'reasonCategory', 'reasonNote', 'selectedSerials', 'serialSearch', 'patient_id', 'patientSearch', 'used_on', 'reportDisposal', 'disposalType', 'disposalCode', 'disposalDescription', 'disposalDocumentNo']);
         $this->cancelNewPatient();
         $this->resetValidation();
     }
@@ -145,6 +162,26 @@ new #[Layout('layouts::authenticated')] class extends Component
 
         $this->cancelNewPatient();
         $this->selectPatient($patient->id);
+    }
+
+    public function updatedReasonCategory(): void
+    {
+        $this->disposalType = DisposalReport::TYPE_IMHA;
+        $this->disposalCode = $this->reasonCategory === StockOutReason::Expired->value ? 'SON_KULLANMA_TARIHI_GECMIS' : 'TASIMA_VE_SAKLAMA_KOSULLARI_BOZULMUS';
+    }
+
+    public function updatedDisposalType(): void
+    {
+        $this->disposalCode = array_key_first(UtsDisposalService::codes($this->disposalType));
+    }
+
+    /**
+     * Seçili ürün ve neden ÜTS imha/zayiat bildirimi gerektiriyor mu?
+     */
+    private function needsDisposal(?Product $product): bool
+    {
+        return (bool) $product?->uts_usage_report
+            && in_array($this->reasonCategory, [StockOutReason::Expired->value, StockOutReason::Damaged->value], true);
     }
 
     /**
@@ -256,6 +293,20 @@ new #[Layout('layouts::authenticated')] class extends Component
             $usedOn = Carbon::parse($this->used_on);
         }
 
+        $disposal = $this->needsDisposal($product) && $this->reportDisposal;
+
+        if ($disposal) {
+            $this->validate([
+                'disposalType' => ['required', Rule::in([DisposalReport::TYPE_IMHA, DisposalReport::TYPE_HEK])],
+                'disposalCode' => ['required', Rule::in(array_keys(UtsDisposalService::codes($this->disposalType)))],
+                'disposalDescription' => [Rule::requiredIf($this->disposalCode === 'DIGER'), 'nullable', 'string', 'max:50'],
+                'disposalDocumentNo' => [Rule::requiredIf($this->disposalType === DisposalReport::TYPE_IMHA), 'nullable', 'string', 'max:50'],
+            ], [
+                'disposalDescription.required' => '"Diğer" için açıklama yazın.',
+                'disposalDocumentNo.required' => 'İmha tutanağı (belge) numarasını girin.',
+            ]);
+        }
+
         $reasonCode = StockOutReason::from($validated['reasonCategory']);
         $reason = filled($validated['reasonNote']) ? "{$reasonCode->label()}: {$validated['reasonNote']}" : $reasonCode->label();
 
@@ -303,6 +354,21 @@ new #[Layout('layouts::authenticated')] class extends Component
 
             if ($failures !== []) {
                 $warnings[] = 'Hastaya kullanım kaydedildi ama ÜTS kullanım bildirimi gönderilemedi: '.implode(' ', array_unique($failures)).' ÜTS → Gönderim Geçmişi\'nden tekrar gönderebilirsiniz.';
+            }
+        }
+
+        if ($disposal) {
+            try {
+                $errors = [];
+                foreach ($movements as $movement) {
+                    $errors = [...$errors, ...app(UtsDisposalService::class)->report($movement, $this->disposalType, $this->disposalCode, trim($this->disposalDescription) ?: null, trim($this->disposalDocumentNo) ?: null)];
+                }
+            } catch (UtsException $e) {
+                $errors = [$e->getMessage()];
+            }
+
+            if ($errors !== []) {
+                $warnings[] = 'Stok çıkışı kaydedildi ama ÜTS bildirimi gönderilemedi: '.implode(' ', array_unique($errors)).' ÜTS → Gönderim Geçmişi\'nden tekrar gönderebilirsiniz.';
             }
         }
 
@@ -366,6 +432,8 @@ new #[Layout('layouts::authenticated')] class extends Component
         return [
             'movements' => $movements,
             'needsPatient' => $this->needsPatient($selected),
+            'needsDisposal' => $this->needsDisposal($selected),
+            'disposalCodes' => UtsDisposalService::codes($this->disposalType),
             'canSeePatients' => Gate::allows('patients.viewAny'),
             'selectedPatient' => filled($this->patient_id) ? Patient::find($this->patient_id) : null,
             'patientMatches' => $patientMatches,
@@ -536,6 +604,50 @@ new #[Layout('layouts::authenticated')] class extends Component
                     @error('reasonNote') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
                 </div>
             </div>
+
+            @if ($needsDisposal)
+                <fieldset class="rounded-md border border-line px-4 py-4 space-y-3">
+                    <legend class="px-1 text-[13px] font-medium text-ink">ÜTS bildirimi</legend>
+                    <label class="flex items-start gap-2 text-[13px]">
+                        <input type="checkbox" wire:model.live="reportDisposal" class="accent-brand-500 w-4 h-4 mt-0.5">
+                        <span class="text-ink">Çıkışı ÜTS'ye bildir <span class="text-ink-muted">(ÜTS portalından zaten bildirdiyseniz kaldırın)</span></span>
+                    </label>
+                    @if ($reportDisposal)
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label for="disposal-type" class="block text-[13px] text-ink-muted mb-1.5">Bildirim</label>
+                                <select id="disposal-type" wire:model.live="disposalType" class="w-full border border-line rounded-md px-3 py-2 text-[14px]">
+                                    <option value="imha">İmha / bertaraf</option>
+                                    <option value="hek">HEK / zayiat</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="disposal-code" class="block text-[13px] text-ink-muted mb-1.5">{{ $disposalType === 'imha' ? 'Gerekçe' : 'Tür' }}</label>
+                                <select id="disposal-code" wire:model.live="disposalCode" class="w-full border border-line rounded-md px-3 py-2 text-[14px]">
+                                    @foreach ($disposalCodes as $value => $label)
+                                        <option value="{{ $value }}">{{ $label }}</option>
+                                    @endforeach
+                                </select>
+                                @error('disposalCode') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
+                            </div>
+                            @if ($disposalCode === 'DIGER')
+                                <div>
+                                    <label for="disposal-description" class="block text-[13px] text-ink-muted mb-1.5">Açıklama</label>
+                                    <input id="disposal-description" type="text" maxlength="50" wire:model="disposalDescription" class="w-full border border-line rounded-md px-3 py-2 text-[14px]">
+                                    @error('disposalDescription') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
+                                </div>
+                            @endif
+                            @if ($disposalType === 'imha')
+                                <div>
+                                    <label for="disposal-document" class="block text-[13px] text-ink-muted mb-1.5">İmha tutanağı no</label>
+                                    <input id="disposal-document" type="text" maxlength="50" wire:model="disposalDocumentNo" class="w-full border border-line rounded-md px-3 py-2 text-[14px]">
+                                    @error('disposalDocumentNo') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
+                                </div>
+                            @endif
+                        </div>
+                    @endif
+                </fieldset>
+            @endif
 
             @if ($needsPatient)
                 <fieldset class="rounded-md border border-line px-4 py-4 space-y-3">

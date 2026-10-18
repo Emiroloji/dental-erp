@@ -2,6 +2,7 @@
 
 use App\Domain\Patients\Models\PatientUsage;
 use App\Domain\Patients\Services\PatientUsageService;
+use App\Domain\Uts\Services\UtsDisposalService;
 use App\Domain\Access\Support\Module;
 use App\Domain\Organization\Models\Warehouse;
 use App\Domain\Stock\Exceptions\InactiveLocationException;
@@ -77,6 +78,13 @@ new #[Layout('layouts::authenticated')] class extends Component
 
         if ($usages->contains(fn (PatientUsage $usage) => $usage->utsStatus() === PatientUsage::UTS_SENT)) {
             session()->flash('error', 'Bu çıkış hastaya kullanım olarak ÜTS\'ye bildirildi. Önce ÜTS kullanım bildirimini iptal edin (ÜTS → Gönderim Geçmişi).');
+
+            return;
+        }
+
+        // İmha / HEK-Zayiat (Aşama 49): ÜTS'de geçerli bildirim varken ürün stoğa dönerse ayrışır.
+        if (app(UtsDisposalService::class)->hasActive($movement)) {
+            session()->flash('error', 'Bu çıkış ÜTS\'ye imha/zayiat olarak bildirildi. Önce ÜTS bildirimini iptal edin (ÜTS → Gönderim Geçmişi).');
 
             return;
         }

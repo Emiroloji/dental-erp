@@ -259,7 +259,7 @@ class StockOutPatientTest extends TestCase
         Livewire::test('pages::uts.history')
             ->call('confirmCancel', $sent->id)
             ->assertSee('ÜTS\'deki kullanım bildirimi iptal edilecek', false)
-            ->call('cancelUsage')
+            ->call('cancelInUts')
             ->assertSee('Kullanım iptali');
 
         $this->assertSame('cancelled', PatientUsage::sole()->utsStatus());
