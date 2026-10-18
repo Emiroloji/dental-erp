@@ -57,7 +57,7 @@ class PatientUsageTest extends TestCase
         $stock = app(StockMovementService::class);
         $this->implant = Product::create(['name' => 'Implant 4.1', 'base_unit' => 'Adet', 'status' => 'active', 'tracks_serials' => true, 'gtin' => '08699999999994', 'uts_usage_report' => true]);
         $stock->in($this->implant, $this->warehouse, 2, ['lot_no' => 'IMP-1'], $this->admin, tracking: ['serials' => ['S1', 'S2']]);
-        $this->graft = Product::create(['name' => 'Kemik grefti', 'base_unit' => 'Adet', 'status' => 'active', 'gtin' => '04049999999998', 'uts_usage_report' => true]);
+        $this->graft = Product::create(['name' => 'Kemik grefti', 'base_unit' => 'Adet', 'status' => 'active', 'gtin' => '04049999999991', 'uts_usage_report' => true]);
         $stock->in($this->graft, $this->warehouse, 5, ['lot_no' => 'G-7'], $this->admin);
 
         $this->patient = app(PatientService::class)->create(['first_name' => 'Ayşe', 'last_name' => 'Yılmaz', 'identity_type' => 'tc', 'identity_no' => '10000000146']);

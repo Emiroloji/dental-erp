@@ -16,7 +16,8 @@ use Illuminate\Support\Facades\Storage;
  * Entegratördeki yeni gelen faturaları çeker, XML'i saklar ve okur (Faz 6).
  * Oturum olmadan (kuyrukta) da çalışır: organizasyon bağlantıdan gelir ve
  * sorgular kapsamı açıkça verir. Aynı ETTN ikinci kez yazılmaz; okunamayan
- * fatura atlanır ve sonraki eşitlemede yeniden denenir.
+ * fatura atlanır ve sonraki eşitlemede yeniden denenir. Yazılan fatura hemen
+ * eşleştirilir (EInvoiceMatcher).
  */
 class EInvoiceSyncService
 {
@@ -25,6 +26,7 @@ class EInvoiceSyncService
     public function __construct(
         private readonly EInvoiceProviderFactory $providers,
         private readonly UblInvoiceParser $parser,
+        private readonly EInvoiceMatcher $matcher,
     ) {}
 
     /**
@@ -55,7 +57,7 @@ class EInvoiceSyncService
                         throw new EInvoiceException("Listedeki ETTN ({$item->uuid}) belgedekiyle ({$parsed->uuid}) aynı değil.");
                     }
 
-                    $this->store($connection->organization_id, $parsed, $xml);
+                    $this->matcher->match($this->store($connection->organization_id, $parsed, $xml));
                     $created++;
                 } catch (EInvoiceException $e) {
                     Log::warning('e-Fatura okunamadı, atlandı', ['organization_id' => $connection->organization_id, 'uuid' => $item->uuid, 'error' => $e->getMessage()]);
@@ -81,12 +83,12 @@ class EInvoiceSyncService
             ->exists();
     }
 
-    private function store(int $organizationId, ParsedInvoice $parsed, string $xml): void
+    private function store(int $organizationId, ParsedInvoice $parsed, string $xml): EInvoice
     {
         $path = "e-invoices/{$organizationId}/".strtolower($parsed->uuid).'.xml';
         Storage::disk('local')->put($path, $xml);
 
-        DB::transaction(function () use ($organizationId, $parsed, $path) {
+        return DB::transaction(function () use ($organizationId, $parsed, $path) {
             $invoice = EInvoice::create([
                 'organization_id' => $organizationId,
                 'provider_uuid' => strtolower($parsed->uuid),
@@ -128,6 +130,8 @@ class EInvoiceSyncService
                     ]);
                 }
             }
+
+            return $invoice;
         });
     }
 }

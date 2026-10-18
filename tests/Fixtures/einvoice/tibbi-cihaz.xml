@@ -66,7 +66,7 @@
         <cac:Item>
             <cbc:Name>Bio-Gide kollajen membran 25x25</cbc:Name>
             <cac:AdditionalItemIdentification>
-                <cbc:ID schemeID="TIBBICIHAZ">(UNO)04049999999998(LNO)BG-55(URT)250901</cbc:ID>
+                <cbc:ID schemeID="TIBBICIHAZ">(UNO)04049999999991(LNO)BG-55(URT)250901</cbc:ID>
             </cac:AdditionalItemIdentification>
         </cac:Item>
         <cac:Price><cbc:PriceAmount currencyID="TRY">600.00</cbc:PriceAmount></cac:Price>
