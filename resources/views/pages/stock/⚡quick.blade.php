@@ -198,6 +198,14 @@ new #[Layout('layouts::authenticated')] class extends Component
             'quantity.gt' => 'Miktar sıfırdan büyük olmalı.',
         ]);
 
+        // Hastaya bildirilen ürün (Aşama 43): hasta seçimi Stok Çıkışı'ndadır;
+        // hızlı ekran sade kalır.
+        if ($this->mode === 'out' && $product->uts_usage_report && $validated['reasonCategory'] === StockOutReason::ClinicalUse->value) {
+            $this->addError('reasonCategory', 'Bu ürün hastaya kullanımda ÜTS\'ye bildirilir. Hasta seçmek için Stok Çıkışı ekranını kullanın.');
+
+            return;
+        }
+
         $serials = [];
         if ($product->tracks_serials) {
             try {
@@ -413,6 +421,7 @@ new #[Layout('layouts::authenticated')] class extends Component
                                     <option value="{{ $reason->value }}">{{ $reason->label() }}</option>
                                 @endforeach
                             </select>
+                            @error('reasonCategory') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
                         </div>
                         <div>
                             <label class="block text-[13px] text-ink-muted mb-1">Lot</label>

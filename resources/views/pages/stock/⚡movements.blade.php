@@ -1,5 +1,7 @@
 <?php
 
+use App\Domain\Patients\Models\PatientUsage;
+use App\Domain\Patients\Services\PatientUsageService;
 use App\Domain\Access\Support\Module;
 use App\Domain\Organization\Models\Warehouse;
 use App\Domain\Stock\Exceptions\InactiveLocationException;
@@ -9,6 +11,7 @@ use App\Domain\Stock\Services\StockMovementService;
 use App\Domain\Stock\Support\StockMovementType;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -68,8 +71,24 @@ new #[Layout('layouts::authenticated')] class extends Component
             return;
         }
 
+        // Hastaya kullanım (Aşama 43): ÜTS'de geçerli Kullanım bildirimi varsa
+        // önce o iptal edilir; aksi halde ÜTS'de hastada görünen ürün stoğa dönerdi.
+        $usages = PatientUsage::where('stock_movement_id', $movement->id)->whereNull('cancelled_at')->get();
+
+        if ($usages->contains(fn (PatientUsage $usage) => $usage->utsStatus() === PatientUsage::UTS_SENT)) {
+            session()->flash('error', 'Bu çıkış hastaya kullanım olarak ÜTS\'ye bildirildi. Önce ÜTS kullanım bildirimini iptal edin (ÜTS → Gönderim Geçmişi).');
+
+            return;
+        }
+
         try {
-            $service->cancel($movement, auth()->user());
+            DB::transaction(function () use ($service, $movement, $usages) {
+                $service->cancel($movement, auth()->user());
+
+                if ($usages->isNotEmpty()) {
+                    app(PatientUsageService::class)->cancelForMovement($movement);
+                }
+            });
         } catch (InsufficientStockException|InactiveLocationException $e) {
             session()->flash('error', $e->getMessage());
 

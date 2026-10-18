@@ -3,6 +3,12 @@
 use App\Domain\Access\Support\Module;
 use App\Domain\Catalog\Models\Product;
 use App\Domain\Organization\Models\Warehouse;
+use App\Domain\Patients\Exceptions\PatientException;
+use App\Domain\Patients\Models\Patient;
+use App\Domain\Patients\Services\PatientService;
+use App\Domain\Patients\Services\PatientUsageService;
+use App\Domain\Uts\Exceptions\UtsException;
+use App\Domain\Uts\Services\UtsUsageService;
 use App\Domain\Stock\Exceptions\ControlledProductException;
 use App\Domain\Stock\Exceptions\InactiveLocationException;
 use App\Domain\Stock\Exceptions\SerialException;
@@ -17,6 +23,7 @@ use App\Domain\Stock\Support\ExpiredUsageWarning;
 use App\Domain\Stock\Support\StockOutReason;
 use App\Support\UnitConverter;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Layout;
@@ -49,18 +56,103 @@ new #[Layout('layouts::authenticated')] class extends Component
 
     public string $serialSearch = '';
 
+    /*
+     * Hastaya kullanım (Aşama 43): ürün "Hastaya kullanımda ÜTS'ye bildirilir"
+     * işaretliyse ve neden "Klinik içi kullanım"sa hasta ve kullanım tarihi
+     * istenir; çıkıştan sonra kullanım kaydı yazılır ve ÜTS'ye bildirilir.
+     */
+    public string $patient_id = '';
+
+    public string $patientSearch = '';
+
+    public string $used_on = '';
+
+    public bool $addingPatient = false;
+
+    public string $first_name = '';
+
+    public string $last_name = '';
+
+    public string $identity_type = 'tc';
+
+    public string $identity_no = '';
+
+    public string $birth_year = '';
+
     public function openForm(): void
     {
         Gate::authorize('stock_movement.create');
 
         $this->showForm = true;
+        $this->used_on = today()->toDateString();
     }
 
     public function closeForm(): void
     {
         $this->showForm = false;
-        $this->reset(['product_id', 'warehouse_id', 'lot_id', 'quantity', 'unit', 'reasonCategory', 'reasonNote', 'selectedSerials', 'serialSearch']);
+        $this->reset(['product_id', 'warehouse_id', 'lot_id', 'quantity', 'unit', 'reasonCategory', 'reasonNote', 'selectedSerials', 'serialSearch', 'patient_id', 'patientSearch', 'used_on']);
+        $this->cancelNewPatient();
         $this->resetValidation();
+    }
+
+    public function selectPatient(int $patientId): void
+    {
+        Gate::authorize('patients.viewAny');
+
+        $this->patient_id = (string) Patient::findOrFail($patientId)->id;
+        $this->patientSearch = '';
+        $this->resetValidation('patient_id');
+    }
+
+    public function clearPatient(): void
+    {
+        $this->patient_id = '';
+    }
+
+    public function startNewPatient(): void
+    {
+        Gate::authorize('patients.create');
+
+        $this->addingPatient = true;
+    }
+
+    public function cancelNewPatient(): void
+    {
+        $this->addingPatient = false;
+        $this->reset(['first_name', 'last_name', 'identity_type', 'identity_no', 'birth_year']);
+    }
+
+    public function addPatient(PatientService $patients): void
+    {
+        Gate::authorize('patients.create');
+
+        $validated = $this->validate([
+            'first_name' => ['required', 'string', 'max:50'],
+            'last_name' => ['required', 'string', 'max:50'],
+            'identity_type' => ['required', Rule::enum(\App\Domain\Patients\Support\IdentityType::class)],
+            'identity_no' => ['nullable', 'string', 'max:20'],
+            'birth_year' => ['nullable', 'integer', 'min:1900', 'max:'.now()->year],
+        ]);
+        $validated['birth_year'] = filled($validated['birth_year']) ? (int) $validated['birth_year'] : null;
+
+        try {
+            $patient = $patients->create($validated);
+        } catch (PatientException $e) {
+            $this->addError($e->field, $e->getMessage());
+
+            return;
+        }
+
+        $this->cancelNewPatient();
+        $this->selectPatient($patient->id);
+    }
+
+    /**
+     * Seçili ürün ve neden hastaya kullanım bildirimi gerektiriyor mu?
+     */
+    private function needsPatient(?Product $product): bool
+    {
+        return (bool) $product?->uts_usage_report && $this->reasonCategory === StockOutReason::ClinicalUse->value;
     }
 
     public function updatedProductId(): void
@@ -135,6 +227,35 @@ new #[Layout('layouts::authenticated')] class extends Component
             return;
         }
 
+        $patient = null;
+        $usedOn = null;
+
+        if ($this->needsPatient($product)) {
+            if (! Gate::allows('patients.viewAny')) {
+                $this->addError('patient_id', 'Bu ürün hastaya kullanımda ÜTS\'ye bildirilir; hasta görme yetkiniz yok. Yöneticinizden "Hastalar" okuma yetkisi isteyin.');
+
+                return;
+            }
+
+            $this->validate([
+                'patient_id' => ['required'],
+                'used_on' => ['required', 'date', 'before_or_equal:today'],
+            ], [
+                'patient_id.required' => 'Hastaya kullanım için hasta seçin.',
+                'used_on.before_or_equal' => 'Kullanım tarihi ileri bir tarih olamaz.',
+            ]);
+
+            $patient = Patient::find($this->patient_id);
+
+            if (! $patient) {
+                $this->addError('patient_id', 'Seçilen hasta bulunamadı.');
+
+                return;
+            }
+
+            $usedOn = Carbon::parse($this->used_on);
+        }
+
         $reasonCode = StockOutReason::from($validated['reasonCategory']);
         $reason = filled($validated['reasonNote']) ? "{$reasonCode->label()}: {$validated['reasonNote']}" : $reasonCode->label();
 
@@ -166,11 +287,30 @@ new #[Layout('layouts::authenticated')] class extends Component
             return;
         }
 
-        $this->closeForm();
-        session()->flash('status', 'Stok çıkışı kaydedildi.');
+        $warnings = array_filter([ExpiredUsageWarning::for($movements, $reasonCode)]);
 
-        if ($warning = ExpiredUsageWarning::for($movements, $reasonCode)) {
-            session()->flash('warning', $warning);
+        if ($patient) {
+            $usages = app(PatientUsageService::class)->record($movements, $patient, $usedOn);
+            $failures = [];
+
+            foreach ($usages as $usage) {
+                try {
+                    app(UtsUsageService::class)->report($usage);
+                } catch (UtsException $e) {
+                    $failures[] = $e->getMessage();
+                }
+            }
+
+            if ($failures !== []) {
+                $warnings[] = 'Hastaya kullanım kaydedildi ama ÜTS kullanım bildirimi gönderilemedi: '.implode(' ', array_unique($failures)).' ÜTS → Gönderim Geçmişi\'nden tekrar gönderebilirsiniz.';
+            }
+        }
+
+        $this->closeForm();
+        session()->flash('status', $patient ? "Stok çıkışı kaydedildi; {$patient->fullName()} hastasına bağlandı." : 'Stok çıkışı kaydedildi.');
+
+        if ($warnings !== []) {
+            session()->flash('warning', implode(' ', $warnings));
         }
     }
 
@@ -218,8 +358,17 @@ new #[Layout('layouts::authenticated')] class extends Component
                 ->get();
         }
 
+        $patientMatches = collect();
+        if ($this->needsPatient($selected) && blank($this->patient_id) && mb_strlen(trim($this->patientSearch)) >= 2 && Gate::allows('patients.viewAny')) {
+            $patientMatches = Patient::search($this->patientSearch)->orderBy('last_name')->limit(8)->get();
+        }
+
         return [
             'movements' => $movements,
+            'needsPatient' => $this->needsPatient($selected),
+            'canSeePatients' => Gate::allows('patients.viewAny'),
+            'selectedPatient' => filled($this->patient_id) ? Patient::find($this->patient_id) : null,
+            'patientMatches' => $patientMatches,
             'availableSerials' => $availableSerials,
             'products' => Product::where('status', 'active')->orderBy('name')->get(),
             'warehouses' => Warehouse::operational()->inBranches($this->branchIds())->with('branch')->orderBy('name')->get(),
@@ -372,7 +521,7 @@ new #[Layout('layouts::authenticated')] class extends Component
                 @endif
                 <div>
                     <label class="block text-[13px] text-ink-muted mb-1.5">Çıkış Nedeni</label>
-                    <select wire:model="reasonCategory" class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+                    <select wire:model.live="reasonCategory" class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
                         <option value="">Seçiniz</option>
                         @foreach ($reasons as $reasonOption)
                             <option value="{{ $reasonOption->value }}">{{ $reasonOption->label() }}</option>
@@ -387,6 +536,60 @@ new #[Layout('layouts::authenticated')] class extends Component
                     @error('reasonNote') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
                 </div>
             </div>
+
+            @if ($needsPatient)
+                <fieldset class="rounded-md border border-line px-4 py-4 space-y-3">
+                    <legend class="px-1 text-[13px] font-medium text-ink">Hasta</legend>
+                    <p class="text-[12px] text-ink-muted -mt-1">Bu ürün hastaya kullanımda ÜTS'ye bildirilir. Kayıttan sonra Kullanım bildirimi otomatik gönderilir.</p>
+
+                    @if (! $canSeePatients)
+                        <p class="text-[13px] text-status-critical">Bu çıkış için hasta seçilmeli ama hasta görme yetkiniz yok. Yöneticinizden "Hastalar" okuma yetkisi isteyin.</p>
+                    @elseif ($selectedPatient)
+                        <div class="flex flex-wrap items-center justify-between gap-2 rounded-md bg-canvas px-3 py-2.5 text-[14px]">
+                            <span><span class="text-ink font-medium">{{ $selectedPatient->fullName() }}</span> <span class="text-ink-muted ml-1">{{ $selectedPatient->maskedIdentity() }}</span></span>
+                            <button type="button" wire:click="clearPatient" class="text-[13px] text-ink-muted hover:text-ink hover:underline">Değiştir</button>
+                        </div>
+                    @elseif ($addingPatient)
+                        <div class="space-y-3">
+                            @include('pages.patients.partials.form-fields')
+                            <div class="flex items-center gap-3">
+                                <button type="button" wire:click="addPatient" class="border border-panel-900 text-ink rounded-md px-3 py-1.5 text-[13px] font-medium hover:bg-canvas">Hastayı ekle ve seç</button>
+                                <button type="button" wire:click="cancelNewPatient" class="text-[13px] text-ink-muted hover:text-ink">Vazgeç</button>
+                            </div>
+                        </div>
+                    @else
+                        <div>
+                            <label for="patient-search" class="sr-only">Hasta ara</label>
+                            <input id="patient-search" type="search" wire:model.live.debounce.300ms="patientSearch" placeholder="Ad, soyad ya da tam kimlik numarası" autocomplete="off" class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+                            @if ($patientMatches->isNotEmpty())
+                                <ul class="mt-1 border border-line rounded-md divide-y divide-line">
+                                    @foreach ($patientMatches as $match)
+                                        <li wire:key="match-{{ $match->id }}">
+                                            <button type="button" wire:click="selectPatient({{ $match->id }})" class="w-full text-left px-3 py-2 text-[14px] hover:bg-canvas">
+                                                {{ $match->fullName() }} <span class="text-ink-muted ml-1">{{ $match->maskedIdentity() }}</span>@if ($match->birth_year) <span class="text-ink-muted ml-1">{{ $match->birth_year }}</span>@endif
+                                            </button>
+                                        </li>
+                                    @endforeach
+                                </ul>
+                            @elseif (mb_strlen(trim($patientSearch)) >= 2)
+                                <p class="text-[12px] text-ink-muted mt-1">Eşleşen hasta yok.</p>
+                            @endif
+                            @can('patients.create')
+                                <button type="button" wire:click="startNewPatient" class="mt-2 text-[13px] text-brand-600 hover:underline">Yeni hasta ekle</button>
+                            @endcan
+                        </div>
+                    @endif
+                    @error('patient_id') <span class="text-status-critical text-[12px] block">{{ $message }}</span> @enderror
+
+                    @if ($canSeePatients)
+                        <div class="max-w-[12rem]">
+                            <label for="used-on" class="block text-[13px] text-ink-muted mb-1.5">Kullanım tarihi</label>
+                            <input id="used-on" type="date" wire:model="used_on" max="{{ today()->toDateString() }}" class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
+                            @error('used_on') <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
+                        </div>
+                    @endif
+                </fieldset>
+            @endif
 
             <div class="flex items-center gap-3">
                 <button type="submit" class="bg-panel-900 text-white rounded-md px-4 py-2.5 text-[14px] font-medium hover:bg-panel-800 transition-colors">
