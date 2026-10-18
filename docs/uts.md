@@ -1,6 +1,6 @@
 # ÜTS (Ürün Takip Sistemi) Entegrasyonu
 
-ÜTS, T.C. Sağlık Bakanlığı'na bağlı TİTCK'nın işlettiği tıbbi cihaz takip sistemidir. Tedarikçi bir ürünü kliniğe ÜTS'de **Verme bildirimiyle** gönderir; klinik de **Alma bildirimiyle** kabul eder. Bu uygulama kabul bekleyenleri okur, lot/seri doğrular ve **Alma bildirimi** gönderir (Aşama 42). Kullanım, Tüketiciye Verme, iade ve imha bildirimleri henüz yoktur.
+ÜTS, T.C. Sağlık Bakanlığı'na bağlı TİTCK'nın işlettiği tıbbi cihaz takip sistemidir. Tedarikçi bir ürünü kliniğe ÜTS'de **Verme bildirimiyle** gönderir; klinik de **Alma bildirimiyle** kabul eder. Bu uygulama kabul bekleyenleri okur, lot/seri doğrular, **Alma bildirimi** (Aşama 42) ve hastaya kullanımda **Kullanım bildirimi** (Aşama 43) gönderir, gerekirse Kullanım bildirimini iptal eder. Tüketiciye Verme, iade ve imha bildirimleri henüz yoktur.
 
 Kaynak: "Takip ve İzleme Web Servis Tanımları Dokümanı" rev. 1.99 (ÜTS 9.8.x), uts.saglik.gov.tr.
 
@@ -9,7 +9,7 @@ Kaynak: "Takip ve İzleme Web Servis Tanımları Dokümanı" rev. 1.99 (ÜTS 9.8
 | Ekran | Yol | İşlev |
 |---|---|---|
 | Kabul Bekleyenler | `/uts/kabul-bekleyenler` | Tedarikçilerin kurumunuza bildirdiği, henüz kabul edilmemiş ürünler. Her satır ürün kartı (GTIN), lot/seri ve satın alma teslim kaydı (belge no) ile eşleştirilip rozetlenir. Gönderen kurum koduna göre filtrelenir, 10'luk sayfalanır. Stok yazma yetkisi olan, satırları tek tek ya da seçerek **ÜTS'de kabul eder** (aşağıya bakın). |
-| Gönderim Geçmişi | `/uts/gecmis` | Bu uygulamadan gönderilen her Alma bildirimi: kim, ne zaman, hangi ürün/lot/seri, kaç adet, ÜTS bildirim kodu ya da hata mesajı. |
+| Gönderim Geçmişi | `/uts/gecmis` | Bu uygulamadan gönderilen her Alma, Kullanım ve Kullanım iptali: kim, ne zaman, hangi ürün/lot/seri, kaç adet, ÜTS bildirim kodu ya da hata mesajı. Gönderilemeyen kullanım buradan **tekrar gönderilir**, bildirilmiş kullanım **ÜTS'de iptal edilir**. |
 | Lot/Seri Doğrula | `/uts/dogrula` | Ürün no + lot/seri yazılır ya da kutudaki GS1 DataMatrix okutulur; ÜTS'deki kayıt, SKT dahil kendi kaydınızla karşılaştırılır. |
 | Ayarlar → ÜTS Bağlantısı | `/ayarlar` | Sistem token'ını girme, bağlantıyı deneme, kaldırma (yalnızca Admin). |
 
@@ -24,9 +24,19 @@ Ekranları görme yetkisi Stok modülünü izler ve şube kapsamı geçerlidir.
 - Yetki: Stok yazma (`stock_movement.create`). Salt-okunur organizasyonda kapalıdır.
 - Aynı bildirim ikinci kez gönderilmez. Başarılı ve başarısız her deneme `uts_notifications` tablosuna yazılır (token yazılmaz).
 
+## Kullanım bildirimi (hastaya kullanım)
+
+- Ürün kartında **"Hastaya kullanımda ÜTS'ye bildirilir"** işaretli olmalı (GTIN zorunlu; ör. implant, greft, membran).
+- Stok Çıkışı'nda bu ürün **"Klinik içi kullanım"** nedeniyle çıkarken **hasta** (Hastalar kaydından, ad/soyad ya da tam kimlik numarasıyla arama; formdan yeni hasta eklenebilir) ve **kullanım tarihi** istenir.
+- Kayıttan sonra her seri (lot takipli üründe lot + adet) için `POST /UTS/uh/rest/bildirim/kullanim/ekle` gider: `UNO` (GTIN), `SNO` ya da `LNO`+`ADT`, `GIT` (tarih), `HAA`, `HAS`, `TUR` ve kimlik türüne göre `TKN`/`YKN`/`PAN` (kimliği belirsizde `KTN` = hasta kayıt no).
+- ÜTS hatası stok çıkışını geri almaz; ekranda uyarı çıkar, Gönderim Geçmişi'nden tekrar gönderilir.
+- **İptal vardır** (`kullanim/iptal`, `BID`). ÜTS'de bildirilmiş bir kullanımın stok çıkışı, önce ÜTS'de iptal edilmeden Stok Hareketleri'nden iptal edilemez.
+- Hızlı İşlem'de işaretli ürün "Klinik içi kullanım" ile çıkarılamaz (hasta seçimi Stok Çıkışı'ndadır).
+- Hasta kimliği `uts_notifications` tablosuna yazılmaz; kayıt `patient_usages` üzerinden hastaya bağlanır. Hasta verisi ve güvenlik önlemleri için tasarım belgesi: `docs/superpowers/specs/2026-10-18-hasta-ve-uts-kullanim-design.md`.
+
 ### Gerçek ortam kilidi
 
-Yazma henüz gerçek ÜTS'de denenmedi. Bağlantı **gerçek ortamda** ise gönderim, `UTS_PRODUCTION_WRITES=true` yapılana kadar engellenir ve ekranda "gerçek ortamda bildirim gönderimi henüz açılmadı" yazar. Test ortamı ve okuma ekranları etkilenmez.
+Yazma (Alma ve Kullanım) henüz gerçek ÜTS'de denenmedi. Bağlantı **gerçek ortamda** ise gönderim, `UTS_PRODUCTION_WRITES=true` yapılana kadar engellenir ve ekranda "gerçek ortamda bildirim gönderimi henüz açılmadı" yazar. Test ortamı ve okuma ekranları etkilenmez.
 
 Açma sırası: bir klinik test ortamı token'ıyla birkaç satırı kabul eder, sonuç ve gerçek yanıtlar bu belgeye yazılır, ardından sunucuda `UTS_PRODUCTION_WRITES=true`.
 
@@ -69,4 +79,5 @@ Token'ı yalnızca kurumun imza yetkilisi (hastanelerde başhekim/yardımcılar�
 - Canlı sorgudur; ÜTS yavaşsa ya da kapalıysa ekran bekler. Yerel eşitleme ve "yeni bekleyen var" bildirimi yoktur.
 - ÜTS yanıt biçimi servis tanım dokümanına (rev. 1.99, ÜTS 9.8.x) göre yazıldı ve yerel sahte ÜTS sunucusuyla uçtan uca denendi; **gerçek ÜTS test ortamında henüz denenmedi.**
 - Hangi ürünlerin tekil takipli olduğu ve kliniğinizin hangi bildirimlerle yükümlü olduğu mevzuata bağlıdır; uygulama yasal tavsiye vermez.
-- Sonraki adımlar: Kullanım ve Tüketiciye Verme bildirimleri (hasta kimliği isteyebilir; projenin "hasta kaydı tutmama" kararıyla çeliştiğinden ayrıca karara bağlanacak), "Almak istemiyorum" işaretleme, iade/imha bildirimleri.
+- Kullanım bildiriminde lot takipli üründe `ADT` olarak çıkan miktar gönderilir; belge bu alanı "1 olarak verilir" diye anlatıyor. Test ortamında doğrulanmalı.
+- Sonraki adımlar: Tüketiciye Verme, "Almak istemiyorum" işaretleme, iade/imha bildirimleri.

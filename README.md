@@ -49,10 +49,16 @@ kapıdan geçer.
   olmayan kategori/tedarikçi adıyla açılır; açılış stoğu soğuk zincir ve seri
   kurallarıyla "Açılış stoğu" gerekçeli stok girişi olarak yazılır. Tasarım:
   `docs/superpowers/specs/2026-10-16-toplu-veri-aktarimi-design.md`.
-- **ÜTS (Aşama 33, 42):** kabul bekleyen Verme bildirimlerini listeleme, lot/seri
-  doğrulama ve Alma bildirimiyle kabul (onay paneli, eksik adet, toplu kabul,
-  gönderim geçmişi). Alma'nın ÜTS'de iptali olmadığından gerçek ortama gönderim
-  `UTS_PRODUCTION_WRITES=true` yapılana kadar kapalıdır. Ayrıntı: `docs/uts.md`.
+- **ÜTS (Aşama 33, 42, 43):** kabul bekleyen Verme bildirimlerini listeleme, lot/seri
+  doğrulama, Alma bildirimiyle kabul (onay paneli, eksik adet, toplu kabul) ve
+  hastaya kullanımda Kullanım bildirimi (tekrar gönderme, ÜTS'de iptal); hepsi
+  Gönderim Geçmişi'nde. Gerçek ortama gönderim `UTS_PRODUCTION_WRITES=true`
+  yapılana kadar kapalıdır. Ayrıntı: `docs/uts.md`.
+- **Hastalar (Aşama 43):** ÜTS Kullanım bildirimi için en az veriyle hasta kaydı
+  (ad, soyad, kimlik türü ve numarası, isteğe bağlı doğum yılı). Kimlik numarası
+  şifreli saklanır, arama özetle tam eşleşmeyle yapılır, ekranlarda maskelidir;
+  ayrı "Hastalar" yetkisiyle görülür. Hasta kartında kullanılan ürünler (implant,
+  greft…) ve ÜTS durumları listelenir. Tedavi/hasta dosyası değildir.
 - **Tanıtım sitesi:** aynı repo içinde girişsiz sayfalar (`/`, `/neler-yapiyor`,
   `/talep`). Talep formu yalnızca bir `Lead` kaydı oluşturur — otomatik hesap
   veya organizasyon açılmaz; Platform Sahibi "Gelen Talepler" ekranından elle

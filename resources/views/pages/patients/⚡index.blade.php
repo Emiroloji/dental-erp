@@ -145,7 +145,7 @@ new #[Layout('layouts::authenticated')] class extends Component
                         <td class="px-5 py-3"><a href="{{ route('patients.show', $patient->id) }}" class="text-ink hover:underline">{{ $patient->fullName() }}</a></td>
                         <td class="px-5 py-3 text-ink-muted whitespace-nowrap">
                             {{ $patient->maskedIdentity() }}
-                            @if ($patient->identity_type->needsNumber()) <span class="text-[12px]">· {{ $patient->identity_type->label() }}</span> @endif
+                            @if ($patient->identity_type->needsNumber()) <div class="text-[12px]">{{ $patient->identity_type->label() }}</div> @endif
                         </td>
                         <td class="px-5 py-3 text-ink-muted">{{ $patient->birth_year ?? '—' }}</td>
                         <td class="px-5 py-3 text-right whitespace-nowrap">
