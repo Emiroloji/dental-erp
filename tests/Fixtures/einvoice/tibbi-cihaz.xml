@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"
+         xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
+         xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">
+    <cbc:UBLVersionID>2.1</cbc:UBLVersionID>
+    <cbc:CustomizationID>TR1.2</cbc:CustomizationID>
+    <cbc:ProfileID>ILAC_TIBBICIHAZ</cbc:ProfileID>
+    <cbc:ID>ADM2026000451</cbc:ID>
+    <cbc:UUID>5d59e861-0ecc-11e7-a708-f52ed20ddd29</cbc:UUID>
+    <cbc:IssueDate>2026-10-17</cbc:IssueDate>
+    <cbc:InvoiceTypeCode>SATIS</cbc:InvoiceTypeCode>
+    <cbc:DocumentCurrencyCode>TRY</cbc:DocumentCurrencyCode>
+    <cac:AccountingSupplierParty>
+        <cac:Party>
+            <cac:PartyIdentification><cbc:ID schemeID="VKN">1234567890</cbc:ID></cac:PartyIdentification>
+            <cac:PartyIdentification><cbc:ID schemeID="MERSISNO">0123456789000015</cbc:ID></cac:PartyIdentification>
+            <cac:PartyName><cbc:Name>Anadolu Dental Medikal Ltd. Şti.</cbc:Name></cac:PartyName>
+        </cac:Party>
+    </cac:AccountingSupplierParty>
+    <cac:AccountingCustomerParty>
+        <cac:Party>
+            <cac:PartyIdentification><cbc:ID schemeID="VKN">9876543210</cbc:ID></cac:PartyIdentification>
+            <cac:PartyName><cbc:Name>Gülüş Ağız ve Diş Sağlığı Polikliniği</cbc:Name></cac:PartyName>
+        </cac:Party>
+    </cac:AccountingCustomerParty>
+    <cac:TaxTotal><cbc:TaxAmount currencyID="TRY">2155.000</cbc:TaxAmount></cac:TaxTotal>
+    <cac:LegalMonetaryTotal>
+        <cbc:LineExtensionAmount currencyID="TRY">21550.000</cbc:LineExtensionAmount>
+        <cbc:TaxExclusiveAmount currencyID="TRY">21550.000</cbc:TaxExclusiveAmount>
+        <cbc:TaxInclusiveAmount currencyID="TRY">23705.000</cbc:TaxInclusiveAmount>
+        <cbc:PayableAmount currencyID="TRY">23705.000</cbc:PayableAmount>
+    </cac:LegalMonetaryTotal>
+    <cac:InvoiceLine>
+        <cbc:ID>1</cbc:ID>
+        <cbc:InvoicedQuantity unitCode="C62">2</cbc:InvoicedQuantity>
+        <cbc:LineExtensionAmount currencyID="TRY">19000.000</cbc:LineExtensionAmount>
+        <cac:TaxTotal>
+            <cbc:TaxAmount currencyID="TRY">1900.000</cbc:TaxAmount>
+            <cac:TaxSubtotal>
+                <cbc:TaxableAmount currencyID="TRY">19000.000</cbc:TaxableAmount>
+                <cbc:TaxAmount currencyID="TRY">1900.000</cbc:TaxAmount>
+                <cbc:Percent>10.00</cbc:Percent>
+                <cac:TaxCategory><cac:TaxScheme><cbc:Name>GERÇEK USULDE KATMA DEĞER VERGİSİ</cbc:Name><cbc:TaxTypeCode>0015</cbc:TaxTypeCode></cac:TaxScheme></cac:TaxCategory>
+            </cac:TaxSubtotal>
+        </cac:TaxTotal>
+        <cac:Item>
+            <cbc:Name>Straumann BLT Ø4.1 RC SLActive 10mm</cbc:Name>
+            <cac:SellersItemIdentification><cbc:ID>STR-021.4510</cbc:ID></cac:SellersItemIdentification>
+            <cac:AdditionalItemIdentification>
+                <cbc:ID schemeID="TIBBICIHAZ">(UNO)08699999999994(LNO)IMP2026A(SNO)SN-778812(URT)260115</cbc:ID>
+            </cac:AdditionalItemIdentification>
+            <cac:AdditionalItemIdentification>
+                <cbc:ID schemeID="TIBBICIHAZ">(UNO)08699999999994(LNO)IMP2026A(SNO)SN-778813(URT)260115</cbc:ID>
+            </cac:AdditionalItemIdentification>
+        </cac:Item>
+        <cac:Price><cbc:PriceAmount currencyID="TRY">9500.000</cbc:PriceAmount></cac:Price>
+    </cac:InvoiceLine>
+    <cac:InvoiceLine>
+        <cbc:ID>2</cbc:ID>
+        <cbc:InvoicedQuantity unitCode="C62">4</cbc:InvoicedQuantity>
+        <cbc:LineExtensionAmount currencyID="TRY">2400.00</cbc:LineExtensionAmount>
+        <cac:TaxTotal>
+            <cbc:TaxAmount currencyID="TRY">240.00</cbc:TaxAmount>
+            <cac:TaxSubtotal><cbc:TaxableAmount currencyID="TRY">2400.00</cbc:TaxableAmount><cbc:TaxAmount currencyID="TRY">240.00</cbc:TaxAmount><cbc:Percent>10</cbc:Percent></cac:TaxSubtotal>
+        </cac:TaxTotal>
+        <cac:Item>
+            <cbc:Name>Bio-Gide kollajen membran 25x25</cbc:Name>
+            <cac:AdditionalItemIdentification>
+                <cbc:ID schemeID="TIBBICIHAZ">(UNO)04049999999998(LNO)BG-55(URT)250901</cbc:ID>
+            </cac:AdditionalItemIdentification>
+        </cac:Item>
+        <cac:Price><cbc:PriceAmount currencyID="TRY">600.00</cbc:PriceAmount></cac:Price>
+    </cac:InvoiceLine>
+    <cac:InvoiceLine>
+        <cbc:ID>3</cbc:ID>
+        <cbc:InvoicedQuantity unitCode="C62">1</cbc:InvoicedQuantity>
+        <cbc:LineExtensionAmount currencyID="TRY">150</cbc:LineExtensionAmount>
+        <cac:TaxTotal>
+            <cbc:TaxAmount currencyID="TRY">15</cbc:TaxAmount>
+            <cac:TaxSubtotal><cbc:TaxableAmount currencyID="TRY">150</cbc:TaxableAmount><cbc:TaxAmount currencyID="TRY">15</cbc:TaxAmount><cbc:Percent>10</cbc:Percent></cac:TaxSubtotal>
+        </cac:TaxTotal>
+        <cac:Item>
+            <cbc:Name>Kargo bedeli</cbc:Name>
+            <cac:AdditionalItemIdentification><cbc:ID schemeID="DIGER">1111111111</cbc:ID></cac:AdditionalItemIdentification>
+        </cac:Item>
+        <cac:Price><cbc:PriceAmount currencyID="TRY">150</cbc:PriceAmount></cac:Price>
+    </cac:InvoiceLine>
+</Invoice>

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2" xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2" xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">
+    <cbc:ProfileID>TEMELFATURA</cbc:ProfileID>
+    <cbc:ID>EGE2026000088</cbc:ID>
+    <cbc:UUID>a68b5aa1-f7d7-11e8-a3a9-f783d4ccac99</cbc:UUID>
+    <cbc:IssueDate>2026-10-18</cbc:IssueDate>
+    <cbc:InvoiceTypeCode>SATIS</cbc:InvoiceTypeCode>
+    <cbc:DocumentCurrencyCode>TRY</cbc:DocumentCurrencyCode>
+    <cac:AccountingSupplierParty>
+        <cac:Party>
+            <cac:PartyIdentification><cbc:ID schemeID="TCKN">10000000146</cbc:ID></cac:PartyIdentification>
+            <cac:Person><cbc:FirstName>Ayşe</cbc:FirstName><cbc:FamilyName>Ege</cbc:FamilyName></cac:Person>
+        </cac:Party>
+    </cac:AccountingSupplierParty>
+    <cac:TaxTotal><cbc:TaxAmount currencyID="TRY">12.345</cbc:TaxAmount></cac:TaxTotal>
+    <cac:LegalMonetaryTotal>
+        <cbc:LineExtensionAmount currencyID="TRY">123.455</cbc:LineExtensionAmount>
+        <cbc:TaxExclusiveAmount currencyID="TRY">123.455</cbc:TaxExclusiveAmount>
+        <cbc:PayableAmount currencyID="TRY">135.80</cbc:PayableAmount>
+    </cac:LegalMonetaryTotal>
+    <cac:InvoiceLine>
+        <cbc:ID>1</cbc:ID>
+        <cbc:InvoicedQuantity unitCode="BX">2.5</cbc:InvoicedQuantity>
+        <cbc:LineExtensionAmount currencyID="TRY">123.455</cbc:LineExtensionAmount>
+        <cac:TaxTotal><cac:TaxSubtotal><cbc:Percent>10</cbc:Percent></cac:TaxSubtotal></cac:TaxTotal>
+        <cac:Item>
+            <cbc:Name>Artikain anestezik</cbc:Name>
+            <cac:SellersItemIdentification><cbc:ID>ART-50</cbc:ID></cac:SellersItemIdentification>
+            <cac:AdditionalItemIdentification><cbc:ID schemeID="ILAC">(GTIN)8680222690047(BN)0714450(SN)9546433(XD)270909</cbc:ID></cac:AdditionalItemIdentification>
+        </cac:Item>
+        <cac:Price><cbc:PriceAmount currencyID="TRY">49.382</cbc:PriceAmount></cac:Price>
+    </cac:InvoiceLine>
+</Invoice>
