@@ -49,11 +49,12 @@ kapıdan geçer.
   olmayan kategori/tedarikçi adıyla açılır; açılış stoğu soğuk zincir ve seri
   kurallarıyla "Açılış stoğu" gerekçeli stok girişi olarak yazılır. Tasarım:
   `docs/superpowers/specs/2026-10-16-toplu-veri-aktarimi-design.md`.
-- **ÜTS (Aşama 33, 42, 43):** kabul bekleyen Verme bildirimlerini listeleme, lot/seri
-  doğrulama, Alma bildirimiyle kabul (onay paneli, eksik adet, toplu kabul) ve
-  hastaya kullanımda Kullanım bildirimi (tekrar gönderme, ÜTS'de iptal); hepsi
-  Gönderim Geçmişi'nde. Gerçek ortama gönderim `UTS_PRODUCTION_WRITES=true`
-  yapılana kadar kapalıdır. Ayrıntı: `docs/uts.md`.
+- **ÜTS (Aşama 33, 42, 43, Faz 7):** kabul bekleyenleri listeleme ve saatlik tarama
+  ("yeni ürün" bildirimi), lot/seri doğrulama, Alma ile kabul, Almak istemiyorum,
+  hastaya kullanımda Kullanım, tedarikçiye iadede Verme, SKT geçmiş/hasarlı
+  çıkışta İmha veya HEK/Zayiat; iptali olanlar için iptal, başarısızlar için
+  tekrar gönderme; hepsi Gönderim Geçmişi'nde. Gerçek ortama gönderim
+  `UTS_PRODUCTION_WRITES=true` yapılana kadar kapalıdır. Ayrıntı: `docs/uts.md`.
 - **Hastalar (Aşama 43):** ÜTS Kullanım bildirimi için en az veriyle hasta kaydı
   (ad, soyad, kimlik türü ve numarası, isteğe bağlı doğum yılı). Kimlik numarası
   şifreli saklanır, arama özetle tam eşleşmeyle yapılır, ekranlarda maskelidir;
