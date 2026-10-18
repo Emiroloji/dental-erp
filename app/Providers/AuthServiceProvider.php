@@ -70,6 +70,9 @@ class AuthServiceProvider extends ServiceProvider
         // ".update" soneki salt-okunur organizasyonda kapatır.
         Gate::define('uts_connection.update', fn (User $user) => false);
 
+        // e-Fatura entegratör anahtarı (Faz 6) da yalnızca Admin'in işidir.
+        Gate::define('einvoice_connection.update', fn (User $user) => false);
+
         // Paket ve kullanım (Faz 3): abonelik Ana Klinik Sahibi'nin (Admin) konusudur.
         Gate::define('subscription.view', fn (User $user) => false);
 

@@ -38,4 +38,8 @@ Schedule::command('finance:scan-due')->dailyAt('05:00');
 
 // Günlük özet e-postası (Aşama 39): stok taraması saatlik, finans vade taraması
 // 05:00'te çalıştığı için özet o sabahın uyarılarını da içerir.
+// Faz 6: gelen e-faturalar her 30 dakikada çekilir (bağlantısı olan aktif
+// organizasyonlar; kuyrukta, aynı bağlantı için tek iş).
+Schedule::command('einvoice:sync')->everyThirtyMinutes()->withoutOverlapping();
+
 Schedule::command('notifications:send-digest')->dailyAt('07:30')->timezone('Europe/Istanbul')->withoutOverlapping();

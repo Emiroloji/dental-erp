@@ -5,6 +5,8 @@ namespace App\Providers;
 use App\Domain\Assistant\Contracts\QueryInterpreter;
 use App\Domain\Assistant\Interpreters\GeminiQueryInterpreter;
 use App\Domain\Assistant\Interpreters\UnconfiguredQueryInterpreter;
+use App\Domain\EInvoice\Contracts\EInvoiceProvider;
+use App\Domain\EInvoice\Services\EInvoiceProviderFactory;
 use App\Domain\Organization\Support\ReadOnlyGuard;
 use App\Domain\Platform\Backup\NullOffsiteBackupSync;
 use App\Domain\Platform\Backup\RcloneOffsiteBackupSync;
@@ -65,6 +67,11 @@ class AppServiceProvider extends ServiceProvider
                 )
                 : new UnconfiguredUtsClient;
         });
+
+        // Faz 6: e-Fatura entegratörü arayüz arkasında; anahtar organizasyon
+        // başına veritabanında (şifreli). Kuyruk işleri sürücüyü bağlantıdan
+        // EInvoiceProviderFactory::for ile kendileri üretir.
+        $this->app->bind(EInvoiceProvider::class, fn () => $this->app->make(EInvoiceProviderFactory::class)->current());
 
         // Aşama 28: hata izleme sağlayıcısı arayüz arkasında. SENTRY_DSN
         // tanımlıysa olaylar Sentry'ye gider, tanımlı değilse log'a yazılır.

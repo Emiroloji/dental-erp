@@ -1,5 +1,9 @@
 <?php
 
+use App\Domain\EInvoice\Contracts\EInvoiceProvider;
+use App\Domain\EInvoice\Exceptions\EInvoiceException;
+use App\Domain\EInvoice\Models\EInvoiceConnection;
+use App\Domain\EInvoice\Services\EInvoiceConnectionService;
 use App\Domain\Organization\Models\Organization;
 use App\Domain\Organization\Services\OrganizationSettingsService;
 use App\Domain\Organization\Support\ExpiredLotPolicy;
@@ -23,9 +27,24 @@ new #[Layout('layouts::authenticated')] class extends Component
 
     public ?string $utsError = null;
 
+    public string $einvoiceProvider = 'nilvera';
+
+    public string $einvoiceEnvironment = 'test';
+
+    public string $einvoiceApiKey = '';
+
+    public ?string $einvoiceMessage = null;
+
+    public ?string $einvoiceError = null;
+
     public function mount(): void
     {
         $this->expiredLotPolicy = $this->organization()->expiredLotPolicy()->value;
+
+        if ($einvoice = app(EInvoiceConnectionService::class)->current()) {
+            $this->einvoiceProvider = $einvoice->provider;
+            $this->einvoiceEnvironment = $einvoice->environment;
+        }
 
         if ($connection = app(UtsConnectionService::class)->current()) {
             $this->utsEnvironment = $connection->environment;
@@ -85,6 +104,46 @@ new #[Layout('layouts::authenticated')] class extends Component
         session()->flash('status', 'Ayarlar kaydedildi.');
     }
 
+    public function saveEInvoice(EInvoiceConnectionService $einvoice): void
+    {
+        Gate::authorize('einvoice_connection.update');
+
+        $validated = $this->validate([
+            'einvoiceProvider' => ['required', Rule::in(array_keys(EInvoiceConnection::PROVIDERS))],
+            'einvoiceEnvironment' => ['required', Rule::in(['test', 'production'])],
+            'einvoiceApiKey' => ['required', 'string', 'max:4000'],
+        ]);
+
+        $einvoice->save($validated['einvoiceProvider'], $validated['einvoiceEnvironment'], $validated['einvoiceApiKey']);
+
+        $this->reset('einvoiceApiKey');
+        $this->einvoiceMessage = 'Anahtar kaydedildi. "Bağlantıyı dene" ile doğrulayın.';
+        $this->einvoiceError = null;
+    }
+
+    public function testEInvoice(EInvoiceConnectionService $einvoice, EInvoiceProvider $provider): void
+    {
+        Gate::authorize('einvoice_connection.update');
+
+        $this->einvoiceMessage = $this->einvoiceError = null;
+
+        try {
+            $einvoice->test($provider);
+            $this->einvoiceMessage = 'Bağlantı başarılı.';
+        } catch (EInvoiceException $e) {
+            $this->einvoiceError = $e->getMessage();
+        }
+    }
+
+    public function removeEInvoice(EInvoiceConnectionService $einvoice): void
+    {
+        Gate::authorize('einvoice_connection.update');
+
+        $einvoice->remove();
+        $this->einvoiceMessage = 'e-Fatura bağlantısı kaldırıldı.';
+        $this->einvoiceError = null;
+    }
+
     private function organization(): Organization
     {
         return Organization::findOrFail(auth()->user()->organization_id);
@@ -95,6 +154,8 @@ new #[Layout('layouts::authenticated')] class extends Component
         return [
             'policies' => ExpiredLotPolicy::cases(),
             'utsConnection' => app(UtsConnectionService::class)->current(),
+            'einvoiceConnection' => app(EInvoiceConnectionService::class)->current(),
+            'einvoiceProviders' => EInvoiceConnection::PROVIDERS,
         ];
     }
 };
@@ -146,7 +207,7 @@ new #[Layout('layouts::authenticated')] class extends Component
 
     <section class="max-w-2xl mt-8 border border-line rounded-lg bg-surface p-5">
         <h2 class="text-[15px] font-medium text-ink">ÜTS Bağlantısı</h2>
-        <p class="text-[13px] text-ink-muted mt-1 mb-4">Kabul bekleyen bildirimleri görmek ve lot/seri doğrulamak için kurumunuzun ÜTS sistem token'ı. Token'ı kurum yetkilisi ÜTS portalında e-imzayla üretir (Kullanıcı → Sistem Kullanıcısı Tanımlama İşlemleri). Bu aşamada ÜTS'ye bildirim gönderilmez.</p>
+        <p class="text-[13px] text-ink-muted mt-1 mb-4">Kabul bekleyen bildirimleri görmek ve lot/seri doğrulamak için kurumunuzun ÜTS sistem token'ı. Token'ı kurum yetkilisi ÜTS portalında e-imzayla üretir (Kullanıcı → Sistem Kullanıcısı Tanımlama İşlemleri). Bu token'la kabul (Alma) ve hastaya kullanım (Kullanım) bildirimleri de gönderilir; gerçek ortama gönderim sunucu ayarıyla açılana kadar kapalıdır.</p>
 
         @if ($utsMessage)
             <div class="mb-3 rounded-md bg-brand-100 border border-brand-500/20 text-brand-600 text-[13px] px-4 py-3">{{ $utsMessage }}</div>
@@ -176,6 +237,53 @@ new #[Layout('layouts::authenticated')] class extends Component
                     @if ($utsConnection)
                         <button type="button" wire:click="testUts" class="border border-line rounded-md px-4 py-2 text-[14px] text-ink hover:bg-gray-50">Bağlantıyı dene</button>
                         <button type="button" wire:click="removeUts" wire:confirm="ÜTS bağlantısı kaldırılsın mı?" class="border border-line rounded-md px-4 py-2 text-[14px] text-status-critical hover:bg-red-50">Kaldır</button>
+                    @endif
+                </div>
+            </form>
+        @endcan
+    </section>
+
+    <section class="max-w-2xl mt-8 border border-line rounded-lg bg-surface p-5">
+        <h2 class="text-[15px] font-medium text-ink">e-Fatura Bağlantısı</h2>
+        <p class="text-[13px] text-ink-muted mt-1 mb-4">Tedarikçilerin kestiği e-faturaları entegratörünüzden her 30 dakikada çekmek için API anahtarı. Anahtarı entegratörün portalında üretin; yalnızca gelen fatura okuma yetkisi yeterlidir.</p>
+
+        @if ($einvoiceMessage)
+            <div class="mb-3 rounded-md bg-brand-100 border border-brand-500/20 text-brand-600 text-[13px] px-4 py-3">{{ $einvoiceMessage }}</div>
+        @endif
+        @if ($einvoiceError)
+            <div class="mb-3 rounded-md bg-red-50 border border-status-critical/30 text-status-critical text-[13px] px-4 py-3">{{ $einvoiceError }}</div>
+        @endif
+
+        @if ($einvoiceConnection)
+            <p class="text-[13px] text-ink mb-3">
+                Anahtar kayıtlı: {{ $einvoiceProviders[$einvoiceConnection->provider] ?? $einvoiceConnection->provider }}, {{ $einvoiceConnection->environment === 'production' ? 'gerçek ortam' : 'test ortamı' }}.
+                {{ $einvoiceConnection->last_verified_at ? 'Son doğrulama '.$einvoiceConnection->last_verified_at->format('d.m.Y H:i').'.' : 'Henüz doğrulanmadı.' }}
+                @if ($einvoiceConnection->last_synced_at) Son çekim {{ $einvoiceConnection->last_synced_at->format('d.m.Y H:i') }}. @endif
+            </p>
+        @endif
+
+        @can('einvoice_connection.update')
+            <form wire:submit="saveEInvoice" class="space-y-3">
+                <div class="flex flex-wrap gap-2">
+                    <select wire:model="einvoiceProvider" aria-label="Entegratör" class="border border-line rounded-md px-3 py-2 text-[14px] bg-surface">
+                        @foreach ($einvoiceProviders as $value => $label)
+                            <option value="{{ $value }}">{{ $label }}</option>
+                        @endforeach
+                    </select>
+                    <select wire:model="einvoiceEnvironment" aria-label="Ortam" class="border border-line rounded-md px-3 py-2 text-[14px] bg-surface">
+                        <option value="test">Test ortamı</option>
+                        <option value="production">Gerçek ortam</option>
+                    </select>
+                </div>
+                @error('einvoiceProvider') <span class="text-status-critical text-[12px] block">{{ $message }}</span> @enderror
+                @error('einvoiceEnvironment') <span class="text-status-critical text-[12px] block">{{ $message }}</span> @enderror
+                <input type="password" wire:model="einvoiceApiKey" autocomplete="off" placeholder="Entegratör API anahtarı" class="w-full border border-line rounded-md px-3 py-2 text-[14px]">
+                @error('einvoiceApiKey') <span class="text-status-critical text-[12px] block">{{ $message }}</span> @enderror
+                <div class="flex flex-wrap gap-2">
+                    <button type="submit" class="bg-panel-900 text-white rounded-md px-4 py-2 text-[14px] font-medium hover:bg-panel-800 transition-colors">Anahtarı Kaydet</button>
+                    @if ($einvoiceConnection)
+                        <button type="button" wire:click="testEInvoice" class="border border-line rounded-md px-4 py-2 text-[14px] text-ink hover:bg-gray-50">Bağlantıyı dene</button>
+                        <button type="button" wire:click="removeEInvoice" wire:confirm="e-Fatura bağlantısı kaldırılsın mı? Çekilmiş faturalar silinmez." class="border border-line rounded-md px-4 py-2 text-[14px] text-status-critical hover:bg-red-50">Kaldır</button>
                     @endif
                 </div>
             </form>
