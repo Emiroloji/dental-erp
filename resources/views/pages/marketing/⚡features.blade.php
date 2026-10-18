@@ -87,7 +87,7 @@ new #[Layout('layouts::marketing')] class extends Component
                     ['Seri numarası', 'İmplant gibi ürünlerde her birim ayrı seri numarasıyla girer ve çıkar; hangi serinin nerede olduğu izlenir.'],
                     ['Soğuk zincir', 'Girişte ölçülen sıcaklık istenir; saklama aralığının dışındaki giriş engellenir ya da gerekçesiyle kabul edilir.'],
                     ['Kontrollü ürün', 'Her çıkışta açıklama zorunludur; hareketler ayrı bir kontrollü ürün defterinde listelenir.'],
-                    ['Kabul bekleyenler', 'Tedarikçinin size gönderdiği ürünler ÜTS\'den saatte bir taranır, yeni gelen olunca bildirim düşer. Tek tek ya da toplu kabul edersiniz (Alma bildirimi); gelmeyen ürünü "Almak istemiyorum" ile reddedersiniz. Kabulün ÜTS\'de iptali olmadığı için her kabul onaydan geçer.'],
+                    ['Kabul bekleyenler', 'Tedarikçinin size gönderdiği ürünler ÜTS\'den saatte bir taranır, yeni gelen olunca bildirim düşer. Tek tek ya da toplu kabul edersiniz (Alma bildirimi); gelmeyen ürünü "Almak istemiyorum" ile reddedersiniz, yanlış reddi yine programdan geri alırsınız. Kabulün ÜTS\'de iptali olmadığı için her kabul onaydan geçer.'],
                     ['Hastaya kullanım', 'İmplant hastaya takılınca Stok Çıkışı\'nda hasta seçilir; Kullanım bildirimi kendiliğinden gider ve ürün hastanın kartına yazılır.'],
                     ['İade, imha, zayiat', 'Tedarikçiye iadede Verme bildirimi; son kullanma tarihi geçen ya da hasar gören üründe İmha ya da HEK/Zayiat bildirimi aynı ekrandan yapılır.'],
                     ['Gönderim geçmişi', 'Her bildirim kim, ne zaman, hangi ürün ve ÜTS\'nin cevabıyla kayıtlıdır. Gönderilemeyen tekrar gönderilir; iptali olan bildirim buradan iptal edilir.'],

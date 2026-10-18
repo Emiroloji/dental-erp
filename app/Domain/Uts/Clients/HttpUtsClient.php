@@ -5,6 +5,8 @@ namespace App\Domain\Uts\Clients;
 use App\Domain\Uts\Contracts\UtsClient;
 use App\Domain\Uts\Exceptions\UtsAuthException;
 use App\Domain\Uts\Exceptions\UtsException;
+use App\Domain\Uts\Support\DeclinedReceipt;
+use App\Domain\Uts\Support\DeclinedReceiptPage;
 use App\Domain\Uts\Support\DisposalReport;
 use App\Domain\Uts\Support\GiveReport;
 use App\Domain\Uts\Support\PendingReceipt;
@@ -82,6 +84,29 @@ class HttpUtsClient implements UtsClient
     public function decline(string $notificationId): void
     {
         $this->post('/UTS/uh/rest/almakIstemiyorum/almakIstemiyorumOlarakIsaretle', ['BID' => $notificationId]);
+    }
+
+    public function declinedReceipts(?string $offset = null): DeclinedReceiptPage
+    {
+        $body = ['ADT' => DeclinedReceiptPage::PAGE_SIZE];
+
+        if ($offset !== null && $offset !== '') {
+            $body['OFF'] = $offset;
+        }
+
+        $result = (array) ($this->post('/UTS/uh/rest/almakIstemiyorum/sorgula/almakIstemedigimVermeBildirimlerim', $body)['SNC'] ?? []);
+        $rows = array_values(array_filter((array) ($result['LST'] ?? []), 'is_array'));
+        $items = array_map(fn (array $row) => DeclinedReceipt::fromArray($row), $rows);
+        $next = is_scalar($result['OFF'] ?? null) && trim((string) $result['OFF']) !== '' ? trim((string) $result['OFF']) : null;
+
+        // Son sayfada ÜTS'nin adresi yine döndürüp döndürmediği belgede yazmıyor;
+        // dolu olmayan sayfa son sayfa sayılır.
+        return new DeclinedReceiptPage($items, count($items) >= DeclinedReceiptPage::PAGE_SIZE ? $next : null);
+    }
+
+    public function undecline(string $notificationId): void
+    {
+        $this->post('/UTS/uh/rest/almakIstemiyorum/almakIstiyorumOlarakIsaretle', ['BID' => $notificationId]);
     }
 
     public function reportUsage(UsageReport $report): string

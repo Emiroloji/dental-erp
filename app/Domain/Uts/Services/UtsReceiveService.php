@@ -7,6 +7,7 @@ use App\Domain\EInvoice\Models\EInvoice;
 use App\Domain\Uts\Contracts\UtsClient;
 use App\Domain\Uts\Exceptions\UtsException;
 use App\Domain\Uts\Models\UtsNotification;
+use App\Domain\Uts\Support\DeclinedReceipt;
 use App\Domain\Uts\Support\PendingReceipt;
 
 /**
@@ -118,6 +119,43 @@ class UtsReceiveService
 
         try {
             $this->client->decline($receipt->notificationId);
+        } catch (UtsException $e) {
+            UtsNotification::create($attributes + ['status' => UtsNotification::STATUS_FAILED, 'message' => $e->getMessage()]);
+
+            throw $e;
+        }
+
+        return UtsNotification::create($attributes + ['status' => UtsNotification::STATUS_SENT]);
+    }
+
+    /**
+     * "Almak istemiyorum" işaretini kaldırır (rev. 1.99, 3.4.23); bildirim
+     * yeniden kabul bekleyenlere düşer. Kayıt "Almak istemiyorum" ile aynı
+     * biçimde tutulur.
+     *
+     * @throws UtsException
+     */
+    public function undecline(DeclinedReceipt $receipt): UtsNotification
+    {
+        if (! $receipt->canUndo()) {
+            throw new UtsException('Bu bildirimi kurumunuz işaretlemedi; buradan geri alınamaz.');
+        }
+
+        $attributes = [
+            'user_id' => auth()->id(),
+            'type' => UtsNotification::TYPE_UNDECLINE,
+            'source_notification_id' => $receipt->notificationId,
+            'environment' => $this->guard->environment(),
+            'uno' => $receipt->uno,
+            'lot' => $receipt->lot,
+            'serial' => $receipt->serial,
+            'quantity' => $receipt->quantity,
+            'sender_code' => $receipt->senderCode,
+            'sender_name' => $receipt->institutionName,
+        ];
+
+        try {
+            $this->client->undecline($receipt->notificationId);
         } catch (UtsException $e) {
             UtsNotification::create($attributes + ['status' => UtsNotification::STATUS_FAILED, 'message' => $e->getMessage()]);
 

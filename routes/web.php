@@ -137,6 +137,11 @@ Route::middleware('tenant')->group(function () {
         ->middleware(['auth', 'can:stock_movement.viewAny'])
         ->name('uts.pending');
 
+    // Aşama 57: "Almak istemiyorum" işaretlenenler ve geri alma.
+    Route::livewire('/uts/almak-istemediklerim', 'pages::uts.declined')
+        ->middleware(['auth', 'can:stock_movement.viewAny'])
+        ->name('uts.declined');
+
     Route::livewire('/uts/dogrula', 'pages::uts.verify')
         ->middleware(['auth', 'can:stock_movement.viewAny'])
         ->name('uts.verify');

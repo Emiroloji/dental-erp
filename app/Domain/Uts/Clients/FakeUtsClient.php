@@ -4,6 +4,8 @@ namespace App\Domain\Uts\Clients;
 
 use App\Domain\Uts\Contracts\UtsClient;
 use App\Domain\Uts\Exceptions\UtsException;
+use App\Domain\Uts\Support\DeclinedReceipt;
+use App\Domain\Uts\Support\DeclinedReceiptPage;
 use App\Domain\Uts\Support\DisposalReport;
 use App\Domain\Uts\Support\GiveReport;
 use App\Domain\Uts\Support\PendingReceipt;
@@ -24,6 +26,9 @@ class FakeUtsClient implements UtsClient
     /** @var list<string> */
     private array $received = [];
 
+    /** @var list<string> "Almak istemiyorum" işaretlenen bildirim kodları. */
+    private array $declined = [];
+
     /**
      * @param  list<PendingReceipt>  $pending
      * @param  list<UtsItem>  $items
@@ -33,6 +38,7 @@ class FakeUtsClient implements UtsClient
         private readonly array $items = [],
         private readonly ?UtsException $failure = null,
         private readonly ?UtsException $writeFailure = null,
+        private array $declinedRows = [],
     ) {}
 
     public function pendingReceipts(?int $senderCode = null, int $page = 0, ?string $documentNo = null): PendingReceiptPage
@@ -81,6 +87,39 @@ class FakeUtsClient implements UtsClient
         $this->failWrite();
 
         $this->received[] = $notificationId;
+        $this->declined[] = $notificationId;
+    }
+
+    public function declinedReceipts(?string $offset = null): DeclinedReceiptPage
+    {
+        $this->calls[] = ['declinedReceipts', [$offset]];
+
+        if ($this->failure) {
+            throw $this->failure;
+        }
+
+        $rows = $this->declinedRows;
+
+        foreach ($this->pending as $r) {
+            if (in_array($r->notificationId, $this->declined, true)) {
+                $rows[] = new DeclinedReceipt($r->senderCode, $r->uno, $r->lot, $r->serial, $r->quantity, $r->notificationId, $r->senderName, DeclinedReceipt::STATUS_DECLINED_BY_US);
+            }
+        }
+
+        $start = (int) ($offset ?? 0);
+        $slice = array_slice($rows, $start, DeclinedReceiptPage::PAGE_SIZE);
+
+        return new DeclinedReceiptPage($slice, count($rows) > $start + DeclinedReceiptPage::PAGE_SIZE ? (string) ($start + DeclinedReceiptPage::PAGE_SIZE) : null);
+    }
+
+    public function undecline(string $notificationId): void
+    {
+        $this->calls[] = ['undecline', [$notificationId]];
+        $this->failWrite();
+
+        $this->declined = array_values(array_diff($this->declined, [$notificationId]));
+        $this->received = array_values(array_diff($this->received, [$notificationId]));
+        $this->declinedRows = array_values(array_filter($this->declinedRows, fn (DeclinedReceipt $r) => $r->notificationId !== $notificationId));
     }
 
     public function reportUsage(UsageReport $report): string

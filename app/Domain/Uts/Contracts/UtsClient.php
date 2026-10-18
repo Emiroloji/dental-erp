@@ -3,6 +3,7 @@
 namespace App\Domain\Uts\Contracts;
 
 use App\Domain\Uts\Exceptions\UtsException;
+use App\Domain\Uts\Support\DeclinedReceiptPage;
 use App\Domain\Uts\Support\DisposalReport;
 use App\Domain\Uts\Support\GiveReport;
 use App\Domain\Uts\Support\PendingReceiptPage;
@@ -54,6 +55,22 @@ interface UtsClient
      * @throws UtsException
      */
     public function decline(string $notificationId): void;
+
+    /**
+     * Kurumun "Almak istemiyorum" olarak işaretlediği Verme bildirimleri
+     * (rev. 1.99, 3.4.25). `$offset` önceki sayfanın döndürdüğü adrestir.
+     *
+     * @throws UtsException
+     */
+    public function declinedReceipts(?string $offset = null): DeclinedReceiptPage;
+
+    /**
+     * "Almak istemiyorum" işaretini kaldırır; bildirim kabul bekleyenlere
+     * döner (rev. 1.99, 3.4.23, BID).
+     *
+     * @throws UtsException
+     */
+    public function undecline(string $notificationId): void;
 
     /**
      * Hastaya kullanılan tekil ürünü bildirir (rev. 1.99, 3.1.9). Yeni

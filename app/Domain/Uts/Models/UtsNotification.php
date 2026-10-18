@@ -27,6 +27,9 @@ class UtsNotification extends Model
 
     public const TYPE_DECLINE = 'almak_istemiyorum';
 
+    /** "Almak istemiyorum" işaretinin kaldırılması (Aşama 57). */
+    public const TYPE_UNDECLINE = 'almak_istiyorum';
+
     public const TYPE_GIVE = 'verme';
 
     public const TYPE_GIVE_CANCEL = 'verme_iptal';
@@ -75,6 +78,7 @@ class UtsNotification extends Model
             self::TYPE_USAGE => 'Kullanım',
             self::TYPE_USAGE_CANCEL => 'Kullanım iptali',
             self::TYPE_DECLINE => 'Almak istemiyorum',
+            self::TYPE_UNDECLINE => 'Almak istiyorum',
             self::TYPE_GIVE => 'İade (Verme)',
             self::TYPE_GIVE_CANCEL => 'İade iptali',
             self::TYPE_IMHA => 'İmha',

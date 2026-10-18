@@ -168,7 +168,7 @@ new #[Layout('layouts::authenticated')] class extends Component
 
     /**
      * Satırı ÜTS'de "Almak istemiyorum" olarak işaretler; satır kabul
-     * bekleyenlerden kalkar. ÜTS'de "Almak istiyorum" ile geri alınabilir.
+     * bekleyenlerden kalkar. "Almak İstemediklerim" ekranından geri alınabilir.
      */
     public function decline(): void
     {
@@ -239,11 +239,7 @@ new #[Layout('layouts::authenticated')] class extends Component
     <div class="mb-6">
         <h1 class="text-[22px] font-medium tracking-tight text-ink">ÜTS — Kabul Bekleyenler</h1>
         <p class="text-[14px] text-ink-muted mt-1">Tedarikçilerin kurumunuza ÜTS'de bildirdiği, henüz kabul edilmemiş ürünler. Kabul edilen satırlar ÜTS'ye Alma bildirimi olarak gider; stok girişi satın alma teslim alma ekranından ayrıca yapılır.</p>
-        <nav class="flex gap-4 mt-4 text-[14px]">
-            <a href="{{ route('uts.pending') }}" class="font-medium text-ink border-b-2 border-brand-500 pb-1">Kabul Bekleyenler</a>
-            <a href="{{ route('uts.verify') }}" class="text-ink-muted hover:text-ink pb-1">Lot/Seri Doğrula</a>
-            <a href="{{ route('uts.history') }}" class="text-ink-muted hover:text-ink pb-1">Gönderim Geçmişi</a>
-        </nav>
+        <x-uts-tabs active="uts.pending" />
     </div>
 
     <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -402,7 +398,7 @@ new #[Layout('layouts::authenticated')] class extends Component
 
     <x-modal :show="$decliningId !== null" title="Almak istemiyorum" on-close="closeDecline">
         <p class="text-[14px] text-ink">Bu Verme bildirimi ÜTS'de "Almak istemiyorum" olarak işaretlenecek ve kabul bekleyenlerden kalkacak. Ürün kliniğinize gelmediyse ya da yanlış gönderildiyse kullanın.</p>
-        <p class="text-[13px] text-ink-muted mt-2">Gerekirse ÜTS portalında "Almak istiyorum" ile geri alınabilir.</p>
+        <p class="text-[13px] text-ink-muted mt-2">Gerekirse "Almak İstemediklerim" sekmesinden geri alabilirsiniz; bildirim yeniden kabul bekleyenlere düşer.</p>
         <div class="flex items-center gap-3 mt-6">
             <button type="button" wire:click="decline" wire:loading.attr="disabled" class="bg-panel-900 text-white rounded-md px-4 py-2.5 text-[14px] font-medium hover:bg-panel-800 transition-colors disabled:opacity-50">İşaretle</button>
             <button type="button" wire:click="closeDecline" class="text-[14px] text-ink-muted hover:text-ink">Vazgeç</button>

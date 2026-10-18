@@ -34,7 +34,7 @@ return [
             ],
         ],
     ],
-    'program' => 'ÜTS → Kabul Bekleyenler\'de her satırda "Almak istemiyorum" bulunur. Onay panelinden geçtikten sonra işaretleme ÜTS\'ye gider, satır listeden kalkar ve kim, ne zaman işaretlediyle Gönderim Geçmişi\'ne yazılır.',
+    'program' => 'ÜTS → Kabul Bekleyenler\'de her satırda "Almak istemiyorum" bulunur. Onay panelinden geçtikten sonra işaretleme ÜTS\'ye gider, satır listeden kalkar ve kim, ne zaman işaretlediyle Gönderim Geçmişi\'ne yazılır. İşaretlediklerinizi ÜTS → Almak İstemediklerim\'de görürsünüz; "Almak istiyorum" ile işareti kaldırınca bildirim Kabul Bekleyenler\'e döner.',
     'sources' => [
         ['ÜTS Takip ve İzleme Web Servis Tanımları Dokümanı, rev. 1.99, bölüm 3.4.22–3.4.25', 'https://uts.saglik.gov.tr/wp-content/uploads/2021/UTS-PRJ-TakipVeIzlemeWebServisTanimlariDokumani.pdf'],
     ],

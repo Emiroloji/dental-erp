@@ -32,7 +32,9 @@ Ekranları görme yetkisi Stok modülünü izler ve şube kapsamı geçerlidir.
 
 ## Almak istemiyorum (Aşama 47)
 
-Kabul Bekleyenler'de satırdaki "Almak istemiyorum" (stok yazma yetkisi, onay paneliyle) bildirimi ÜTS'de `almakIstemiyorum/almakIstemiyorumOlarakIsaretle` (`BID`) ile işaretler; satır listeden kalkar ve Gönderim Geçmişi'ne yazılır. ÜTS portalında "Almak istiyorum" ile geri alınabilir. Gerçek ortam kilidi bu işlem için de geçerlidir.
+Kabul Bekleyenler'de satırdaki "Almak istemiyorum" (stok yazma yetkisi, onay paneliyle) bildirimi ÜTS'de `almakIstemiyorum/almakIstemiyorumOlarakIsaretle` (`BID`) ile işaretler; satır listeden kalkar ve Gönderim Geçmişi'ne yazılır. Gerçek ortam kilidi bu işlem için de geçerlidir.
+
+**Geri alma (Aşama 57):** ÜTS → **Almak İstemediklerim** (`/uts/almak-istemediklerim`, stok okuma yetkisi) `almakIstemiyorum/sorgula/almakIstemedigimVermeBildirimlerim` (3.4.25; `ADT` 20, sonraki sayfa için ÜTS'nin döndürdüğü `OFF`) ile işaretlenenleri listeler. Stok yazma yetkisi olan, onay panelinden geçerek **"Almak istiyorum"** der: `almakIstemiyorum/almakIstiyorumOlarakIsaretle` (3.4.23, `BID`); bildirim Kabul Bekleyenler'e döner, kabul yine oradan yapılır. Kayıt `almak_istiyorum` tipiyle Gönderim Geçmişi'ne yazılır. Durumu (`AID`) `ALINMAK_ISTENMIYOR` olan satırlar kurumun kendi işareti değildir; geri alma düğmesi çıkmaz. Dolu olmayan sayfa son sayfa sayılır (son sayfada `OFF`'un dönüp dönmediği belgede yazmıyor).
 
 ## Tedarikçiye iade — Verme bildirimi (Aşama 48)
 
@@ -109,8 +111,8 @@ Token'ı yalnızca kurumun imza yetkilisi (hastanelerde başhekim/yardımcılar�
 
 ## Bilinen sınırlar
 
-- Canlı sorgudur; ÜTS yavaşsa ya da kapalıysa ekran bekler. Yerel eşitleme ve "yeni bekleyen var" bildirimi yoktur.
+- Ekranlar canlı sorgudur; ÜTS yavaşsa ya da kapalıysa ekran bekler. Kabul bekleyenler saatte bir taranıp yeni gelen için bildirim düşer (Aşama 47); ekranların kendisi yerel kopyadan çalışmaz.
 - ÜTS yanıt biçimi servis tanım dokümanına (rev. 1.99, ÜTS 9.8.x) göre yazıldı ve yerel sahte ÜTS sunucusuyla uçtan uca denendi; **gerçek ÜTS test ortamında henüz denenmedi.**
 - Hangi ürünlerin tekil takipli olduğu ve kliniğinizin hangi bildirimlerle yükümlü olduğu mevzuata bağlıdır; uygulama yasal tavsiye vermez.
 - Kullanım bildiriminde adet 1'dir (belge 3.1.9 ve `UTS-H222`): lot takipli üründen birden çok adet kullanılınca her adet ayrı kullanım kaydı ve ayrı bildirimdir. Bu yüzden hastaya kullanımda miktar tam sayı olmalıdır.
-- Sonraki adımlar: Tüketiciye Verme, "Almak istemiyorum" işaretleme, iade/imha bildirimleri.
+- Programda olmayan bildirimler: Tüketiciye Verme ve envanter (demirbaş); bunlar ÜTS portalından yapılır.

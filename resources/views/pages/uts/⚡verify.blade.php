@@ -104,11 +104,7 @@ new #[Layout('layouts::authenticated')] class extends Component
     <div class="mb-6">
         <h1 class="text-[22px] font-medium tracking-tight text-ink">ÜTS — Lot/Seri Doğrula</h1>
         <p class="text-[14px] text-ink-muted mt-1">Bir ürünün lot veya seri numarasını ÜTS'de sorgulayın ve kendi kayıtlarınızla karşılaştırın. Kutudaki kare kodu okutabilirsiniz.</p>
-        <nav class="flex gap-4 mt-4 text-[14px]">
-            <a href="{{ route('uts.pending') }}" class="text-ink-muted hover:text-ink pb-1">Kabul Bekleyenler</a>
-            <a href="{{ route('uts.verify') }}" class="font-medium text-ink border-b-2 border-brand-500 pb-1">Lot/Seri Doğrula</a>
-            <a href="{{ route('uts.history') }}" class="text-ink-muted hover:text-ink pb-1">Gönderim Geçmişi</a>
-        </nav>
+        <x-uts-tabs active="uts.verify" />
     </div>
 
     <form wire:submit="check" class="max-w-2xl space-y-3 mb-6">

@@ -4,6 +4,7 @@ namespace App\Domain\Uts\Clients;
 
 use App\Domain\Uts\Contracts\UtsClient;
 use App\Domain\Uts\Exceptions\UtsException;
+use App\Domain\Uts\Support\DeclinedReceiptPage;
 use App\Domain\Uts\Support\DisposalReport;
 use App\Domain\Uts\Support\GiveReport;
 use App\Domain\Uts\Support\PendingReceiptPage;
@@ -31,6 +32,16 @@ class UnconfiguredUtsClient implements UtsClient
     }
 
     public function decline(string $notificationId): void
+    {
+        $this->fail();
+    }
+
+    public function declinedReceipts(?string $offset = null): DeclinedReceiptPage
+    {
+        $this->fail();
+    }
+
+    public function undecline(string $notificationId): void
     {
         $this->fail();
     }

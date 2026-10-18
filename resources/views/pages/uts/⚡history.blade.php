@@ -105,12 +105,8 @@ new #[Layout('layouts::authenticated')] class extends Component
 <div>
     <div class="mb-6">
         <h1 class="text-[22px] font-medium tracking-tight text-ink">ÜTS — Gönderim Geçmişi</h1>
-        <p class="text-[14px] text-ink-muted mt-1">Bu uygulamadan ÜTS'ye gönderilen Alma ve Kullanım bildirimleri. Başarısız denemeler de ÜTS'nin verdiği mesajla birlikte burada kalır.</p>
-        <nav class="flex gap-4 mt-4 text-[14px]">
-            <a href="{{ route('uts.pending') }}" class="text-ink-muted hover:text-ink pb-1">Kabul Bekleyenler</a>
-            <a href="{{ route('uts.verify') }}" class="text-ink-muted hover:text-ink pb-1">Lot/Seri Doğrula</a>
-            <a href="{{ route('uts.history') }}" class="font-medium text-ink border-b-2 border-brand-500 pb-1">Gönderim Geçmişi</a>
-        </nav>
+        <p class="text-[14px] text-ink-muted mt-1">Bu uygulamadan ÜTS'ye gönderilen bütün bildirimler (Alma, Kullanım, iade, imha ve diğerleri). Başarısız denemeler de ÜTS'nin verdiği mesajla birlikte burada kalır.</p>
+        <x-uts-tabs active="uts.history" />
     </div>
 
     @if (session('status'))
