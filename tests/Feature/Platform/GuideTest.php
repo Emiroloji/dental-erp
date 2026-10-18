@@ -20,7 +20,7 @@ class GuideTest extends TestCase
             $response->assertSee($guide['title'])->assertSee(route('guides.show', $guide['slug']), false);
         }
 
-        $this->assertGreaterThanOrEqual(7, count(Guides::all()));
+        $this->assertGreaterThanOrEqual(13, count(Guides::all()));
     }
 
     public function test_each_guide_has_its_own_title_description_and_sources(): void
