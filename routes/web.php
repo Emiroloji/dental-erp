@@ -113,6 +113,16 @@ Route::middleware('tenant')->group(function () {
         ->middleware(['auth', 'can:stock_movement.viewAny'])
         ->name('stock.serials');
 
+    // Aşama 43: hastalar (ÜTS Kullanım bildirimi için en az veri).
+    Route::livewire('/hastalar', 'pages::patients.index')
+        ->middleware(['auth', 'can:patients.viewAny'])
+        ->name('patients.index');
+
+    Route::livewire('/hastalar/{patient}', 'pages::patients.show')
+        ->whereNumber('patient')
+        ->middleware(['auth', 'can:patients.viewAny'])
+        ->name('patients.show');
+
     // Aşama 33: ÜTS sorgulama (salt okunur).
     Route::livewire('/uts/kabul-bekleyenler', 'pages::uts.pending')
         ->middleware(['auth', 'can:stock_movement.viewAny'])

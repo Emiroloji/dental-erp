@@ -113,6 +113,12 @@
                             ÜTS
                         </x-nav-link>
                     @endcan
+                    @can('patients.viewAny')
+                        <x-nav-link :href="route('patients.index')" :active="request()->routeIs('patients.*')">
+                            <x-slot:icon><circle cx="12" cy="8" r="3.5"/><path d="M5 20c.8-3.5 3.6-5.5 7-5.5s6.2 2 7 5.5" stroke-linecap="round"/></x-slot:icon>
+                            Hastalar
+                        </x-nav-link>
+                    @endcan
                     @can('finance.viewAny')
                         <x-nav-link :href="route('finance.overview')" :active="request()->routeIs('finance.*')">
                             <x-slot:icon><path d="M3 7a2 2 0 0 1 2-2h13v4"/><path d="M3 7v11a2 2 0 0 0 2 2h15V9H5a2 2 0 0 1-2-2Z"/><path d="M16 14h.01"/></x-slot:icon>

@@ -10,6 +10,7 @@ use App\Domain\Catalog\Policies\CategoryPolicy;
 use App\Domain\Catalog\Policies\ProductPolicy;
 use App\Domain\Catalog\Policies\SupplierPolicy;
 use App\Domain\Finance\Policies\FinancePolicy;
+use App\Domain\Patients\Policies\PatientPolicy;
 use App\Domain\Purchasing\Policies\PurchasingPolicy;
 use App\Domain\Stock\Policies\StockPolicy;
 use App\Domain\Transfer\Policies\TransferPolicy;
@@ -30,6 +31,7 @@ class AuthServiceProvider extends ServiceProvider
         Module::Reports->value => ReportPolicy::class,
         Module::SystemSettings->value => SettingsPolicy::class,
         Module::Finance->value => FinancePolicy::class,
+        Module::Patients->value => PatientPolicy::class,
     ];
 
     public function boot(): void

@@ -14,6 +14,7 @@ enum Module: string
     case Reports = 'reports';
     case SystemSettings = 'system_settings';
     case Finance = 'finance';
+    case Patients = 'patients';
 
     public function label(): string
     {
@@ -28,6 +29,7 @@ enum Module: string
             self::Reports => 'Raporlar',
             self::SystemSettings => 'Sistem Ayarları',
             self::Finance => 'Finans (yalnızca tüm şubeler kapsamı)',
+            self::Patients => 'Hastalar (kimlik bilgisi içerir)',
         };
     }
 }
