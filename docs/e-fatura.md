@@ -8,6 +8,7 @@ Tedarikçilerin kliniğe kestiği e-faturalar entegratörden otomatik çekilir, 
 |---|---|---|
 | Ayarlar → e-Fatura Bağlantısı | `/ayarlar` | Entegratör (şimdilik Nilvera), ortam, API anahtarı; "Bağlantıyı dene", kaldır. Yalnızca Admin. |
 | Gelen e-Faturalar | `/e-fatura` | Tarih, fatura no, gönderen (ad + VKN/TCKN), senaryo, kalem sayısı, tutar. Arama ve tarih süzgeci. "Şimdi çek" (satın alma yazma yetkisi). |
+| Faturadan stoğa al | `/e-fatura/{id}/stoga-al` | Depo seçilir; kalemler faturadan doldurulur, kontrol edilip onaylanır (Aşama 56). Stok girişi yazma yetkisi. |
 | Fatura detayı | `/e-fatura/{id}` | Tutarlar, kalemler; ilaç/tıbbi cihaz kalemlerinde GTIN, lot, seri, üretim/son kullanma tarihi. "PDF'i aç" entegratörden getirir. **Eşleşmeler**: tedarikçi (yoksa "Tedarikçi olarak ekle"), satın alma teslimi, kalem ürün kartı, ÜTS'de bu faturaya ait kabul bekleyenler ve "Kabul Bekleyenler'de aç". |
 
 Görmek için Satın Alma okuma yetkisi yeterlidir.
@@ -40,6 +41,18 @@ Finans yazma yetkisi olan kullanıcı detaydaki **"Cari borç olarak aktar"** il
 - Yükümlülük Finans'ın kendi servisiyle (`ObligationService`) açılır; ödeme, vade bildirimi ve raporlar her zamanki gibi çalışır.
 - Aynı fatura ikinci kez aktarılamaz; aktarılan yükümlülük Finans'ta iptal edilirse fatura yeniden aktarılabilir.
 - TL dışı ve iade faturaları aktarılmaz.
+
+## Stoğa alma (Aşama 56)
+
+Siparişsiz gelen malzeme için: detaydaki **"Stoğa al"** ayrı bir ekran açar. Satın alma teslimiyle eşleşmiş fatura buradan alınmaz (teslimde zaten stoğa girdi); iade ve döviz faturaları da alınmaz (`EInvoiceStockService::refusal`).
+
+- Kalem ürün kartıyla eşleşmişse işaretli gelir; eşleşmemiş kalem (ör. kargo) işaretsiz gelir, istenirse işaretlenip kart seçilir.
+- Miktar yalnızca adet birimli kalemlerde (`C62`, `NIU`, `H87`) doldurulur; diğerlerinde ürün birimine çevirip kullanıcı yazar.
+- Lot, son kullanma tarihi ve seri numaraları kalem kimliklerinden gelir. Seri takipli üründe her lot ayrı satırdır ve miktar seri sayısıdır. Lot takipli kalemde birden çok lot varsa (lot başına adet faturada yok) kalem dışarıda bırakılır, uyarı gösterilir; Stok Girişi'nden girilir.
+- Birim maliyet = kalemin KDV hariç tutarı / girilen toplam miktar.
+- Girişler tek işlemde yapılır: biri hata verirse hiçbiri girmez. Hareketler faturaya bağlanır (`related_entity`), gerekçe "e-Fatura {no}, {gönderen}"; fatura `stocked_at`/`stocked_by` alır ve ikinci kez alınamaz.
+- **Stok girişini geri al** faturanın hareketlerini iptal eder (ürün kullanıldıysa iptal hatası gösterilir) ve faturayı yeniden alınabilir yapar. Bu hareketler Stok Hareketleri'nden tek tek iptal edilemez.
+- ÜTS kabulü ayrıdır; Kabul Bekleyenler'den yapılır.
 
 ## Nilvera API anahtarı
 

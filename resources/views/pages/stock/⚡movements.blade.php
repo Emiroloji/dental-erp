@@ -55,7 +55,7 @@ new #[Layout('layouts::authenticated')] class extends Component
         }
 
         if ($movement->belongsToWorkflow()) {
-            session()->flash('error', 'Bu hareket bir iş akışına (transfer, satın alma teslimi, stok sayımı veya iade) ait; buradan iptal edilemez. İlgili ekrandan işlem yapın.');
+            session()->flash('error', 'Bu hareket bir iş akışına (transfer, satın alma teslimi, stok sayımı, iade veya e-fatura) ait; buradan iptal edilemez. İlgili ekrandan işlem yapın.');
 
             return;
         }

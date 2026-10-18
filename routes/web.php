@@ -222,6 +222,11 @@ Route::middleware('tenant')->group(function () {
         ->middleware(['auth', 'can:purchasing.viewAny'])
         ->name('einvoice.show');
 
+    Route::livewire('/e-fatura/{invoice}/stoga-al', 'pages::einvoice.stock')
+        ->whereNumber('invoice')
+        ->middleware(['auth', 'can:stock_movement.create'])
+        ->name('einvoice.stock');
+
     Route::get('/e-fatura/{invoice}/pdf', EInvoicePdfController::class)
         ->whereNumber('invoice')
         ->middleware(['auth', 'can:purchasing.viewAny'])

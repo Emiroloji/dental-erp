@@ -52,6 +52,7 @@ new #[Layout('layouts::marketing')] class extends Component
                     ['Kendiliğinden gelir', 'Entegratörünüzün anahtarını bir kez girersiniz; yeni faturalar yarım saatte bir çekilir, istediğiniz an "Şimdi çek" ile de alınır. İlk bağlı entegratör Nilvera; diğerleri aynı yapıyla eklenir.'],
                     ['Kalemleriyle okunur', 'Her kalemin adı, miktarı, birim fiyatı ve KDV oranı görünür. İlaç ve tıbbi cihaz faturasında GTIN, lot, seri numarası ve tarihler de okunur.'],
                     ['Eşleşir', 'Gönderen tedarikçi kartınızla, fatura numarası teslim alma kaydınızla, kalemler ürün kartlarınızla eşleşir. Tedarikçi kayıtlı değilse tek tıkla eklenir.'],
+                    ['Stoğa girer', 'Siparişsiz gelen malzemede faturadan "Stoğa al" dersiniz: ürün, adet, lot, son kullanma tarihi ve seri numaraları faturadan dolar, kutularla karşılaştırıp onaylarsınız. Maliyet faturadaki fiyattır; yanlış girişi geri alabilirsiniz.'],
                     ['ÜTS ile buluşur', 'Aynı fatura numarasıyla ÜTS\'de kabul bekleyen ürünler faturanın altında listelenir; kabul ekranına oradan geçersiniz.'],
                     ['Finans\'a aktarılır', 'Fatura tek tıkla tedarikçiye ödenecek borç olarak Finans\'a geçer; vadesi yaklaşınca hatırlatılır. Aynı fatura iki kez aktarılamaz.'],
                 ], 'einvoice'],

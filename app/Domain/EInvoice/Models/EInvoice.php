@@ -24,10 +24,12 @@ class EInvoice extends Model
         'organization_id', 'provider_uuid', 'invoice_number', 'profile', 'type', 'issue_date',
         'sender_tax_number', 'sender_name', 'currency', 'line_extension', 'tax_exclusive',
         'tax_total', 'payable', 'xml_path', 'supplier_id', 'purchase_receipt_id', 'finance_obligation_id',
+        'stocked_at', 'stocked_by',
     ];
 
     protected $casts = [
         'issue_date' => 'date',
+        'stocked_at' => 'datetime',
         'line_extension' => 'integer',
         'tax_exclusive' => 'integer',
         'tax_total' => 'integer',

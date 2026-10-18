@@ -5,6 +5,7 @@ use App\Domain\EInvoice\Exceptions\EInvoiceException;
 use App\Domain\EInvoice\Models\EInvoice;
 use App\Domain\EInvoice\Services\EInvoiceFinanceService;
 use App\Domain\EInvoice\Services\EInvoiceMatcher;
+use App\Domain\EInvoice\Services\EInvoiceStockService;
 use App\Domain\Uts\Contracts\UtsClient;
 use App\Domain\Uts\Exceptions\UtsException;
 use Illuminate\Support\Carbon;
@@ -52,6 +53,21 @@ new #[Layout('layouts::authenticated')] class extends Component
         }
     }
 
+    public function undoStock(EInvoiceStockService $stock): void
+    {
+        Gate::authorize('stock_movement.create');
+
+        try {
+            $stock->undo(EInvoice::findOrFail($this->invoiceId), auth()->user());
+        } catch (EInvoiceException $e) {
+            session()->flash('error', $e->getMessage());
+
+            return;
+        }
+
+        session()->flash('status', 'Stok girişi geri alındı.');
+    }
+
     public function openTransfer(): void
     {
         Gate::authorize('finance.create');
@@ -84,13 +100,14 @@ new #[Layout('layouts::authenticated')] class extends Component
         session()->flash('status', 'Fatura Finans\'a ödenecek olarak aktarıldı.');
     }
 
-    public function with(EInvoiceFinanceService $finance): array
+    public function with(EInvoiceFinanceService $finance, EInvoiceStockService $stock): array
     {
         $invoice = EInvoice::with(['lines.identities', 'lines.product', 'supplier', 'purchaseReceipt', 'financeObligation.party'])->findOrFail($this->invoiceId);
 
         return [
             'invoice' => $invoice,
             'transferred' => $finance->hasOpenTransfer($invoice),
+            'stockRefusal' => $stock->refusal($invoice),
             ...$this->utsPending($invoice),
         ];
     }
@@ -132,6 +149,9 @@ new #[Layout('layouts::authenticated')] class extends Component
     @if (session('status'))
         <div class="mb-4 rounded-md bg-brand-100 border border-brand-500/20 text-brand-600 text-[13px] px-4 py-3">{{ session('status') }}</div>
     @endif
+    @if (session('error'))
+        <div class="mb-4 rounded-md bg-red-50 border border-status-critical/30 text-status-critical text-[13px] px-4 py-3">{{ session('error') }}</div>
+    @endif
 
     <dl class="grid grid-cols-2 sm:grid-cols-4 gap-px bg-line border border-line rounded-lg overflow-hidden mb-6 text-[14px]">
         <div class="bg-surface px-4 py-3"><dt class="text-[12px] text-ink-muted">Fatura tarihi</dt><dd class="text-ink mt-0.5">{{ $invoice->issue_date->format('d.m.Y') }}</dd></div>
@@ -163,6 +183,26 @@ new #[Layout('layouts::authenticated')] class extends Component
                         <a href="{{ route('purchasing.show', $invoice->purchaseReceipt->purchase_order_id) }}" class="text-ink underline">Sipariş #{{ $invoice->purchaseReceipt->purchase_order_id }}, teslim kaydı</a>
                     @else
                         <span class="text-ink-muted">Bu fatura numarasıyla kaydedilmiş teslim yok. Teslim alırken fatura no olarak {{ $invoice->invoice_number }} girilirse eşleşir.</span>
+                    @endif
+                </dd>
+            </div>
+            <div class="px-5 py-3 sm:flex sm:items-center gap-4">
+                <dt class="text-ink-muted sm:w-48 shrink-0">Stok</dt>
+                <dd class="flex-1 flex flex-wrap items-center justify-between gap-2">
+                    @if ($invoice->stocked_at)
+                        <span class="text-ink">Stoğa alındı, {{ $invoice->stocked_at->format('d.m.Y H:i') }}.</span>
+                        @can('stock_movement.create')
+                            <button type="button" wire:click="undoStock" wire:confirm="Bu faturadan yapılan stok girişleri iptal edilsin mi?" class="text-[13px] text-status-critical hover:underline">Stok girişini geri al</button>
+                        @endcan
+                    @elseif ($invoice->purchase_receipt_id)
+                        <span class="text-ink-muted">Satın alma teslimiyle stoğa girdi.</span>
+                    @elseif ($stockRefusal)
+                        <span class="text-ink-muted">{{ $stockRefusal }}</span>
+                    @else
+                        <span class="text-ink-muted">Stoğa alınmadı.</span>
+                        @can('stock_movement.create')
+                            <a href="{{ route('einvoice.stock', $invoice->id) }}" class="border border-line rounded-md px-3 py-1.5 text-[13px] text-ink hover:border-panel-900">Stoğa al</a>
+                        @endcan
                     @endif
                 </dd>
             </div>
