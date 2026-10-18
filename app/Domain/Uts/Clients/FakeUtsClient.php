@@ -6,6 +6,7 @@ use App\Domain\Uts\Contracts\UtsClient;
 use App\Domain\Uts\Exceptions\UtsException;
 use App\Domain\Uts\Support\PendingReceipt;
 use App\Domain\Uts\Support\PendingReceiptPage;
+use App\Domain\Uts\Support\UsageReport;
 use App\Domain\Uts\Support\UtsItem;
 
 /**
@@ -28,7 +29,7 @@ class FakeUtsClient implements UtsClient
         private readonly array $pending = [],
         private readonly array $items = [],
         private readonly ?UtsException $failure = null,
-        private readonly ?UtsException $receiveFailure = null,
+        private readonly ?UtsException $writeFailure = null,
     ) {}
 
     public function pendingReceipts(?int $senderCode = null, int $page = 0): PendingReceiptPage
@@ -63,13 +64,34 @@ class FakeUtsClient implements UtsClient
     {
         $this->calls[] = ['receive', [$notificationId, $quantity]];
 
-        if ($failure = $this->failure ?? $this->receiveFailure) {
-            throw $failure;
-        }
+        $this->failWrite();
 
         $this->received[] = $notificationId;
 
         return 'sahte-alma-'.count($this->received);
+    }
+
+    public function reportUsage(UsageReport $report): string
+    {
+        $this->calls[] = ['reportUsage', [$report->toPayload()]];
+        $this->failWrite();
+
+        return 'sahte-kullanim-'.count($this->calls);
+    }
+
+    public function cancelUsage(string $notificationId): string
+    {
+        $this->calls[] = ['cancelUsage', [$notificationId]];
+        $this->failWrite();
+
+        return 'sahte-iptal-'.count($this->calls);
+    }
+
+    private function failWrite(): void
+    {
+        if ($failure = $this->failure ?? $this->writeFailure) {
+            throw $failure;
+        }
     }
 
     public function name(): string

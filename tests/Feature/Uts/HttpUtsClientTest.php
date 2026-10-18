@@ -5,6 +5,7 @@ namespace Tests\Feature\Uts;
 use App\Domain\Uts\Clients\HttpUtsClient;
 use App\Domain\Uts\Exceptions\UtsAuthException;
 use App\Domain\Uts\Exceptions\UtsException;
+use App\Domain\Uts\Support\UsageReport;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
@@ -149,5 +150,41 @@ class HttpUtsClientTest extends TestCase
         $this->expectExceptionMessage('birden fazla bildirim');
 
         $this->client()->receive('vbi-1');
+    }
+
+    public function test_report_usage_posts_kullanim_with_patient_identity(): void
+    {
+        Http::fake(['utstest.saglik.gov.tr/*' => Http::response(['SNC' => 'kullanim-kodu-1'])]);
+
+        $code = $this->client()->reportUsage(new UsageReport(
+            uno: '08699999999994', lot: null, serial: 'SN-1', quantity: null, usedOn: '2026-10-18',
+            firstName: 'Ayşe', lastName: 'Yılmaz', identityCode: 'TC_KIMLIK_NUMARASI_VAR', identityField: 'TKN', identityNo: '10000000146', personNo: 12,
+        ));
+
+        $this->assertSame('kullanim-kodu-1', $code);
+        Http::assertSent(fn (Request $r) => $r->url() === 'https://utstest.saglik.gov.tr/UTS/uh/rest/bildirim/kullanim/ekle'
+            && $r->data() === ['UNO' => '08699999999994', 'SNO' => 'SN-1', 'GIT' => '2026-10-18', 'HAA' => 'Ayşe', 'HAS' => 'Yılmaz', 'TUR' => 'TC_KIMLIK_NUMARASI_VAR', 'TKN' => '10000000146']);
+    }
+
+    public function test_report_usage_for_lot_and_unknown_identity(): void
+    {
+        Http::fake(['*' => Http::response(['SNC' => 'kod'])]);
+
+        $this->client()->reportUsage(new UsageReport(
+            uno: '08699999999994', lot: 'L1', serial: null, quantity: 2, usedOn: '2026-10-18',
+            firstName: 'Bilinmeyen', lastName: 'Hasta', identityCode: 'KIMLIGI_BELIRSIZ', identityField: null, identityNo: null, personNo: 12,
+        ));
+
+        Http::assertSent(fn (Request $r) => $r->data() === ['UNO' => '08699999999994', 'LNO' => 'L1', 'ADT' => 2, 'GIT' => '2026-10-18', 'HAA' => 'Bilinmeyen', 'HAS' => 'Hasta', 'TUR' => 'KIMLIGI_BELIRSIZ', 'KTN' => 12]);
+    }
+
+    public function test_cancel_usage_posts_bid(): void
+    {
+        Http::fake(['*' => Http::response(['SNC' => 'iptal-kodu'])]);
+
+        $this->assertSame('iptal-kodu', $this->client()->cancelUsage('kullanim-kodu-1'));
+
+        Http::assertSent(fn (Request $r) => $r->url() === 'https://utstest.saglik.gov.tr/UTS/uh/rest/bildirim/kullanim/iptal'
+            && $r->data() === ['BID' => 'kullanim-kodu-1']);
     }
 }

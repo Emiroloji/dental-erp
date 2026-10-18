@@ -5,6 +5,7 @@ namespace App\Domain\Uts\Clients;
 use App\Domain\Uts\Contracts\UtsClient;
 use App\Domain\Uts\Exceptions\UtsException;
 use App\Domain\Uts\Support\PendingReceiptPage;
+use App\Domain\Uts\Support\UsageReport;
 
 /**
  * Organizasyon ÜTS token'ı girmemişse kullanılır: hiçbir dış çağrı yapmaz.
@@ -22,6 +23,16 @@ class UnconfiguredUtsClient implements UtsClient
     }
 
     public function receive(string $notificationId, ?int $quantity = null): string
+    {
+        $this->fail();
+    }
+
+    public function reportUsage(UsageReport $report): string
+    {
+        $this->fail();
+    }
+
+    public function cancelUsage(string $notificationId): string
     {
         $this->fail();
     }

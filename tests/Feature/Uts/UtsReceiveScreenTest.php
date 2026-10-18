@@ -152,7 +152,7 @@ class UtsReceiveScreenTest extends TestCase
     {
         $this->useClient(new FakeUtsClient(
             [PendingReceipt::fromArray(['BID' => 'vbi-1', 'UNO' => 'U1', 'LNO' => 'L1', 'ADT' => 1, 'BNO' => 'IRS-1'])],
-            receiveFailure: new UtsException('Bildirim bulunamadı.'),
+            writeFailure: new UtsException('Bildirim bulunamadı.'),
         ));
 
         Livewire::test('pages::uts.pending')

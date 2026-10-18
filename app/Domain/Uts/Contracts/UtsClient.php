@@ -4,12 +4,13 @@ namespace App\Domain\Uts\Contracts;
 
 use App\Domain\Uts\Exceptions\UtsException;
 use App\Domain\Uts\Support\PendingReceiptPage;
+use App\Domain\Uts\Support\UsageReport;
 use App\Domain\Uts\Support\UtsItem;
 
 /**
  * ÜTS web servisleri. Uygulamalar: HttpUtsClient (gerçek), FakeUtsClient
- * (test), UnconfiguredUtsClient (token yok). Yazma bildirimlerinden şimdilik
- * yalnızca Alma vardır (Aşama 42); Kullanım vb. sonraki aşamalardır.
+ * (test), UnconfiguredUtsClient (token yok). Yazma bildirimleri: Alma
+ * (Aşama 42), Kullanım ve Kullanım iptali (Aşama 43).
  */
 interface UtsClient
 {
@@ -38,6 +39,22 @@ interface UtsClient
      * @throws UtsException
      */
     public function receive(string $notificationId, ?int $quantity = null): string;
+
+    /**
+     * Hastaya kullanılan tekil ürünü bildirir (rev. 1.99, 3.1.9). Yeni
+     * bildirim kodunu (SNC) döndürür.
+     *
+     * @throws UtsException
+     */
+    public function reportUsage(UsageReport $report): string;
+
+    /**
+     * Kullanım bildirimini iptal eder (3.2, kullanim/iptal). İptal
+     * bildiriminin kodunu döndürür.
+     *
+     * @throws UtsException
+     */
+    public function cancelUsage(string $notificationId): string;
 
     public function name(): string;
 }

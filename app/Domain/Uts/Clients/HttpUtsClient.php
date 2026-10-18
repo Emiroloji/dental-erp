@@ -7,6 +7,7 @@ use App\Domain\Uts\Exceptions\UtsAuthException;
 use App\Domain\Uts\Exceptions\UtsException;
 use App\Domain\Uts\Support\PendingReceipt;
 use App\Domain\Uts\Support\PendingReceiptPage;
+use App\Domain\Uts\Support\UsageReport;
 use App\Domain\Uts\Support\UtsItem;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Response;
@@ -68,12 +69,32 @@ class HttpUtsClient implements UtsClient
             $body['ADT'] = $quantity;
         }
 
-        $code = $this->post('/UTS/uh/rest/bildirim/alma/ekle', $body)['SNC'] ?? null;
+        return $this->notificationCode('/UTS/uh/rest/bildirim/alma/ekle', $body, 'ÜTS Alma bildirimini onaylamadı. Kabul Bekleyenler listesini yenileyip tekrar kontrol edin.');
+    }
+
+    public function reportUsage(UsageReport $report): string
+    {
+        return $this->notificationCode('/UTS/uh/rest/bildirim/kullanim/ekle', $report->toPayload(), 'ÜTS Kullanım bildirimini onaylamadı. Gönderim Geçmişi\'nden tekrar deneyin.');
+    }
+
+    public function cancelUsage(string $notificationId): string
+    {
+        return $this->notificationCode('/UTS/uh/rest/bildirim/kullanim/iptal', ['BID' => $notificationId], 'ÜTS Kullanım iptalini onaylamadı. Biraz sonra tekrar deneyin.');
+    }
+
+    /**
+     * Hareket bildirimlerinin ortak cevabı (3.3): SNC = yeni bildirimin kodu.
+     *
+     * @param  array<string, mixed>  $body
+     */
+    private function notificationCode(string $path, array $body, string $missingCodeMessage): string
+    {
+        $code = $this->post($path, $body)['SNC'] ?? null;
 
         if (! is_string($code) || trim($code) === '') {
-            Log::warning('ÜTS Alma bildirimi kodsuz döndü', ['vbi' => $notificationId]);
+            Log::warning('ÜTS bildirimi kodsuz döndü', ['path' => $path]);
 
-            throw new UtsException('ÜTS Alma bildirimini onaylamadı. Kabul Bekleyenler listesini yenileyip tekrar kontrol edin.');
+            throw new UtsException($missingCodeMessage);
         }
 
         return trim($code);

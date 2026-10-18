@@ -4,7 +4,6 @@ namespace App\Domain\Uts\Services;
 
 use App\Domain\Uts\Contracts\UtsClient;
 use App\Domain\Uts\Exceptions\UtsException;
-use App\Domain\Uts\Models\UtsConnection;
 use App\Domain\Uts\Models\UtsNotification;
 use App\Domain\Uts\Support\PendingReceipt;
 
@@ -15,7 +14,10 @@ use App\Domain\Uts\Support\PendingReceipt;
  */
 class UtsReceiveService
 {
-    public function __construct(private readonly UtsClient $client) {}
+    public function __construct(
+        private readonly UtsClient $client,
+        private readonly UtsWriteGuard $guard,
+    ) {}
 
     /**
      * @param  ?int  $quantity  Lot takipli üründe eksik alım için; boşsa verilen adedin tamamı.
@@ -29,11 +31,7 @@ class UtsReceiveService
         }
 
         $quantity = $this->quantityToSend($receipt, $quantity);
-        $environment = (string) UtsConnection::first()?->environment;
-
-        if ($environment === 'production' && ! config('uts.production_writes')) {
-            throw new UtsException('ÜTS\'ye gerçek ortamda bildirim gönderimi henüz açılmadı. Önce test ortamında denenmeli.');
-        }
+        $environment = $this->guard->environment();
 
         $alreadyReceived = UtsNotification::where('source_notification_id', $receipt->notificationId)
             ->where('status', UtsNotification::STATUS_SENT)

@@ -4,6 +4,7 @@ namespace App\Domain\Patients\Services;
 
 use App\Domain\Patients\Exceptions\PatientException;
 use App\Domain\Patients\Models\Patient;
+use App\Domain\Patients\Models\PatientUsage;
 use App\Domain\Patients\Support\IdentityType;
 use App\Domain\Patients\Support\PatientIdentity;
 
@@ -25,6 +26,19 @@ class PatientService
         $patient->update($this->attributes($data, $patient));
 
         return $patient;
+    }
+
+    /**
+     * Kullanım kaydı olan hasta silinemez: ÜTS bildirimi ve implant geçmişi
+     * ona bağlıdır.
+     */
+    public function delete(Patient $patient): void
+    {
+        if (PatientUsage::where('patient_id', $patient->id)->exists()) {
+            throw new PatientException('Bu hastaya ürün kullanımı kayıtlı; silinemez.', 'patient');
+        }
+
+        $patient->delete();
     }
 
     /**
