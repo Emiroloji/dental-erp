@@ -49,6 +49,10 @@ kapıdan geçer.
   olmayan kategori/tedarikçi adıyla açılır; açılış stoğu soğuk zincir ve seri
   kurallarıyla "Açılış stoğu" gerekçeli stok girişi olarak yazılır. Tasarım:
   `docs/superpowers/specs/2026-10-16-toplu-veri-aktarimi-design.md`.
+- **ÜTS (Aşama 33, 42):** kabul bekleyen Verme bildirimlerini listeleme, lot/seri
+  doğrulama ve Alma bildirimiyle kabul (onay paneli, eksik adet, toplu kabul,
+  gönderim geçmişi). Alma'nın ÜTS'de iptali olmadığından gerçek ortama gönderim
+  `UTS_PRODUCTION_WRITES=true` yapılana kadar kapalıdır. Ayrıntı: `docs/uts.md`.
 - **Tanıtım sitesi:** aynı repo içinde girişsiz sayfalar (`/`, `/neler-yapiyor`,
   `/talep`). Talep formu yalnızca bir `Lead` kaydı oluşturur — otomatik hesap
   veya organizasyon açılmaz; Platform Sahibi "Gelen Talepler" ekranından elle
@@ -102,7 +106,7 @@ Her push ve PR'da GitHub Actions aynı üç adımı çalıştırır
 | Zamanlayıcı, Supervisor ile kuyruk worker'ı, dağıtım adımları | [`docs/production.md`](docs/production.md) |
 | Günlük yedek, sunucu dışı kopya (rclone), geri yükleme prosedürü ve provası | [`docs/yedekleme.md`](docs/yedekleme.md) |
 | Hata takibi (Sentry/log) ve `/health` uç noktası | [`docs/izleme.md`](docs/izleme.md) |
-| ÜTS (Ürün Takip Sistemi) sorgulama: token alma, ekranlar, sorun giderme | [`docs/uts.md`](docs/uts.md) |
+| ÜTS (Ürün Takip Sistemi): token alma, ekranlar, Alma bildirimi, gerçek ortam kilidi | [`docs/uts.md`](docs/uts.md) |
 
 ## Şartname belgeleri
 

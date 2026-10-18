@@ -1,16 +1,34 @@
-# ÜTS (Ürün Takip Sistemi) Sorgulama
+# ÜTS (Ürün Takip Sistemi) Entegrasyonu
 
-ÜTS, T.C. Sağlık Bakanlığı'na bağlı TİTCK'nın işlettiği tıbbi cihaz takip sistemidir. Tedarikçi bir ürünü kliniğe ÜTS'de **Verme bildirimiyle** gönderir; klinik de **Alma bildirimiyle** kabul eder. Bu uygulama şu an yalnızca **okur**: ÜTS'ye hiçbir bildirim göndermez (yazma Aşama B'dir).
+ÜTS, T.C. Sağlık Bakanlığı'na bağlı TİTCK'nın işlettiği tıbbi cihaz takip sistemidir. Tedarikçi bir ürünü kliniğe ÜTS'de **Verme bildirimiyle** gönderir; klinik de **Alma bildirimiyle** kabul eder. Bu uygulama kabul bekleyenleri okur, lot/seri doğrular ve **Alma bildirimi** gönderir (Aşama 42). Kullanım, Tüketiciye Verme, iade ve imha bildirimleri henüz yoktur.
+
+Kaynak: "Takip ve İzleme Web Servis Tanımları Dokümanı" rev. 1.99 (ÜTS 9.8.x), uts.saglik.gov.tr.
 
 ## Ne yapar
 
 | Ekran | Yol | İşlev |
 |---|---|---|
-| Kabul Bekleyenler | `/uts/kabul-bekleyenler` | Tedarikçilerin kurumunuza bildirdiği, henüz kabul edilmemiş ürünler. Her satır ürün kartı (GTIN), lot/seri ve satın alma teslim kaydı (belge no) ile eşleştirilip rozetlenir. Gönderen kurum koduna göre filtrelenir, 10'luk sayfalanır. |
+| Kabul Bekleyenler | `/uts/kabul-bekleyenler` | Tedarikçilerin kurumunuza bildirdiği, henüz kabul edilmemiş ürünler. Her satır ürün kartı (GTIN), lot/seri ve satın alma teslim kaydı (belge no) ile eşleştirilip rozetlenir. Gönderen kurum koduna göre filtrelenir, 10'luk sayfalanır. Stok yazma yetkisi olan, satırları tek tek ya da seçerek **ÜTS'de kabul eder** (aşağıya bakın). |
+| Gönderim Geçmişi | `/uts/gecmis` | Bu uygulamadan gönderilen her Alma bildirimi: kim, ne zaman, hangi ürün/lot/seri, kaç adet, ÜTS bildirim kodu ya da hata mesajı. |
 | Lot/Seri Doğrula | `/uts/dogrula` | Ürün no + lot/seri yazılır ya da kutudaki GS1 DataMatrix okutulur; ÜTS'deki kayıt, SKT dahil kendi kaydınızla karşılaştırılır. |
 | Ayarlar → ÜTS Bağlantısı | `/ayarlar` | Sistem token'ını girme, bağlantıyı deneme, kaldırma (yalnızca Admin). |
 
 Ekranları görme yetkisi Stok modülünü izler ve şube kapsamı geçerlidir.
+
+## Alma bildirimi (kabul)
+
+- Kabul, ÜTS'nin satıra verdiği bildirim koduyla (`VBI`) yapılır; ürün/lot/seri yeniden yazılmaz. Servis: `POST /UTS/uh/rest/bildirim/alma/ekle`.
+- **Geri alınamaz.** ÜTS'de Alma bildiriminin iptali yoktur (belge 3.2). Yanlış kabul edilen ürün ancak gönderene iade (Verme) bildirimiyle geri verilebilir. Bu yüzden her gönderim onay panelinden geçer.
+- Lot takipli ve adedi 1'den fazla satırda eksik adet kabul edilebilir; seri takipli üründe adet gönderilmez.
+- Kabul **stoğa dokunmaz.** Stok girişi satın alma teslim alma ekranından yapılır; "Teslim kaydı var" rozeti eşleşmeyi gösterir.
+- Yetki: Stok yazma (`stock_movement.create`). Salt-okunur organizasyonda kapalıdır.
+- Aynı bildirim ikinci kez gönderilmez. Başarılı ve başarısız her deneme `uts_notifications` tablosuna yazılır (token yazılmaz).
+
+### Gerçek ortam kilidi
+
+Yazma henüz gerçek ÜTS'de denenmedi. Bağlantı **gerçek ortamda** ise gönderim, `UTS_PRODUCTION_WRITES=true` yapılana kadar engellenir ve ekranda "gerçek ortamda bildirim gönderimi henüz açılmadı" yazar. Test ortamı ve okuma ekranları etkilenmez.
+
+Açma sırası: bir klinik test ortamı token'ıyla birkaç satırı kabul eder, sonuç ve gerçek yanıtlar bu belgeye yazılır, ardından sunucuda `UTS_PRODUCTION_WRITES=true`.
 
 ## Token nasıl alınır
 
@@ -37,6 +55,7 @@ Token'ı yalnızca kurumun imza yetkilisi (hastanelerde başhekim/yardımcılar�
 | `UTS_TEST_URL` | `https://utstest.saglik.gov.tr` |
 | `UTS_PRODUCTION_URL` | `https://utsuygulama.saglik.gov.tr` |
 | `UTS_TIMEOUT` | `15` (saniye) |
+| `UTS_PRODUCTION_WRITES` | `false` — gerçek ortama bildirim göndermeyi açar |
 
 ## Sorun giderme
 
@@ -48,6 +67,6 @@ Token'ı yalnızca kurumun imza yetkilisi (hastanelerde başhekim/yardımcılar�
 ## Bilinen sınırlar
 
 - Canlı sorgudur; ÜTS yavaşsa ya da kapalıysa ekran bekler. Yerel eşitleme ve "yeni bekleyen var" bildirimi yoktur.
-- ÜTS yanıt biçimi servis tanım dokümanına (rev. 1.47, ÜTS 7.6.x) göre yazıldı; gerçek test ortamıyla doğrulama sonuçları aşama raporundadır.
+- ÜTS yanıt biçimi servis tanım dokümanına (rev. 1.99, ÜTS 9.8.x) göre yazıldı ve yerel sahte ÜTS sunucusuyla uçtan uca denendi; **gerçek ÜTS test ortamında henüz denenmedi.**
 - Hangi ürünlerin tekil takipli olduğu ve kliniğinizin hangi bildirimlerle yükümlü olduğu mevzuata bağlıdır; uygulama yasal tavsiye vermez.
-- Aşama B (kapsam): Alma bildirimi (kabul), Kullanım ve Tüketiciye Verme bildirimleri. Tüketiciye Verme hasta kimliği isteyebilir; bu, projenin "hasta kaydı tutmama" kararıyla çeliştiğinden ayrıca karara bağlanacaktır.
+- Sonraki adımlar: Kullanım ve Tüketiciye Verme bildirimleri (hasta kimliği isteyebilir; projenin "hasta kaydı tutmama" kararıyla çeliştiğinden ayrıca karara bağlanacak), "Almak istemiyorum" işaretleme, iade/imha bildirimleri.
