@@ -10,6 +10,7 @@ use App\Domain\Organization\Models\Organization;
 use App\Domain\Organization\Models\Warehouse;
 use App\Domain\Platform\Exceptions\PlanChangeException;
 use App\Domain\Platform\Models\PlanChangeRequest;
+use App\Domain\Platform\Notifications\PlanChangeRequested;
 use App\Domain\Platform\Services\PlanChangeService;
 use App\Domain\Platform\Support\Plan;
 use App\Domain\Platform\Support\PlanChangeStatus;
@@ -17,6 +18,7 @@ use App\Models\User;
 use App\Support\Notifications\WorkflowNotification;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Notification;
 use Livewire\Livewire;
 use Tests\TestCase;
 
@@ -238,6 +240,37 @@ class PlanChangeRequestTest extends TestCase
         }
 
         $this->assertSame(0, PlanChangeRequest::withoutGlobalScopes()->count());
+    }
+
+    public function test_a_new_request_is_mailed_to_active_platform_owners(): void
+    {
+        Notification::fake();
+        $passive = User::factory()->create(['organization_id' => null, 'role' => User::ROLE_PLATFORM_OWNER, 'status' => 'passive']);
+
+        $this->requestFromScreen(Plan::Professional, 'Kadıköy şubesini açıyoruz')->assertHasNoErrors();
+        $request = PlanChangeRequest::sole();
+
+        Notification::assertSentTo($this->owner, PlanChangeRequested::class, function (PlanChangeRequested $notification) use ($request) {
+            $mail = $notification->toMail($this->owner);
+
+            return $notification->request->is($request)
+                && $mail->subject === 'Dental ERP — yeni paket talebi: Gülümseme Diş'
+                && in_array('Gülümseme Diş paket değişikliği talep etti: Başlangıç → Profesyonel.', $mail->introLines, true)
+                && in_array('Not: Kadıköy şubesini açıyoruz', $mail->introLines, true)
+                && $mail->actionUrl === route('platform.plan-requests.index');
+        });
+        Notification::assertNotSentTo($passive, PlanChangeRequested::class);
+        Notification::assertNotSentTo($this->admin, PlanChangeRequested::class);
+    }
+
+    public function test_a_mail_failure_does_not_lose_the_request(): void
+    {
+        config(['mail.default' => 'failing']);
+        config(['mail.mailers.failing' => ['transport' => 'smtp', 'host' => '127.0.0.1', 'port' => 1, 'timeout' => 1]]);
+
+        $this->requestFromScreen(Plan::Professional)->assertHasNoErrors()->assertSee('onay bekliyor');
+
+        $this->assertSame(PlanChangeStatus::Pending, PlanChangeRequest::sole()->status);
     }
 
     private function expectPlanChangeError(\Closure $attempt): void

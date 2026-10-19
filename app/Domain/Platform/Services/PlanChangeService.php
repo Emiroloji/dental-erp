@@ -6,12 +6,14 @@ use App\Domain\Access\Services\NotificationRecipients;
 use App\Domain\Organization\Models\Organization;
 use App\Domain\Platform\Exceptions\PlanChangeException;
 use App\Domain\Platform\Models\PlanChangeRequest;
+use App\Domain\Platform\Notifications\PlanChangeRequested;
 use App\Domain\Platform\Support\Plan;
 use App\Domain\Platform\Support\PlanChangeStatus;
 use App\Models\User;
 use App\Support\Notifications\WorkflowNotification;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
+use Throwable;
 
 /**
  * Paket değişikliği: talep → Platform Sahibi manuel onayı (proje.md Bölüm 12,
@@ -36,7 +38,7 @@ class PlanChangeService
             throw new AuthorizationException('Paket değişikliğini yalnızca Ana Klinik Sahibi talep edebilir.');
         }
 
-        return DB::transaction(function () use ($admin, $plan, $note) {
+        $request = DB::transaction(function () use ($admin, $plan, $note) {
             $organization = Organization::whereKey($admin->organization_id)->lockForUpdate()->firstOrFail();
 
             if ($organization->plan === $plan) {
@@ -58,6 +60,10 @@ class PlanChangeService
                 'requested_by' => $admin->id,
             ]);
         });
+
+        $this->notifyPlatformOwners($request);
+
+        return $request;
     }
 
     public function cancel(PlanChangeRequest $request, User $admin): PlanChangeRequest
@@ -139,6 +145,22 @@ class PlanChangeService
             $this->recipients->admins($request->organization_id),
             new WorkflowNotification('plan', $title, $message, route('subscription.show'), $level),
         );
+    }
+
+    /**
+     * Talep kaydedildikten sonra gönderilir; e-posta gitmezse talep yine
+     * geçerlidir (panel sayacında görünür), hata yalnızca raporlanır.
+     */
+    private function notifyPlatformOwners(PlanChangeRequest $request): void
+    {
+        User::where('role', User::ROLE_PLATFORM_OWNER)->where('status', 'active')->get()
+            ->each(function (User $owner) use ($request) {
+                try {
+                    $owner->notify(new PlanChangeRequested($request));
+                } catch (Throwable $e) {
+                    report($e);
+                }
+            });
     }
 
     private function ensurePlatformOwner(User $actor): void
