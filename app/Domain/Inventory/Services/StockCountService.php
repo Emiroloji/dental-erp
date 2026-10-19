@@ -33,6 +33,8 @@ class StockCountService
 {
     private const EPSILON = 0.0001;
 
+    private const LOCKED_MESSAGE = 'Kör sayımda farklar gösterildi; sayılan miktarlar artık değiştirilemez. Yeniden saymak için Yönetici sayımı geri göndermeli.';
+
     public function __construct(
         private readonly StockMovementService $stock,
         private readonly StockCountPermissions $permissions,
@@ -42,8 +44,10 @@ class StockCountService
 
     /**
      * Deponun miktarı sıfırdan büyük tüm lotlarını, o anki sistem miktarıyla satır yapar.
+     *
+     * @param  bool  $blind  Aşama 58 kör sayım: sayan, "Sayımı Bitir"e kadar sistem miktarını görmez.
      */
-    public function start(Warehouse $warehouse, User $actor, ?string $note = null): StockCount
+    public function start(Warehouse $warehouse, User $actor, ?string $note = null, bool $blind = false): StockCount
     {
         if (! $this->permissions->canCount($actor, $warehouse)) {
             throw new AuthorizationException('Bu depoda sayım başlatma yetkiniz yok.');
@@ -61,12 +65,13 @@ class StockCountService
             throw new StockCountException("Bu depoda zaten açık bir sayım var ({$open->number()}); önce onu tamamlayın veya iptal edin.");
         }
 
-        return DB::transaction(function () use ($warehouse, $actor, $note) {
+        return DB::transaction(function () use ($warehouse, $actor, $note, $blind) {
             $count = StockCount::create([
                 'organization_id' => $actor->organization_id,
                 'warehouse_id' => $warehouse->id,
                 'status' => StockCountStatus::Counting,
                 'note' => $note,
+                'blind' => $blind,
                 'started_by' => $actor->id,
             ]);
 
@@ -113,7 +118,7 @@ class StockCountService
         }
 
         return DB::transaction(function () use ($count, $scanned) {
-            $locked = $this->lockForCounting($count);
+            $locked = $this->lockForCounting($count, editsQuantities: true);
             $line = $this->lineFor($locked, $scanned['product'], $scanned['lot'], $scanned['gs1']['lot_no'] ?? null);
             $line = StockCountLine::whereKey($line->id)->lockForUpdate()->firstOrFail();
 
@@ -149,7 +154,7 @@ class StockCountService
         $this->ensureCanCount($actor, $count);
 
         return DB::transaction(function () use ($count, $lineId, $serial) {
-            $locked = $this->lockForCounting($count);
+            $locked = $this->lockForCounting($count, editsQuantities: true);
             $line = $locked->lines()->whereKey($lineId)->lockForUpdate()->first()
                 ?? throw new StockCountException('Girilen satır bu sayıma ait değil.');
 
@@ -165,7 +170,72 @@ class StockCountService
         });
     }
 
-    private function lockForCounting(StockCount $count): StockCount
+    /**
+     * Aşama 58 — rafta bulunan ama sayım listesinde olmayan lotu sayıma ekler
+     * (sayım başlarken stoğu 0 olan ya da depoda hiç kaydı olmayan lot). Satır
+     * lotun o anki miktarıyla açılır; yeni lotta bu 0'dır ve sayılan miktar
+     * onayda düzeltme hareketiyle stoğa girer.
+     */
+    public function addLine(StockCount $count, Product $product, ?string $lotNo, ?string $expiryDate, User $actor): StockCountLine
+    {
+        $this->ensureCanCount($actor, $count);
+
+        if ($product->status !== 'active') {
+            throw new StockCountException("{$product->name} pasif bir ürün; sayıma eklenemez.");
+        }
+
+        $lotNo = trim((string) $lotNo) ?: null;
+
+        return DB::transaction(function () use ($count, $product, $lotNo, $expiryDate) {
+            $locked = $this->lockForCounting($count, editsQuantities: true);
+            $lot = $this->stock->openLotForCount($product, $locked->warehouse, $lotNo, $expiryDate);
+            $lot = StockLot::whereKey($lot->id)->lockForUpdate()->firstOrFail();
+
+            $existing = $locked->lines()->where('stock_lot_id', $lot->id)->first();
+
+            if ($existing) {
+                throw new StockCountException("{$this->lineLabel($existing)} bu sayımda zaten var; miktarı o satıra girin.");
+            }
+
+            return $locked->lines()->create([
+                'stock_lot_id' => $lot->id,
+                'product_id' => $product->id,
+                'system_quantity' => $lot->quantity,
+                'added_during_count' => true,
+            ]);
+        });
+    }
+
+    /**
+     * Aşama 58 — kör sayımda "Sayımı Bitir": her satır sayılmış olmalı; sistem
+     * miktarları ve farklar görünür olur, sayılan miktarlar kilitlenir. Sayan
+     * artık yalnızca fark nedenlerini girip onaya gönderir.
+     */
+    public function reveal(StockCount $count, User $actor): StockCount
+    {
+        $this->ensureCanCount($actor, $count);
+
+        DB::transaction(function () use ($count) {
+            $locked = $this->lockForCounting($count, editsQuantities: true);
+
+            if (! $locked->blind) {
+                throw new StockCountException('Bu sayım kör sayım değil; sistem miktarları zaten görünür.');
+            }
+
+            foreach ($locked->lines()->with('product', 'lot')->get() as $line) {
+                $this->ensureLineCounted($line);
+            }
+
+            $locked->update(['blind_revealed_at' => now()]);
+        });
+
+        return $count->refresh();
+    }
+
+    /**
+     * @param  bool  $editsQuantities  sayılan miktarı/satırları değiştiren işlem; kör sayımda farklar gösterildiyse reddedilir
+     */
+    private function lockForCounting(StockCount $count, bool $editsQuantities = false): StockCount
     {
         $locked = StockCount::whereKey($count->id)->lockForUpdate()->firstOrFail();
 
@@ -173,7 +243,24 @@ class StockCountService
             throw new StockCountException('Yalnızca "Sayılıyor" durumundaki bir sayım düzenlenebilir.');
         }
 
+        if ($editsQuantities && $locked->countsLocked()) {
+            throw new StockCountException(self::LOCKED_MESSAGE);
+        }
+
         return $locked;
+    }
+
+    private function ensureLineCounted(StockCountLine $line): void
+    {
+        $label = $this->lineLabel($line);
+
+        if (! $line->isCounted()) {
+            throw new StockCountException("{$label} henüz sayılmadı.");
+        }
+
+        if ($line->product->tracks_serials && $line->counted_serials === null) {
+            throw new StockCountException("{$label}: seri takipli ürün; bulunan seri numaralarını girin.");
+        }
     }
 
     private function lineFor(StockCount $count, Product $product, ?StockLot $lot, ?string $lotNo): StockCountLine
@@ -191,7 +278,7 @@ class StockCountService
 
         return match ($lines->count()) {
             1 => $lines->first(),
-            0 => throw new StockCountException("{$product->name} bu sayımda yok".(filled($lotNo) ? " ({$lotNo} lotu)" : '').'. Sayım başlarken depoda stoğu olmayan ürünler sayıma girmez.'),
+            0 => throw new StockCountException("{$product->name} bu sayımda yok".(filled($lotNo) ? " ({$lotNo} lotu)" : '').'. Rafta bulduysanız "Listede olmayan lot ekle" ile sayıma ekleyin.'),
             default => throw new StockCountException("{$product->name} ürününün sayımda {$lines->count()} lotu var: lot etiketini okutun ya da miktarı satıra elle girin."),
         };
     }
@@ -206,11 +293,7 @@ class StockCountService
         $this->ensureCanCount($actor, $count);
 
         DB::transaction(function () use ($count, $entries) {
-            $locked = StockCount::whereKey($count->id)->lockForUpdate()->firstOrFail();
-
-            if ($locked->status !== StockCountStatus::Counting) {
-                throw new StockCountException('Yalnızca "Sayılıyor" durumundaki bir sayım düzenlenebilir.');
-            }
+            $locked = $this->lockForCounting($count);
 
             foreach ($entries as $lineId => $entry) {
                 $line = $locked->lines()->whereKey($lineId)->first();
@@ -244,8 +327,22 @@ class StockCountService
                     throw new StockCountException('Sayılan miktar negatif olamaz.');
                 }
 
+                $counted = ($counted === null || $counted === '') ? null : (float) $counted;
+
+                // Kör sayımda farklar gösterildikten sonra yalnızca neden/açıklama değişir.
+                if ($locked->countsLocked()) {
+                    $sameSerials = ! $line->product->tracks_serials || ! array_key_exists('counted_serials', $entry)
+                        || collect($countedSerials ?? [])->sort()->values()->all() === collect($line->counted_serials ?? [])->sort()->values()->all();
+
+                    if (! $sameSerials || ($counted === null) !== ($line->counted_quantity === null) || abs((float) $counted - (float) $line->counted_quantity) > self::EPSILON) {
+                        throw new StockCountException(self::LOCKED_MESSAGE);
+                    }
+
+                    $countedSerials = $line->counted_serials;
+                }
+
                 $line->update([
-                    'counted_quantity' => ($counted === null || $counted === '') ? null : (float) $counted,
+                    'counted_quantity' => $counted,
                     'counted_serials' => $countedSerials,
                     'reason' => ($entry['reason'] ?? null) ?: null,
                     'note' => ($entry['note'] ?? null) ?: null,
@@ -264,16 +361,13 @@ class StockCountService
     public function submit(StockCount $count, User $actor): StockCount
     {
         return $this->transition($count, StockCountStatus::PendingApproval, $actor, effect: function (StockCount $locked) {
+            if ($locked->hidesSystemQuantities()) {
+                throw new StockCountException('Kör sayım: önce "Sayımı Bitir" ile farkları görün, nedenleri girip sonra onaya gönderin.');
+            }
+
             foreach ($locked->lines()->with('product', 'lot')->get() as $line) {
                 $label = $this->lineLabel($line);
-
-                if (! $line->isCounted()) {
-                    throw new StockCountException("{$label} henüz sayılmadı.");
-                }
-
-                if ($line->product->tracks_serials && $line->counted_serials === null) {
-                    throw new StockCountException("{$label}: seri takipli ürün; bulunan seri numaralarını girin.");
-                }
+                $this->ensureLineCounted($line);
 
                 if ($line->hasDifference() && $line->reason === null) {
                     throw new StockCountException("{$label}: fark için bir neden seçin.");
@@ -287,11 +381,14 @@ class StockCountService
     }
 
     /**
-     * Admin sayımı yeniden sayılmak üzere geri gönderir.
+     * Admin sayımı yeniden sayılmak üzere geri gönderir. Kör sayımda sistem
+     * miktarları yeniden gizlenir ve sayılan miktarların kilidi açılır.
      */
     public function sendBack(StockCount $count, User $actor, ?string $note = null): StockCount
     {
-        return $this->transition($count, StockCountStatus::Counting, $actor, $note);
+        return $this->transition($count, StockCountStatus::Counting, $actor, $note, function (StockCount $locked) {
+            $locked->update(['blind_revealed_at' => null]);
+        });
     }
 
     public function cancel(StockCount $count, User $actor, ?string $note = null): StockCount

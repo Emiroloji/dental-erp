@@ -21,11 +21,15 @@ class StockCount extends Model
         'warehouse_id',
         'status',
         'note',
+        'blind',
+        'blind_revealed_at',
         'started_by',
     ];
 
     protected $casts = [
         'status' => StockCountStatus::class,
+        'blind' => 'boolean',
+        'blind_revealed_at' => 'datetime',
     ];
 
     public function warehouse(): BelongsTo
@@ -46,6 +50,24 @@ class StockCount extends Model
     public function events(): HasMany
     {
         return $this->hasMany(StockCountEvent::class);
+    }
+
+    /**
+     * Aşama 58 — kör sayım sürerken sistem miktarı ve farklar gizlidir
+     * (ekranda, dışa aktarımda ve listede).
+     */
+    public function hidesSystemQuantities(): bool
+    {
+        return $this->blind && $this->blind_revealed_at === null && $this->status === StockCountStatus::Counting;
+    }
+
+    /**
+     * Kör sayımda farklar gösterildikten sonra sayılan miktarlar kilitlidir;
+     * yeniden saymak için Admin sayımı geri gönderir.
+     */
+    public function countsLocked(): bool
+    {
+        return $this->blind && $this->blind_revealed_at !== null;
     }
 
     public function number(): string

@@ -46,6 +46,7 @@ class MarketingContentTest extends TestCase
         }
 
         $response->assertSee('ön muhasebe')
+            ->assertSee('Kör sayım')
             ->assertSee('ÜTS')
             ->assertDontSee('Muhasebe programı yerine geçmez');
     }

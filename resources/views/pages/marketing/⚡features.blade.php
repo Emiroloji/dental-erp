@@ -68,6 +68,7 @@ new #[Layout('layouts::marketing')] class extends Component
                     'Sayım bir oturum olarak başlar: depo seçilir, sistem beklenen miktarı gösterir, sayan kişi gerçek miktarı girer. Fark için neden seçilir ve klinik sahibi onaylar.',
                 ], [
                     ['İz bırakan düzeltme', 'Sistemde 100, sayımda 97 ise −3\'lük düzeltme hareketi oluşur; kimin onayladığı ve nedeni geçmişte görünür.'],
+                    ['Kör sayım', 'İsterseniz sayan kişi sistemdeki miktarı görmez; farklar sayım bitince açılır ve sayılan miktarlar kilitlenir. Rafta bulunup listede olmayan lot da sayıma eklenir, onayda stoğa girer.'],
                     ['Tedarikçiye iade', 'Hasarlı, hatalı ya da yanlış gelen ürün; parti, miktar, neden, ilgili sipariş ve alacak dekontuyla izlenir. Talep edildi, onaylandı, kargoya verildi, tedarikçi onayladı, tamamlandı.'],
                     ['Stok ne zaman düşer', 'İade edilen miktar kargoya verildiği anda partiden düşer ve kullanım sayılmaz.'],
                 ], 'count'],

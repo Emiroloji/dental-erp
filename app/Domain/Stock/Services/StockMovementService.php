@@ -326,6 +326,36 @@ class StockMovementService
         });
     }
 
+    /**
+     * Aşama 58 — sayımda rafta bulunan ama depoda kaydı olmayan lot için
+     * miktarı 0 olan lot açar; aynı lot (lot no'suz üründe lot no'suz lot)
+     * zaten varsa onu döner. Stok burada değişmez, bu yüzden hareket yoktur:
+     * miktar sayım onayında adjust() ile girer. Birim maliyet ürünün alış
+     * fiyatıdır (stok değeri raporu sıfır maliyetle eksik görünmesin).
+     */
+    public function openLotForCount(Product $product, Warehouse $warehouse, ?string $lotNo, ?string $expiryDate): StockLot
+    {
+        $this->ensureOperational($warehouse);
+
+        if (blank($lotNo)) {
+            $existing = StockLot::where('product_id', $product->id)
+                ->where('warehouse_id', $warehouse->id)
+                ->whereNull('lot_no')
+                ->orderBy('id')
+                ->first();
+
+            if ($existing) {
+                return $existing;
+            }
+        }
+
+        return $this->resolveOrCreateLot($product, $warehouse, [
+            'lot_no' => filled($lotNo) ? $lotNo : null,
+            'expiry_date' => filled($expiryDate) ? $expiryDate : null,
+            'unit_cost' => (float) ($product->purchase_price ?? 0),
+        ]);
+    }
+
     public function cancel(StockMovement $movement, ?User $actor = null): StockMovement
     {
         $this->ensureOperational($movement->warehouse);

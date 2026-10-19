@@ -22,6 +22,11 @@ kapıdan geçer.
 - **Barkodla sayım (Aşama 40):** Stok Sayımı ekranında okutulan her barkod
   ilgili lot satırını bir artırır; el terminali veya telefon kamerasıyla,
   son okutmayı geri alma ile.
+- **Kör sayım ve bulunan lot (Aşama 58):** sayım başlatılırken "kör sayım"
+  seçilirse sistem miktarı ve farklar "Sayımı Bitir"e kadar gizlidir (ekran,
+  liste, Excel/PDF), sonra sayılan miktarlar kilitlenir. Rafta bulunup
+  listede olmayan lot sayıma eklenir; miktarı onayda düzeltme hareketiyle
+  stoğa girer. Yeni paket talebi Platform Sahibi'ne e-postayla bildirilir.
 - **Uyarılar ve raporlar:** ürün bazlı sarı/kırmızı eşik (miktar veya SKT'ye
   kalan gün), kritik stok / SKT taraması, bildirimler, filtreli raporlar,
   Excel/PDF dışa aktarım, denetim kaydı (audit log). Okunmamış bildirimler her

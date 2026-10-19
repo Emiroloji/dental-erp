@@ -24,6 +24,9 @@ new #[Layout('layouts::authenticated')] class extends Component
 
     public string $note = '';
 
+    /** Aşama 58: kör sayım — sayan, sayım bitene kadar sistem miktarını görmez. */
+    public bool $blind = false;
+
     public function updatingStatusFilter(): void
     {
         $this->resetPage();
@@ -33,7 +36,7 @@ new #[Layout('layouts::authenticated')] class extends Component
     {
         Gate::authorize('stock_movement.create');
 
-        $this->reset(['warehouse_id', 'note']);
+        $this->reset(['warehouse_id', 'note', 'blind']);
         $this->resetValidation();
         $this->showStart = true;
     }
@@ -50,12 +53,13 @@ new #[Layout('layouts::authenticated')] class extends Component
         $validated = $this->validate([
             'warehouse_id' => ['required', Rule::in($this->warehouses()->modelKeys())],
             'note' => ['nullable', 'string', 'max:255'],
+            'blind' => ['boolean'],
         ], [
             'warehouse_id.in' => 'Yalnızca kendi kapsamındaki işleme açık bir depoda sayım başlatabilirsin.',
         ]);
 
         try {
-            $count = $counts->start(Warehouse::findOrFail($validated['warehouse_id']), auth()->user(), $validated['note'] ?: null);
+            $count = $counts->start(Warehouse::findOrFail($validated['warehouse_id']), auth()->user(), $validated['note'] ?: null, $validated['blind']);
         } catch (StockCountException $e) {
             $this->addError('warehouse_id', $e->getMessage());
 
@@ -136,12 +140,16 @@ new #[Layout('layouts::authenticated')] class extends Component
                     <tr wire:key="count-{{ $count->id }}">
                         <td class="px-5 py-3">
                             <a href="{{ route('inventory.show', $count) }}" class="font-mono text-[13px] text-brand-600 hover:underline">{{ $count->number() }}</a>
-                            <div class="text-[12px] text-ink-muted">{{ $count->created_at->format('d.m.Y H:i') }}</div>
+                            <div class="text-[12px] text-ink-muted">{{ $count->created_at->format('d.m.Y H:i') }}@if ($count->blind), kör sayım @endif</div>
                         </td>
                         <td class="px-5 py-3 text-[13px]">{{ $count->warehouse->branch->name }} · {{ $count->warehouse->name }}</td>
                         <td class="px-5 py-3 text-ink-muted">{{ $count->starter?->name ?? '—' }}</td>
                         <td class="px-5 py-3 text-right tabular-nums">{{ $count->counted_lines_count }} / {{ $count->lines_count }}</td>
-                        <td class="px-5 py-3 text-right tabular-nums {{ $count->difference_lines_count > 0 ? 'text-status-warn' : 'text-ink-muted' }}">{{ $count->difference_lines_count }}</td>
+                        @if ($count->hidesSystemQuantities())
+                            <td class="px-5 py-3 text-right text-ink-muted">Gizli</td>
+                        @else
+                            <td class="px-5 py-3 text-right tabular-nums {{ $count->difference_lines_count > 0 ? 'text-status-warn' : 'text-ink-muted' }}">{{ $count->difference_lines_count }}</td>
+                        @endif
                         <td class="px-5 py-3"><span class="inline-flex items-center px-2 py-0.5 rounded text-[12px] {{ $count->status->badgeClasses() }}">{{ $count->status->label() }}</span></td>
                     </tr>
                 @empty
@@ -173,6 +181,13 @@ new #[Layout('layouts::authenticated')] class extends Component
                 <label class="block text-[13px] text-ink-muted mb-1.5">Not</label>
                 <input type="text" wire:model="note" class="w-full border border-line rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
             </div>
+            <label class="flex items-start gap-2.5 cursor-pointer">
+                <input type="checkbox" wire:model="blind" class="mt-0.5 rounded border-line text-brand-500 focus:ring-brand-500/30">
+                <span class="text-[13px]">
+                    <span class="text-ink">Kör sayım</span>
+                    <span class="block text-ink-muted">Sayan kişi sistemdeki miktarı görmez, rafta ne görüyorsa onu girer. Farklar sayım bitince görünür.</span>
+                </span>
+            </label>
             <p class="text-[12px] text-ink-muted">Depodaki tüm lotların şu anki sistem miktarı sayım listesine alınır. Onaya kadar stok değişmez.</p>
             <div class="flex items-center gap-3 pt-2">
                 <button type="submit" class="bg-panel-900 text-white rounded-md px-4 py-2.5 text-[14px] font-medium hover:bg-panel-800 transition-colors">Başlat</button>

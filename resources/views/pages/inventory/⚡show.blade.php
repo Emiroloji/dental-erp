@@ -1,6 +1,7 @@
 <?php
 
 use App\Domain\Access\Support\Module;
+use App\Domain\Catalog\Models\Product;
 use App\Domain\Inventory\Exceptions\StockCountException;
 use App\Domain\Inventory\Models\StockCount;
 use App\Domain\Inventory\Services\StockCountService;
@@ -37,6 +38,15 @@ new #[Layout('layouts::authenticated')] class extends Component
 
     /** @var array{line_id: int, label: string, counted: string, serial: ?string}|null son okutma (geri almak için) */
     public ?array $lastScan = null;
+
+    /** Aşama 58: rafta bulunup listede olmayan lotu sayıma ekleme. */
+    public bool $showAddLine = false;
+
+    public string $addProductId = '';
+
+    public string $addLotNo = '';
+
+    public string $addExpiry = '';
 
     public function mount(int $count): void
     {
@@ -124,6 +134,49 @@ new #[Layout('layouts::authenticated')] class extends Component
 
         $this->loadEntries();
         $this->dispatch('count-scanned');
+    }
+
+    public function addLine(StockCountService $counts): void
+    {
+        $validated = $this->validate([
+            'addProductId' => ['required', 'integer'],
+            'addLotNo' => ['nullable', 'string', 'max:255'],
+            'addExpiry' => ['nullable', 'date'],
+        ], [
+            'addProductId.required' => 'Ürün seçin.',
+        ]);
+
+        if (! $this->persistEntries($counts)) {
+            return;
+        }
+
+        $product = Product::find($validated['addProductId']) ?? abort(404);
+
+        try {
+            $line = $counts->addLine($this->count(), $product, $validated['addLotNo'], $validated['addExpiry'] ?: null, auth()->user());
+        } catch (StockCountException|InactiveLocationException $e) {
+            $this->addError('addProductId', $e->getMessage());
+
+            return;
+        }
+
+        $line->load('lot');
+        $this->reset(['addProductId', 'addLotNo', 'addExpiry', 'showAddLine']);
+        session()->flash('status', "{$product->name} / ".($line->lot->lot_no ?? 'lot no\'suz')." sayıma eklendi; sayılan miktarı satırına girin.");
+        $this->loadEntries();
+    }
+
+    /**
+     * Kör sayımda "Sayımı Bitir": girişler kaydedilir, farklar görünür olur.
+     */
+    public function reveal(StockCountService $counts): void
+    {
+        if (! $this->persistEntries($counts)) {
+            return;
+        }
+
+        $this->attempt(fn () => $counts->reveal($this->count(), auth()->user()), 'Sayım bitti; farklar görünüyor. Farkı olan satırlara neden seçip onaya gönderin.');
+        $this->loadEntries();
     }
 
     public function refreshSystem(StockCountService $counts): void
@@ -243,12 +296,19 @@ new #[Layout('layouts::authenticated')] class extends Component
     {
         $count = $this->count()->load(['events.actor', 'starter']);
         $allLines = $count->lines()->get();
+        $canCount = $count->status === StockCountStatus::Counting && $permissions->canCount(auth()->user(), $count->warehouse);
 
         return [
             'count' => $count,
             'lines' => $this->pageLines(),
             'reasons' => CountDifferenceReason::cases(),
-            'canCount' => $count->status === StockCountStatus::Counting && $permissions->canCount(auth()->user(), $count->warehouse),
+            'canCount' => $canCount,
+            // Kör sayımda farklar gösterildiyse sayılan miktar kilitli; yalnızca neden/açıklama girilir.
+            'canEditQuantities' => $canCount && ! $count->countsLocked(),
+            'hidden' => $count->hidesSystemQuantities(),
+            'products' => $canCount && ! $count->countsLocked() && $this->showAddLine
+                ? Product::where('status', 'active')->orderBy('name')->get(['id', 'name', 'code'])
+                : collect(),
             'canApprove' => $count->status === StockCountStatus::PendingApproval && $permissions->canApprove(auth()->user()),
             'canCancel' => $count->status->canTransitionTo(StockCountStatus::Cancelled) && $permissions->canCount(auth()->user(), $count->warehouse),
             'summary' => [
@@ -331,11 +391,26 @@ new #[Layout('layouts::authenticated')] class extends Component
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-px bg-line rounded-lg overflow-hidden border border-line mb-6">
         <div class="bg-surface px-5 py-4"><p class="text-[12px] text-ink-muted">Satır</p><p class="text-[20px] font-medium tabular-nums">{{ $summary['total'] }}</p></div>
         <div class="bg-surface px-5 py-4"><p class="text-[12px] text-ink-muted">Sayılan</p><p class="text-[20px] font-medium tabular-nums">{{ $summary['counted'] }}</p></div>
-        <div class="bg-surface px-5 py-4"><p class="text-[12px] text-ink-muted">Farklı Satır</p><p class="text-[20px] font-medium tabular-nums {{ $summary['differences'] ? 'text-status-warn' : '' }}">{{ $summary['differences'] }}</p></div>
-        <div class="bg-surface px-5 py-4"><p class="text-[12px] text-ink-muted">Net Fark</p><p class="text-[20px] font-medium tabular-nums {{ $summary['net'] < 0 ? 'text-status-critical' : ($summary['net'] > 0 ? 'text-status-good' : '') }}">{{ $summary['net'] > 0 ? '+' : '' }}{{ Number::format($summary['net'], precision: 2) }}</p></div>
+        @if ($hidden)
+            <div class="bg-surface px-5 py-4"><p class="text-[12px] text-ink-muted">Farklı Satır</p><p class="text-[20px] font-medium text-ink-muted">Gizli</p></div>
+            <div class="bg-surface px-5 py-4"><p class="text-[12px] text-ink-muted">Net Fark</p><p class="text-[20px] font-medium text-ink-muted">Gizli</p></div>
+        @else
+            <div class="bg-surface px-5 py-4"><p class="text-[12px] text-ink-muted">Farklı Satır</p><p class="text-[20px] font-medium tabular-nums {{ $summary['differences'] ? 'text-status-warn' : '' }}">{{ $summary['differences'] }}</p></div>
+            <div class="bg-surface px-5 py-4"><p class="text-[12px] text-ink-muted">Net Fark</p><p class="text-[20px] font-medium tabular-nums {{ $summary['net'] < 0 ? 'text-status-critical' : ($summary['net'] > 0 ? 'text-status-good' : '') }}">{{ $summary['net'] > 0 ? '+' : '' }}{{ Number::format($summary['net'], precision: 2) }}</p></div>
+        @endif
     </div>
 
-    @if ($canCount)
+    @if ($hidden)
+        <div class="mb-6 rounded-md border border-line bg-surface px-4 py-3 text-[13px] text-ink-muted">
+            <span class="font-medium text-ink">Kör sayım.</span> Sistemdeki miktarlar sayım bitene kadar gizli; rafta ne görüyorsanız onu girin. Bütün satırları sayınca <span class="text-ink">Sayımı Bitir</span>'e basın, farklar o zaman görünür ve sayılan miktarlar kilitlenir.
+        </div>
+    @elseif ($count->countsLocked() && $canCount)
+        <div class="mb-6 rounded-md border border-line bg-surface px-4 py-3 text-[13px] text-ink-muted">
+            <span class="font-medium text-ink">Kör sayım bitti.</span> Sayılan miktarlar kilitli; farkı olan satırlara neden seçip onaya gönderin. Yeniden saymak gerekirse Yönetici sayımı geri gönderir.
+        </div>
+    @endif
+
+    @if ($canEditQuantities)
         <section x-data="countScan" x-on:count-scanned.window="focusInput()" class="mb-6 border border-line rounded-lg bg-surface p-4">
             <h2 class="text-[14px] font-medium text-ink">Barkod okutarak say</h2>
             <p class="text-[13px] text-ink-muted mt-0.5">Her okutma ilgili satırın sayılan miktarını 1 artırır. Ürünün birden çok lotu varsa lot etiketini okutun.</p>
@@ -363,6 +438,42 @@ new #[Layout('layouts::authenticated')] class extends Component
                 </div>
             @endif
         </section>
+
+        <section class="mb-6 border border-line rounded-lg bg-surface">
+            @if (! $showAddLine)
+                <button type="button" wire:click="$set('showAddLine', true)" class="w-full text-left px-4 py-3 text-[14px] text-brand-600 hover:bg-canvas rounded-lg">Listede olmayan lot ekle</button>
+            @else
+                <form wire:submit="addLine" class="p-4">
+                    <h2 class="text-[14px] font-medium text-ink">Listede olmayan lot ekle</h2>
+                    <p class="text-[13px] text-ink-muted mt-0.5">Rafta bulduğunuz ama sayım listesinde olmayan lot. Sayılan miktar onayda stoğa girer.</p>
+                    <div class="mt-3 grid gap-3 sm:grid-cols-[1fr_10rem_10rem]">
+                        <label class="block">
+                            <span class="block text-[12px] text-ink-muted mb-1">Ürün</span>
+                            <select wire:model="addProductId" class="w-full border border-line rounded-md px-3 py-2 text-[14px] bg-surface">
+                                <option value="">Ürün seçin</option>
+                                @foreach ($products as $product)
+                                    <option value="{{ $product->id }}">{{ $product->name }}@if ($product->code) ({{ $product->code }})@endif</option>
+                                @endforeach
+                            </select>
+                        </label>
+                        <label class="block">
+                            <span class="block text-[12px] text-ink-muted mb-1">Lot no</span>
+                            <input type="text" wire:model="addLotNo" class="w-full border border-line rounded-md px-3 py-2 text-[14px] font-mono">
+                        </label>
+                        <label class="block">
+                            <span class="block text-[12px] text-ink-muted mb-1">SKT</span>
+                            <input type="date" wire:model="addExpiry" class="w-full border border-line rounded-md px-3 py-2 text-[14px]">
+                        </label>
+                    </div>
+                    @error('addProductId') <p class="mt-2 text-status-critical text-[13px]">{{ $message }}</p> @enderror
+                    @error('addExpiry') <p class="mt-2 text-status-critical text-[13px]">{{ $message }}</p> @enderror
+                    <div class="mt-3 flex items-center gap-3">
+                        <button type="submit" class="bg-panel-900 text-white rounded-md px-4 py-2 text-[14px] font-medium hover:bg-panel-800 transition-colors">Sayıma Ekle</button>
+                        <button type="button" wire:click="$set('showAddLine', false)" class="text-[14px] text-ink-muted hover:text-ink">Vazgeç</button>
+                    </div>
+                </form>
+            @endif
+        </section>
     @endif
 
     <section class="border border-line rounded-lg bg-surface overflow-x-auto">
@@ -371,11 +482,15 @@ new #[Layout('layouts::authenticated')] class extends Component
                 <tr class="text-left text-ink-muted text-[12px] border-b border-line">
                     <th class="px-4 py-3 font-medium">Ürün</th>
                     <th class="px-4 py-3 font-medium">Lot / SKT</th>
-                    <th class="px-4 py-3 font-medium text-right">Sistem</th>
+                    @unless ($hidden)
+                        <th class="px-4 py-3 font-medium text-right">Sistem</th>
+                    @endunless
                     <th class="px-4 py-3 font-medium w-28">Sayılan</th>
-                    <th class="px-4 py-3 font-medium text-right">Fark</th>
-                    <th class="px-4 py-3 font-medium">Neden</th>
-                    <th class="px-4 py-3 font-medium">Açıklama</th>
+                    @unless ($hidden)
+                        <th class="px-4 py-3 font-medium text-right">Fark</th>
+                        <th class="px-4 py-3 font-medium">Neden</th>
+                        <th class="px-4 py-3 font-medium">Açıklama</th>
+                    @endunless
                 </tr>
             </thead>
             <tbody class="divide-y divide-line">
@@ -386,14 +501,21 @@ new #[Layout('layouts::authenticated')] class extends Component
                         $difference = ($counted === '' || $counted === null) ? null : (float) $counted - (float) $line->system_quantity;
                     @endphp
                     <tr wire:key="line-{{ $line->id }}" class="align-top">
-                        <td class="px-4 py-2.5">{{ $line->product->name }}</td>
+                        <td class="px-4 py-2.5">
+                            {{ $line->product->name }}
+                            @if ($line->added_during_count)
+                                <div class="text-[12px] text-ink-muted">Sayımda eklendi</div>
+                            @endif
+                        </td>
                         <td class="px-4 py-2.5 text-[13px]">
                             <span class="font-mono">{{ $line->lot->lot_no ?? '—' }}</span>
                             <div class="text-[12px] text-ink-muted">{{ $line->lot->expiry_date?->format('d.m.Y') ?? '—' }}</div>
                         </td>
-                        <td class="px-4 py-2.5 text-right tabular-nums text-ink-muted">{{ Number::format((float) $line->system_quantity, precision: 2) }}</td>
+                        @unless ($hidden)
+                            <td class="px-4 py-2.5 text-right tabular-nums text-ink-muted">{{ Number::format((float) $line->system_quantity, precision: 2) }}</td>
+                        @endunless
                         <td class="px-4 py-2.5">
-                            @if ($canCount && $line->product->tracks_serials)
+                            @if ($canEditQuantities && $line->product->tracks_serials)
                                 @php
                                     try {
                                         $serialCount = count(\App\Domain\Stock\Services\SerialRegistry::parseList($entry['counted_serials'] ?? ''));
@@ -405,13 +527,14 @@ new #[Layout('layouts::authenticated')] class extends Component
                                 @endphp
                                 <textarea wire:model.live.debounce.400ms="entries.{{ $line->id }}.counted_serials" rows="2" placeholder="Bulunan seriler" class="w-40 border border-line rounded-md px-2 py-1.5 text-[12px] font-mono"></textarea>
                                 <div class="text-[12px] text-ink-muted">{{ $serialCount === null ? 'Tekrar eden seri' : "{$serialCount} seri" }}</div>
-                            @elseif ($canCount)
+                            @elseif ($canEditQuantities)
                                 <input type="number" step="0.01" min="0" wire:model.live.debounce.400ms="entries.{{ $line->id }}.counted_quantity" class="w-full border border-line rounded-md px-2 py-1.5 tabular-nums">
                                 @error("entries.{$line->id}.counted_quantity") <span class="text-status-critical text-[12px]">{{ $message }}</span> @enderror
                             @else
                                 <span class="tabular-nums">{{ $line->counted_quantity === null ? '—' : Number::format((float) $line->counted_quantity, precision: 2) }}</span>
                             @endif
                         </td>
+                        @unless ($hidden)
                         <td class="px-4 py-2.5 text-right tabular-nums {{ $difference === null ? 'text-ink-muted' : ($difference < 0 ? 'text-status-critical' : ($difference > 0 ? 'text-status-good' : 'text-ink-muted')) }}">
                             {{ $difference === null ? '—' : ($difference > 0 ? '+' : '').Number::format($difference, precision: 2) }}
                         </td>
@@ -434,6 +557,7 @@ new #[Layout('layouts::authenticated')] class extends Component
                                 <span class="text-[13px] text-ink-muted">{{ $line->note ?? '—' }}</span>
                             @endif
                         </td>
+                        @endunless
                     </tr>
                 @endforeach
             </tbody>
@@ -447,7 +571,11 @@ new #[Layout('layouts::authenticated')] class extends Component
     @if ($canCount || $canApprove || $canCancel)
         <div class="mt-6 flex flex-wrap items-center gap-3">
             @if ($canCount)
-                <button wire:click="submit" wire:confirm="Sayım onaya gönderilsin mi? Gönderdikten sonra girişler değiştirilemez." class="bg-panel-900 text-white rounded-md px-4 py-2.5 text-[14px] font-medium hover:bg-panel-800 transition-colors">Onaya Gönder</button>
+                @if ($hidden)
+                    <button wire:click="reveal" wire:confirm="Sayım bitirilsin mi? Farklar görünecek ve sayılan miktarlar kilitlenecek; yeniden saymak için Yönetici'nin geri göndermesi gerekir." class="bg-panel-900 text-white rounded-md px-4 py-2.5 text-[14px] font-medium hover:bg-panel-800 transition-colors">Sayımı Bitir</button>
+                @else
+                    <button wire:click="submit" wire:confirm="Sayım onaya gönderilsin mi? Gönderdikten sonra girişler değiştirilemez." class="bg-panel-900 text-white rounded-md px-4 py-2.5 text-[14px] font-medium hover:bg-panel-800 transition-colors">Onaya Gönder</button>
+                @endif
                 <button wire:click="save" class="border border-line rounded-md px-4 py-2.5 text-[14px] hover:bg-canvas transition-colors">Kaydet</button>
                 <button wire:click="refreshSystem" wire:confirm="Sistem miktarları depodaki güncel miktarlarla değiştirilecek; sayılan miktarlar korunur. Devam edilsin mi?" class="text-[14px] text-ink-muted hover:text-ink hover:underline">Sistem Miktarlarını Yenile</button>
             @endif

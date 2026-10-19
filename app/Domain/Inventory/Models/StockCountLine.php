@@ -18,6 +18,7 @@ class StockCountLine extends Model
         'stock_lot_id',
         'product_id',
         'system_quantity',
+        'added_during_count',
         'counted_quantity',
         'counted_serials',
         'reason',
@@ -27,6 +28,7 @@ class StockCountLine extends Model
 
     protected $casts = [
         'system_quantity' => 'decimal:2',
+        'added_during_count' => 'boolean',
         'counted_quantity' => 'decimal:2',
         'counted_serials' => 'array',
         'reason' => CountDifferenceReason::class,

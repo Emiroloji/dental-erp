@@ -25,19 +25,22 @@ class StockCountReportService
             ->select('stock_count_lines.*')
             ->get();
 
+        // Aşama 58: kör sayım sürerken dışa aktarım da sistem miktarını ve farkı göstermez (sayım listesi olarak basılabilir).
+        $hidden = $count->hidesSystemQuantities();
+
         return [
             'headings' => ['Ürün', 'Lot', 'SKT', 'Sistem', 'Sayılan', 'Fark', 'Neden', 'Açıklama'],
             'rows' => $lines->map(fn (StockCountLine $line) => [
                 $line->product->name,
                 $line->lot->lot_no,
                 $line->lot->expiry_date?->format('d.m.Y'),
-                (float) $line->system_quantity,
+                $hidden ? null : (float) $line->system_quantity,
                 $line->isCounted() ? (float) $line->counted_quantity : null,
-                $line->difference(),
+                $hidden ? null : $line->difference(),
                 $line->reason?->label(),
                 $line->note,
             ]),
-            'totals' => ['Toplam', '', '', (float) $lines->sum('system_quantity'), (float) $lines->filter->isCounted()->sum('counted_quantity'), (float) $lines->filter->isCounted()->sum(fn (StockCountLine $line) => $line->difference()), '', ''],
+            'totals' => ['Toplam', '', '', $hidden ? '' : (float) $lines->sum('system_quantity'), (float) $lines->filter->isCounted()->sum('counted_quantity'), $hidden ? '' : (float) $lines->filter->isCounted()->sum(fn (StockCountLine $line) => $line->difference()), '', ''],
         ];
     }
 
