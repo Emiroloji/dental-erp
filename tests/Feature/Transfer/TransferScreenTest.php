@@ -219,6 +219,20 @@ class TransferScreenTest extends TestCase
         $this->assertSame(50.0, $this->stockIn($this->kadikoyDepot));
     }
 
+    public function test_the_request_form_warns_when_the_source_has_no_stock(): void
+    {
+        $this->actingAs($this->requester);
+
+        Livewire::test('pages::transfer.index')
+            ->call('openForm')
+            ->set('product_id', (string) $this->product->id)
+            ->set('to_warehouse_id', (string) $this->besiktasDepot->id)
+            ->set('from_warehouse_id', (string) $this->kadikoyDepot->id)
+            ->assertSee('Kaynakta mevcut: 50')->assertDontSee('stok yok')
+            ->set('product_id', (string) Product::create(['name' => 'Yeni Ürün', 'base_unit' => 'Adet', 'status' => 'active'])->id)
+            ->assertSee('Kaynak depoda bu üründen stok yok');
+    }
+
     public function test_reject_and_cancel_record_the_reason(): void
     {
         $rejected = $this->requestAs($this->requester, '5');

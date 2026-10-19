@@ -127,30 +127,30 @@ new #[Layout('layouts::authenticated')] class extends Component
         <table class="w-full text-[14px]">
             <thead>
                 <tr class="text-left text-ink-muted text-[12px] border-b border-line">
-                    <th class="px-5 py-3 font-medium">No</th>
-                    <th class="px-5 py-3 font-medium">Depo</th>
-                    <th class="px-5 py-3 font-medium">Başlatan</th>
-                    <th class="px-5 py-3 font-medium text-right">Sayılan</th>
-                    <th class="px-5 py-3 font-medium text-right">Farklı Satır</th>
-                    <th class="px-5 py-3 font-medium">Durum</th>
+                    <th class="px-3 sm:px-5 py-3 font-medium">No</th>
+                    <th class="px-3 sm:px-5 py-3 font-medium">Depo</th>
+                    <th class="px-3 sm:px-5 py-3 font-medium hidden sm:table-cell">Başlatan</th>
+                    <th class="px-3 sm:px-5 py-3 font-medium text-right">Sayılan</th>
+                    <th class="px-3 sm:px-5 py-3 font-medium text-right">Farklı Satır</th>
+                    <th class="px-3 sm:px-5 py-3 font-medium">Durum</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-line">
                 @forelse ($counts as $count)
                     <tr wire:key="count-{{ $count->id }}">
-                        <td class="px-5 py-3">
+                        <td class="px-3 sm:px-5 py-3">
                             <a href="{{ route('inventory.show', $count) }}" class="font-mono text-[13px] text-brand-600 hover:underline">{{ $count->number() }}</a>
                             <div class="text-[12px] text-ink-muted">{{ $count->created_at->format('d.m.Y H:i') }}@if ($count->blind), kör sayım @endif</div>
                         </td>
-                        <td class="px-5 py-3 text-[13px]">{{ $count->warehouse->branch->name }} · {{ $count->warehouse->name }}</td>
-                        <td class="px-5 py-3 text-ink-muted">{{ $count->starter?->name ?? '—' }}</td>
-                        <td class="px-5 py-3 text-right tabular-nums">{{ $count->counted_lines_count }} / {{ $count->lines_count }}</td>
+                        <td class="px-3 sm:px-5 py-3 text-[13px]">{{ $count->warehouse->branch->name }} · {{ $count->warehouse->name }}</td>
+                        <td class="px-3 sm:px-5 py-3 text-ink-muted hidden sm:table-cell">{{ $count->starter?->name ?? '—' }}</td>
+                        <td class="px-3 sm:px-5 py-3 text-right tabular-nums">{{ $count->counted_lines_count }} / {{ $count->lines_count }}</td>
                         @if ($count->hidesSystemQuantities())
-                            <td class="px-5 py-3 text-right text-ink-muted">Gizli</td>
+                            <td class="px-3 sm:px-5 py-3 text-right text-ink-muted">Gizli</td>
                         @else
-                            <td class="px-5 py-3 text-right tabular-nums {{ $count->difference_lines_count > 0 ? 'text-status-warn' : 'text-ink-muted' }}">{{ $count->difference_lines_count }}</td>
+                            <td class="px-3 sm:px-5 py-3 text-right tabular-nums {{ $count->difference_lines_count > 0 ? 'text-status-warn' : 'text-ink-muted' }}">{{ $count->difference_lines_count }}</td>
                         @endif
-                        <td class="px-5 py-3"><span class="inline-flex items-center px-2 py-0.5 rounded text-[12px] {{ $count->status->badgeClasses() }}">{{ $count->status->label() }}</span></td>
+                        <td class="px-3 sm:px-5 py-3"><span class="inline-flex items-center px-2 py-0.5 rounded text-[12px] {{ $count->status->badgeClasses() }}">{{ $count->status->label() }}</span></td>
                     </tr>
                 @empty
                     <tr>

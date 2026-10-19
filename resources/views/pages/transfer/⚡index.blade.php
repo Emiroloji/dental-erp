@@ -371,7 +371,9 @@ new #[Layout('layouts::authenticated')] class extends Component
                             @endif
                         @endforeach
                     </select>
-                    @if ($sourceAvailable !== null)
+                    @if ($sourceAvailable !== null && $sourceAvailable <= 0)
+                        <span class="text-[12px] text-status-warn block">Kaynak depoda bu üründen stok yok. Talep açılabilir ama stok gelmeden gönderilemez.</span>
+                    @elseif ($sourceAvailable !== null)
                         <span class="text-[12px] text-ink-muted">Kaynakta mevcut: {{ Number::format($sourceAvailable, precision: 2) }}</span>
                     @endif
                     @error('from_warehouse_id') <span class="text-status-critical text-[12px] block">{{ $message }}</span> @enderror

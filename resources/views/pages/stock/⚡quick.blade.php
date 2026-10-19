@@ -68,6 +68,9 @@ new #[Layout('layouts::authenticated')] class extends Component
 
     public string $scanError = '';
 
+    /** @var array<int, array{id: int, name: string, code: ?string}> adla aramada birden fazla ürün çıkınca seçim listesi */
+    public array $candidates = [];
+
     /** @var array<int, array{time: string, mode: string, text: string}> bu oturumdaki son işlemler */
     #[Session]
     public array $recent = [];
@@ -94,20 +97,64 @@ new #[Layout('layouts::authenticated')] class extends Component
         $this->scanError = '';
         $code = $this->scanCode;
         $this->scanCode = '';
+        $this->candidates = [];
 
         try {
             $result = $resolver->resolve($code, $this->branchIds());
         } catch (ScanException $e) {
-            $this->scanError = $e->getMessage();
             $this->clearProduct();
+
+            // Barkod/kod tutmadıysa ürün adıyla aranır: tek sonuç seçilir, birkaç sonuç listelenir.
+            $found = $this->searchByName($code);
+
+            if ($found->count() === 1) {
+                $this->applyProduct($found->first());
+            } elseif ($found->isNotEmpty()) {
+                $this->candidates = $found->map(fn (Product $product) => ['id' => $product->id, 'name' => $product->name, 'code' => $product->code])->all();
+            } else {
+                $this->scanError = $e->getMessage();
+            }
 
             return;
         }
 
-        $product = $result['product'];
-        $lot = $result['lot'];
-        $gs1 = $result['gs1'] ?? null;
+        $this->applyProduct($result['product'], $result['lot'], $result['gs1'] ?? null);
+    }
 
+    public function pickProduct(int $productId): void
+    {
+        $product = Product::where('status', 'active')->find($productId);
+        $this->candidates = [];
+
+        if ($product) {
+            $this->scanError = '';
+            $this->applyProduct($product);
+        }
+    }
+
+    /**
+     * @return \Illuminate\Support\Collection<int, Product>
+     */
+    private function searchByName(string $text)
+    {
+        $text = trim($text);
+
+        if (mb_strlen($text) < 2 || str_starts_with($text, 'DERP:')) {
+            return collect();
+        }
+
+        return Product::where('status', 'active')
+            ->where(fn ($query) => $query->whereLike('name', "%{$text}%")->orWhereLike('code', "%{$text}%"))
+            ->orderBy('name')
+            ->limit(8)
+            ->get();
+    }
+
+    /**
+     * @param  array{gtin: string, lot_no: ?string, expiry_date: ?string, serial: ?string}|null  $gs1
+     */
+    private function applyProduct(Product $product, ?StockLot $lot = null, ?array $gs1 = null): void
+    {
         // Aynı seri takipli ürünün bir sonraki birimi okutuldu: form sıfırlanmaz,
         // seri listeye eklenir (art arda okutma).
         if ($product->tracks_serials && $this->productId === $product->id && filled($gs1['serial'] ?? null)) {
@@ -286,7 +333,7 @@ new #[Layout('layouts::authenticated')] class extends Component
 
     public function clearProduct(): void
     {
-        $this->reset(['productId', 'lot_id', 'unit', 'quantity', 'lot_no', 'expiry_date', 'unit_cost', 'temperature', 'temperature_note', 'note', 'serialsText']);
+        $this->reset(['productId', 'lot_id', 'unit', 'quantity', 'lot_no', 'expiry_date', 'unit_cost', 'temperature', 'temperature_note', 'note', 'serialsText', 'candidates']);
         $this->resetValidation();
     }
 
@@ -335,7 +382,7 @@ new #[Layout('layouts::authenticated')] class extends Component
 <div x-data="quickScan" x-on:scan-ready.window="focusInput()">
     <div class="mb-6">
         <h1 class="text-[22px] font-medium tracking-tight text-ink">Hızlı İşlem</h1>
-        <p class="text-[14px] text-ink-muted mt-1">Barkodu okuyucuyla veya telefon kamerasıyla okutun; miktarı girip tek dokunuşla stoğa işleyin.</p>
+        <p class="text-[14px] text-ink-muted mt-1">Barkodu okuyucuyla veya telefon kamerasıyla okutun ya da ürün adını yazın; miktarı girip tek dokunuşla stoğa işleyin.</p>
     </div>
 
     @if (session('status'))
@@ -362,7 +409,7 @@ new #[Layout('layouts::authenticated')] class extends Component
     </div>
 
     <form wire:submit="scan" class="mb-2 flex gap-2">
-        <input x-ref="scanInput" type="text" wire:model="scanCode" autofocus autocomplete="off" inputmode="text" placeholder="Barkodu okutun veya yazın"
+        <input x-ref="scanInput" type="text" wire:model="scanCode" autofocus autocomplete="off" inputmode="text" placeholder="Barkodu okutun ya da ürün adını yazın"
             class="flex-1 border border-line rounded-md px-3 py-3 text-[15px] font-mono bg-surface focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500">
         <button type="submit" class="border border-line rounded-md px-4 text-[14px] bg-surface hover:bg-canvas">Bul</button>
         <button type="button" x-on:click="openCamera()" class="bg-panel-900 text-white rounded-md px-4 text-[14px] font-medium" title="Kamerayla okut">
@@ -371,6 +418,22 @@ new #[Layout('layouts::authenticated')] class extends Component
     </form>
     @if ($scanError)
         <p class="mb-4 text-status-critical text-[13px]">{{ $scanError }}</p>
+    @endif
+
+    @if ($candidates)
+        <div class="mb-4 border border-line rounded-lg bg-surface">
+            <p class="px-4 pt-3 pb-2 text-[13px] text-ink-muted">Birden fazla ürün bulundu, birini seçin:</p>
+            <ul class="divide-y divide-line">
+                @foreach ($candidates as $candidate)
+                    <li>
+                        <button type="button" wire:click="pickProduct({{ $candidate['id'] }})" class="w-full text-left px-4 py-3 text-[15px] hover:bg-canvas">
+                            {{ $candidate['name'] }}
+                            @if ($candidate['code']) <span class="text-[13px] text-ink-muted">{{ $candidate['code'] }}</span> @endif
+                        </button>
+                    </li>
+                @endforeach
+            </ul>
+        </div>
     @endif
 
     <div x-show="cameraOpen" x-cloak class="mb-4 rounded-lg overflow-hidden border border-line bg-black relative">

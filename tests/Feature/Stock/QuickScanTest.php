@@ -155,6 +155,31 @@ class QuickScanTest extends TestCase
         $screen->set('scanCode', '8690000000011')->call('scan')->set('unit', 'Palet')->call('submit')->assertHasErrors('unit');
     }
 
+    public function test_typing_a_product_name_finds_it_without_a_barcode(): void
+    {
+        $screen = $this->screen()->set('mode', 'in');
+
+        // Tek eşleşme doğrudan seçilir (büyük/küçük harf fark etmez).
+        $screen->set('scanCode', 'kompozit')->call('scan')
+            ->assertSet('productId', $this->composite->id)->assertSet('candidates', [])->assertSet('scanError', '');
+
+        // Birden fazla eşleşmede seçim listesi çıkar, ürün seçilmez.
+        $second = Product::create(['name' => 'Kompozit B', 'code' => 'KMP-B', 'base_unit' => 'Adet', 'status' => 'active']);
+        Product::create(['name' => 'Kompozit Eski', 'base_unit' => 'Adet', 'status' => 'passive']);
+        $screen->set('scanCode', 'Kompozit')->call('scan')
+            ->assertSet('productId', null)
+            ->assertSee('Birden fazla ürün bulundu')->assertSee('Kompozit B')->assertDontSee('Kompozit Eski')
+            ->call('pickProduct', $second->id)
+            ->assertSet('productId', $second->id)->assertSet('candidates', [])
+            ->set('quantity', '2')->set('lot_no', 'L-9')->call('submit')->assertHasNoErrors();
+
+        $this->assertSame(2.0, (float) StockLot::where('product_id', $second->id)->sole()->quantity);
+
+        // Hiçbir şey tutmazsa barkod hatası kalır; tek harfle arama yapılmaz.
+        $screen->set('scanCode', 'Yok Böyle Ürün')->call('scan')->assertSet('productId', null)->assertSee('kayıtlı aktif bir ürün yok');
+        $screen->set('scanCode', 'K')->call('scan')->assertSet('productId', null)->assertSet('candidates', []);
+    }
+
     public function test_other_organizations_and_out_of_scope_lots_cannot_be_scanned(): void
     {
         $other = Organization::create(['name' => 'Rakip', 'status' => 'active', 'plan' => 'starter']);

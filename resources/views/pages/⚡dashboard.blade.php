@@ -30,19 +30,19 @@ new #[Layout('layouts::authenticated')] class extends Component
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-px bg-line rounded-lg overflow-hidden border border-line">
         <div class="bg-surface px-5 py-5">
             <p class="text-[13px] text-ink-muted">Aktif Ürün</p>
-            <p class="text-[26px] font-medium tabular-nums mt-1">{{ $summary['productCount'] }}</p>
+            <p class="text-[22px] sm:text-[26px] font-medium tabular-nums mt-1">{{ $summary['productCount'] }}</p>
         </div>
         <div class="bg-surface px-5 py-5">
             <p class="text-[13px] text-ink-muted">Toplam Stok Miktarı</p>
-            <p class="text-[26px] font-medium tabular-nums mt-1">{{ Number::format($summary['totalStockQuantity'], precision: 0) }}</p>
+            <p class="text-[22px] sm:text-[26px] font-medium tabular-nums mt-1">{{ Number::format($summary['totalStockQuantity'], precision: 0) }}</p>
         </div>
         <div class="bg-surface px-5 py-5">
             <p class="text-[13px] text-ink-muted">Toplam Stok Değeri</p>
-            <p class="text-[26px] font-medium tabular-nums mt-1">{{ Number::format($summary['totalStockValue'], precision: 2) }} ₺</p>
+            <p class="text-[22px] sm:text-[26px] font-medium tabular-nums mt-1 whitespace-nowrap">{{ Number::format($summary['totalStockValue'], precision: 2) }}<span class="text-[0.7em]">&nbsp;₺</span></p>
         </div>
         <div class="bg-surface px-5 py-5">
             <p class="text-[13px] text-ink-muted">Personel</p>
-            <p class="text-[26px] font-medium tabular-nums mt-1">{{ $summary['staffCount'] }}</p>
+            <p class="text-[22px] sm:text-[26px] font-medium tabular-nums mt-1">{{ $summary['staffCount'] }}</p>
         </div>
     </div>
 

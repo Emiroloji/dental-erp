@@ -242,4 +242,19 @@ class ProductManagementTest extends TestCase
         $this->assertFalse($product->hasCustomAlertRule());
         $this->assertStringContainsString('Varsayılan eşik', $product->alertRuleLabel());
     }
+
+    public function test_pagination_is_labelled_in_turkish(): void
+    {
+        $organization = Organization::create(['name' => 'Klinik', 'status' => 'active', 'plan' => 'starter']);
+        $admin = User::factory()->create(['organization_id' => $organization->id, 'role' => User::ROLE_ADMIN, 'status' => 'active']);
+        foreach (range(1, 18) as $i) {
+            Product::create(['organization_id' => $organization->id, 'name' => "Ürün {$i}", 'base_unit' => 'Adet', 'status' => 'active']);
+        }
+
+        $this->actingAs($admin);
+
+        Livewire::test('pages::catalog.products')
+            ->assertSeeHtml('aria-label="Sayfalar"')->assertSeeHtml('aria-label="2. sayfaya git"')->assertSeeHtml('aria-label="Sonraki sayfa"')
+            ->assertDontSeeHtml('Pagination Navigation')->assertDontSeeHtml('Go to page');
+    }
 }
